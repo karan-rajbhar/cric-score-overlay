@@ -190,6 +190,8 @@ class FakeServer {
   hold = false;
   private waiting: Array<() => void> = [];
   private n = 0;
+  /** Ids of the actions applied: a resent one is a duplicate, as on the server. */
+  private applied = new Set<string>();
 
   release() {
     const w = this.waiting;
@@ -291,12 +293,19 @@ class FakeServer {
         const results = [];
         const deltas: Array<ScoringDelta | null> = [];
         for (const action of batch.actions) {
+          if (this.applied.has(action.id)) {
+            // Like the real route: a duplicate's documents are unknown.
+            results.push({ id: action.id, status: "duplicate" });
+            deltas.push(null);
+            continue;
+          }
           const error = this.fail(action);
           if (error) {
             results.push({ id: action.id, status: "failed", code: "action_failed", error });
             break;
           }
           deltas.push(this.apply(action));
+          this.applied.add(action.id);
           results.push({ id: action.id, status: "applied" });
         }
         const last = deltas.at(-1);
@@ -880,6 +889,210 @@ describe("useScoring: instant scoring", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("offline, ends the innings a ball closed on the device and scores the next one", async () => {
+    // A one-over match: the sixth ball ends the innings.
+    MATCH.overs_per_innings = 1;
+    try {
+      const { result } = await open();
+      vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+      act(() => {
+        window.dispatchEvent(new Event("offline"));
+      });
+      for (let i = 0; i < 6; i += 1) {
+        await act(async () => {
+          await result.current.handleScore("b1", "p1", "p2", { runsScored: 2 });
+        });
+      }
+      expect(currentInnings(result.current.match)).toMatchObject({
+        total_runs: 12,
+        total_balls: 6,
+      });
+      // The server that would open the next innings cannot be reached:
+      // nothing waits for it, and End innings can run.
+      expect(result.current.awaitingServer).toBe(false);
+      expect(result.current.isProcessing).toBe(false);
+
+      await act(async () => {
+        await result.current.handleEndInnings();
+      });
+      expect(result.current.match?.current_innings).toBe(2);
+      expect(getPendingActions(M).at(-1)).toMatchObject({
+        type: "endInnings",
+        payload: { inningsNumber: 1 },
+      });
+      expect(result.current.isProcessing).toBe(false);
+
+      await act(async () => {
+        await result.current.handleConfirmBatsmen("b1", "b2");
+      });
+      await act(async () => {
+        await result.current.handleConfirmBowler("p3");
+      });
+      await act(async () => {
+        await result.current.handleScore("p3", "b1", "b2", { runsScored: 4 });
+      });
+      const second = result.current.match?.innings?.find(
+        (i) => i.innings_number === 2,
+      );
+      expect(second).toMatchObject({ total_runs: 4, total_balls: 1 });
+      expect(getPendingActions(M).map((a) => a.type).slice(-4)).toEqual([
+        "endInnings",
+        "setBatsmen",
+        "setBowler",
+        "recordBall",
+      ]);
+      expect(server.batches).toHaveLength(0);
+    } finally {
+      MATCH.overs_per_innings = 20;
+    }
+  });
+
+  it("undoes a ball sent with no reply on the server too, not just on the device", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const { result } = await open();
+      const fetchOk = vi.mocked(fetch).getMockImplementation()!;
+      // The server records the ball, but its reply never reaches the phone.
+      vi.mocked(fetch).mockImplementationOnce(async (url, init) => {
+        await fetchOk(url as never, init as never);
+        throw new TypeError("Failed to fetch");
+      });
+      await act(async () => {
+        await result.current.handleScore("b1", "p1", "p2", { runsScored: 4 });
+      });
+      await waitFor(() => expect(result.current.syncStuck).toBe(true));
+      expect(server.innings.total_runs).toBe(4);
+
+      // Taken back before the retry: shown at once, and the ball stays
+      // queued (the server may have it) with the undo behind it.
+      await act(async () => {
+        await result.current.handleUndo();
+      });
+      expect(currentInnings(result.current.match)?.total_runs).toBe(0);
+      await waitFor(() => expect(getPendingActions(M)).toHaveLength(0));
+      expect(server.batches.at(-1)!.actions).toMatchObject([
+        { type: "recordBall", resent: true },
+        { type: "undoLastBall" },
+      ]);
+      expect(server.innings.total_runs).toBe(0);
+
+      // The next ball builds on that: no four comes back.
+      await act(async () => {
+        await result.current.handleScore("b1", "p1", "p2", { runsScored: 1 });
+      });
+      await waitFor(() => expect(getPendingActions(M)).toHaveLength(0));
+      expect(server.innings.total_runs).toBe(1);
+      expect(currentInnings(result.current.match)?.total_runs).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("offline, undoes a ball scored after an action it could not predict, once", async () => {
+    const { result } = await open();
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    const ball = async () => {
+      await act(async () => {
+        await result.current.handleScore("b1", "p1", "p2", { runsScored: 2 });
+      });
+    };
+    await ball();
+    await ball();
+    // Penalty runs to the fielding side: queued, not predicted; what
+    // follows is scored in offline mode.
+    await act(async () => {
+      await result.current.handleAwardPenalty({
+        teamId: T2,
+        runs: 5,
+        reason: "Damaging the pitch",
+        type: "penalty",
+      });
+    });
+    await ball();
+    await ball();
+    expect(currentInnings(result.current.match)).toMatchObject({
+      total_runs: 8,
+      total_balls: 4,
+    });
+
+    await act(async () => {
+      await result.current.handleUndo();
+    });
+    expect(currentInnings(result.current.match)).toMatchObject({
+      total_runs: 6,
+      total_balls: 3,
+    });
+    expect(result.current.undoBusy).toBe(false);
+    expect(result.current.undoNotice).toMatchObject({ pending: false });
+
+    await ball();
+    expect(currentInnings(result.current.match)).toMatchObject({
+      total_runs: 8,
+      total_balls: 4,
+    });
+  });
+
+  it("retries what a partly answered save left queued", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const { result } = await open();
+      const fetchOk = vi.mocked(fetch).getMockImplementation()!;
+      server.hold = true;
+      await act(async () => {
+        await result.current.handleScore("b1", "p1", "p2", { runsScored: 2 });
+      });
+      // A second ball while the first is on its way.
+      await act(async () => {
+        await result.current.handleScore("b1", "p1", "p2", { runsScored: 2 });
+      });
+      // The first is saved; the request for the second gets no reply.
+      let calls = 0;
+      vi.mocked(fetch).mockImplementation(async (url, init) => {
+        calls += 1;
+        if (calls === 1) throw new TypeError("Failed to fetch");
+        return fetchOk(url as never, init as never);
+      });
+      server.hold = false;
+      await act(async () => {
+        server.release();
+        await vi.advanceTimersByTimeAsync(100);
+      });
+      expect(getPendingActions(M)).toHaveLength(1);
+      expect(server.innings.total_runs).toBe(2);
+      expect(result.current.syncStuck).toBe(true);
+
+      // Sent again by itself, within the first retry delay.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2_500);
+      });
+      await waitFor(() => expect(getPendingActions(M)).toHaveLength(0));
+      expect(server.innings.total_runs).toBe(4);
+      expect(result.current.syncStuck).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("sends what is still queued when the screen opens online", async () => {
+    const first = await open();
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    await act(async () => {
+      await first.result.current.handleScore("b1", "p1", "p2", { runsScored: 4 });
+    });
+    expect(getPendingActions(M)).toHaveLength(1);
+    first.unmount();
+
+    // Reopened later, with signal: no tap needed to send it.
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
+    const { result } = await open();
+    await waitFor(() => expect(getPendingActions(M)).toHaveLength(0));
+    expect(server.batches).toHaveLength(1);
+    expect(server.innings.total_runs).toBe(4);
+    await waitFor(() =>
+      expect(currentInnings(result.current.match)?.total_runs).toBe(4),
+    );
   });
 
   it("waits for the server when it has no documents to predict from", async () => {

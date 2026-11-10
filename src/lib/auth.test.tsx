@@ -143,6 +143,34 @@ describe("signInWithGoogle", () => {
     expect(screen.getByTestId("user").textContent).toBe("u1");
   });
 
+  it("sends one session request when the token listener sees the same sign-in", async () => {
+    let answer: (r: Response) => void = () => undefined;
+    fetchMock.mockImplementation(
+      () => new Promise<Response>((resolve) => (answer = resolve)),
+    );
+    firebaseAuth.signInWithPopup.mockResolvedValue({ user: googleUser });
+    renderProvider();
+    const listener = firebaseAuth.onIdTokenChanged.mock.calls[0]![1] as (
+      u: unknown,
+    ) => Promise<void>;
+
+    let signIn: Promise<unknown> = Promise.resolve();
+    let emitted: Promise<void> = Promise.resolve();
+    await act(async () => {
+      // Firebase announces the new user while the popup's result is handled.
+      signIn = ctx.signInWithGoogle();
+      emitted = listener(googleUser);
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(sessionPosts()).toHaveLength(1);
+    await act(async () => {
+      answer(new Response(null, { status: 200 }));
+      await Promise.all([signIn, emitted]);
+    });
+    expect(sessionPosts()).toHaveLength(1);
+    expect(screen.getByTestId("user").textContent).toBe("u1");
+  });
+
   it("falls back to a redirect when the popup is blocked", async () => {
     firebaseAuth.signInWithPopup.mockRejectedValue({
       code: "auth/popup-blocked",

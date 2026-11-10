@@ -6,6 +6,11 @@
  *
  * - {@link useDocWhenShown}: one read of a document when a card appears;
  *   showing it again reuses that read unless the score moved since.
+ * - {@link useFreshMatch}: the page's match, read again from
+ *   `GET /api/overlay/match/{id}` ({@link loadOverlayData}) when the match
+ *   document changes (`live_state.match_rev`: player of the match, settings,
+ *   toss, result) or a squad does (a `live_state` version that wrote no
+ *   innings and no overs), never per ball.
  * - {@link useStageMatch}: the page's match with every innings' scorecard
  *   from `live_scorecard/{matchId}`, followed (1 read, then 1 per change)
  *   only while a graphic showing scorecards is on air; the cards read
@@ -32,7 +37,10 @@ import {
 import type { PlayerCareerStatsRow, UsersRow } from "~/lib/firebase/types";
 import {
   applyLiveScorecard,
+  LIVE_REFETCH_DELAY_MS,
+  liveChangesBetween,
   useLiveScorecard,
+  type LiveSnapshot,
 } from "~/lib/hooks/useLiveState";
 import type { BallEvent, Innings, Match } from "~/lib/match-types";
 import type { LiveMatchState } from "./types";
@@ -70,10 +78,12 @@ export function useDocWhenShown<T>(
 ): { data: T | null; loaded: boolean } {
   const key = id ? `${table}/${id}` : null;
   const cached = key ? docCache.get(key) : undefined;
-  const [data, setData] = useState<T | null>(
-    (cached?.data as T | undefined) ?? null,
-  );
-  const [loaded, setLoaded] = useState(!!cached);
+  // Kept with the document it is about, so another player's never shows.
+  const [read, setRead] = useState<{
+    key: string | null;
+    data: T | null;
+    loaded: boolean;
+  }>({ key, data: (cached?.data as T | undefined) ?? null, loaded: !!cached });
   const freshnessRef = useRef(freshness);
   // Declared before the read below, so it runs first.
   useEffect(() => {
@@ -84,8 +94,7 @@ export function useDocWhenShown<T>(
     if (!active || !key || !id) return;
     const hit = docCache.get(key);
     if (hit && hit.freshness === freshnessRef.current) {
-      setData(hit.data as T | null);
-      setLoaded(true);
+      setRead({ key, data: hit.data as T | null, loaded: true });
       return;
     }
     let cancelled = false;
@@ -93,21 +102,116 @@ export function useDocWhenShown<T>(
     readDoc<T>(getFirebaseDb(), table, id)
       .then((doc) => {
         docCache.set(key, { freshness: wanted, data: doc });
-        if (!cancelled) {
-          setData(doc);
-          setLoaded(true);
-        }
+        if (!cancelled) setRead({ key, data: doc, loaded: true });
       })
       .catch((err) => {
         console.error(`[overlay] could not read ${key}:`, err);
-        if (!cancelled) setLoaded(true);
+        if (!cancelled) setRead({ key, data: null, loaded: true });
       });
     return () => {
       cancelled = true;
     };
   }, [active, key, id, table]);
 
-  return { data, loaded };
+  if (read.key === key) return { data: read.data, loaded: read.loaded };
+  // Another document than the last read: its cached read, else nothing yet.
+  return cached
+    ? { data: cached.data as T | null, loaded: true }
+    : { data: null, loaded: false };
+}
+
+export interface OverlayData {
+  live: LiveMatchState | null;
+  match: Match | null;
+  /** Server clock when the data was read (ms). */
+  serverNow?: number;
+}
+
+/**
+ * The overlay's data for a match, from the stable `/api/overlay/match/{id}`
+ * route (a page left open in OBS outlives deploys, which would break a
+ * server action). Null when it is gone (404); a failed read (a server
+ * error, no connection) throws, so the caller can try again.
+ */
+export async function loadOverlayData(
+  matchId: string,
+  signal?: AbortSignal,
+): Promise<OverlayData | null> {
+  const res = await fetch(`/api/overlay/match/${encodeURIComponent(matchId)}`, {
+    cache: "no-store",
+    signal,
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`overlay data: ${res.status}`);
+  return (await res.json()) as OverlayData;
+}
+
+/**
+ * Whether the `live_state` versions after `from` up to `to` changed the
+ * match document or a squad, not the score: `match_rev` moved, or every
+ * version wrote no innings and no overs (`notifySquadChanged`'s bump).
+ */
+function matchChanged(
+  matchId: string,
+  from: { version: number; rev: string | null },
+  to: { version: number; rev: string | null },
+): boolean {
+  if (to.version <= from.version) return false;
+  if (from.rev !== null && to.rev !== null && from.rev !== to.rev) return true;
+  const changes = liveChangesBetween(matchId, from.version, to.version);
+  return !!changes && !changes.overs.length && !changes.innings.length;
+}
+
+/**
+ * The page's match, read again when the match document or a squad changes
+ * (see {@link matchChanged}; one read of the route a short while after, so
+ * a burst of changes costs one), never per ball.
+ */
+export function useFreshMatch(
+  matchId: string,
+  initial: Match | null,
+  live: Pick<LiveSnapshot, "version" | "matchRev">,
+): Match | null {
+  const [match, setMatch] = useState(initial);
+  const [from, setFrom] = useState(initial);
+  if (from !== initial) {
+    setFrom(initial);
+    setMatch(initial);
+  }
+  const seen = useRef<{ version: number; rev: string | null } | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const request = useRef<AbortController | null>(null);
+  useEffect(() => {
+    if (live.version === null || !isLiveMatchId(matchId)) return;
+    const before = seen.current;
+    const now = { version: live.version, rev: live.matchRev };
+    seen.current = now;
+    if (!before || !matchChanged(matchId, before, now)) return;
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      timer.current = null;
+      request.current?.abort();
+      const controller = new AbortController();
+      request.current = controller;
+      loadOverlayData(matchId, controller.signal)
+        .then((data) => {
+          if (!controller.signal.aborted && data?.match) setMatch(data.match);
+        })
+        .catch((err: unknown) => {
+          if (!controller.signal.aborted) {
+            console.error("[overlay] could not read the match again:", err);
+          }
+        });
+    }, LIVE_REFETCH_DELAY_MS);
+  }, [matchId, live.version, live.matchRev]);
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+      request.current?.abort();
+    },
+    [],
+  );
+  return match;
 }
 
 /** Suite views and cards that show innings figures (scorecards, charts). */
@@ -145,20 +249,43 @@ export function showsScorecard(
 }
 
 /**
+ * `value`, each change shown `delayMs` later (the first one at once, and
+ * the first after nothing). For a stream whose video runs behind the
+ * scoring (`?delay=`).
+ */
+export function useDelayed<T>(value: T, delayMs: number): T {
+  const [shown, setShown] = useState(value);
+  const none = (v: T) => v === null || v === undefined;
+  if (delayMs > 0 && none(shown) && !none(value)) setShown(value);
+  useEffect(() => {
+    const id = setTimeout(() => setShown(value), Math.max(0, delayMs));
+    return () => {
+      // Each change gets its own timer: none is dropped by the next one.
+      if (delayMs <= 0) clearTimeout(id);
+    };
+  }, [value, delayMs]);
+  return delayMs > 0 ? shown : value;
+}
+
+/**
  * The page's match with the live scorecard applied while a scorecard
  * graphic is on air (the overlay and the control room's preview alike).
+ * With `delayMs` (`?delay=`) each change of the scorecard is held that
+ * long, like the score; the first one read shows at once.
  */
 export function useStageMatch(
   matchId: string,
   match: Match | null,
   onAir: { view: string | null | undefined; card: string | null | undefined },
+  delayMs = 0,
 ): Match | null {
   const scorecard = useLiveScorecard(matchId, {
     enabled: isLiveMatchId(matchId) && showsScorecard(onAir.view, onAir.card),
   });
+  const doc = useDelayed(scorecard.doc, delayMs);
   return useMemo(
-    () => (match ? applyLiveScorecard(match, scorecard.doc) : null),
-    [match, scorecard.doc],
+    () => (match ? applyLiveScorecard(match, doc) : null),
+    [match, doc],
   );
 }
 

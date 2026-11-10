@@ -158,8 +158,14 @@ export function advanceAfterInnings(
   };
 }
 
+/** The match fields {@link inningsLimits} reads. */
+export type LimitsMatch = Pick<
+  MatchesRow,
+  "balls_per_over" | "overs_per_innings" | "wickets_per_innings" | "dls_revision"
+>;
+
 /** Over / wicket limits for an innings (super overs are 1 over, 2 wickets). */
-export function inningsLimits(match: MatchesRow, inningsNumber: number) {
+export function inningsLimits(match: LimitsMatch, inningsNumber: number) {
   const bpo =
     match.balls_per_over && match.balls_per_over > 0 ? match.balls_per_over : 6;
   if (isSuperOverInnings(inningsNumber)) {

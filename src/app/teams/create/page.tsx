@@ -107,6 +107,7 @@ function CreateTeamForm() {
               id="name"
               name="name"
               required
+              maxLength={60}
               placeholder="e.g. Royal Challengers"
               className="mt-2"
             />

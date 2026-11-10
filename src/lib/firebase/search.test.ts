@@ -81,6 +81,37 @@ describe("search keys", () => {
     expect(matchesSearch("n sm", ["John Smith"])).toBe(false);
     expect(matchesSearch("smith jo", ["John Smith"])).toBe(false);
   });
+
+  it("keeps letters of every script, folding only Latin accents", () => {
+    expect(normalizeText("José Núñez")).toBe("jose nunez");
+    expect(normalizeText("Иван Петров")).toBe("иван петров");
+    // Devanagari vowel signs and the virama are part of the word.
+    expect(normalizeText("राहुल शर्मा")).toBe("राहुल शर्मा");
+    expect(normalizeText("محمد علي")).toBe("محمد علي");
+    expect(searchKey("राहु")).toBe("राहु");
+  });
+
+  it("finds a name not written in Latin letters", async () => {
+    const { ds, db } = setup();
+    await db
+      .from("users")
+      .insert([
+        { id: "u-rahul", full_name: "राहुल शर्मा" },
+        { id: "u-ivan", full_name: "Иван Петров" },
+      ]);
+    expect((await ds.getById("users", "u-rahul"))!.name_lower).toBe(
+      "राहुल शर्मा",
+    );
+    for (const [q, id] of [
+      ["राहु", "u-rahul"],
+      ["शर्मा", "u-rahul"],
+      ["иван", "u-ivan"],
+      ["Петр", "u-ivan"],
+    ] as const) {
+      const { data } = await prefixSearch(db, "users", q, "id", 5);
+      expect(data.map((r) => r.id), q).toEqual([id]);
+    }
+  });
 });
 
 describe("prefixSearch", () => {

@@ -458,16 +458,19 @@ export function HundredThisOverStrap(p: OverlayElementProps["thisOver"]) {
 /** The win split as two team blocks sized by their chance. */
 export function SplitBar({
   state,
+  bpo,
   height = HERO_H,
   size = 64,
   width = 720,
 }: {
   state: LiveMatchState;
+  /** Balls per over (`ballsPerOverFrom`). */
+  bpo: number;
   height?: number;
   size?: number;
   width?: number;
 }) {
-  const est = estimateOf(state);
+  const est = estimateOf(state, bpo);
   if (!est || est.kind !== "chase") return null;
   const sides = sidesWithTones(state);
   const min = 0.24;
@@ -511,7 +514,8 @@ export function EstimateStrap({
   testId: string;
 }) {
   const { state } = p;
-  const est = estimateOf(state);
+  const bpo = ballsPerOverFrom(state, p.match);
+  const est = estimateOf(state, bpo);
   if (!est) return null;
   const sides = sidesWithTones(state);
   const anchor = lowerAnchor(p.layout);
@@ -541,7 +545,7 @@ export function EstimateStrap({
         <Label size={22}>Win predictor · estimate</Label>
       </Tab>
       <Slab deep="#000000" cut={fromRight ? "left" : "right"} enter={enter}>
-        <SplitBar state={state} width={MAX_W - 12} />
+        <SplitBar state={state} bpo={bpo} width={MAX_W - 12} />
       </Slab>
     </Root>
   );

@@ -1,9 +1,19 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { FOLLOWS } from "~/lib/follows/store";
+import { BALL_LOGS_COLLECTION } from "./ball-log-archive";
 import { MemoryDataSource, type Doc } from "./datasource";
+import { derivedFieldsDataSource } from "./derived-fields";
+import {
+  decodeLiveScorecard,
+  LIVE_SCORECARD_COLLECTION,
+  type LiveScorecardDoc,
+} from "./live-scorecard";
+import { matchBallLog } from "./match-ball-log";
 import { QueryBuilder } from "./query-builder";
 import { remapUserId } from "./rpc/profiles";
+import { ensureLiveScorecard } from "./scorecard-refresh";
 import {
   rebuildPlayerMatches,
   syncPlayerMatchesAfterWrite,
@@ -90,5 +100,51 @@ describe("remapUserId", () => {
         .map((id) => id.replace(oldId, newId))
         .sort(),
     );
+  });
+
+  it("leaves no document naming the old id: archives, live scorecards, follows", async () => {
+    const raw = new MemoryDataSource(seed);
+    const ds = derivedFieldsDataSource(raw);
+    const innings = seed.innings!.filter((i) => i.match_id === DONE);
+    const oldId = (innings[0]!.batting as { user_id: string }[])[0]!.user_id;
+    const newId = "auth-uid-2";
+    // Archives built, live scorecards in place, a follower of the player.
+    const before = await matchBallLog({ ds }, DONE);
+    expect(JSON.stringify(before)).toContain(oldId);
+    expect(raw.all(BALL_LOGS_COLLECTION).length).toBeGreaterThan(0);
+    for (const match of [DONE, LIVE]) await ensureLiveScorecard(ds, match);
+    await ds.insert(FOLLOWS, [
+      {
+        id: "fan",
+        user_id: "fan",
+        targets: ["team:t-1", `player:${oldId}`, "match:m-1"],
+      },
+    ]);
+
+    await remapUserId(ds, oldId, newId);
+
+    const after = JSON.stringify(await matchBallLog({ ds }, DONE));
+    expect(after).not.toContain(oldId);
+    expect(after).toContain(newId);
+    const tables = [
+      ...Object.keys(seed),
+      BALL_LOGS_COLLECTION,
+      LIVE_SCORECARD_COLLECTION,
+      FOLLOWS,
+    ];
+    const naming = tables.filter((t) =>
+      JSON.stringify(raw.all(t)).includes(oldId),
+    );
+    expect(naming).toEqual([]);
+    // The rebuilt scorecard names the player under the new id.
+    const card = (await ds.getById(LIVE_SCORECARD_COLLECTION, DONE))!;
+    expect(
+      decodeLiveScorecard(card as unknown as LiveScorecardDoc).names[newId],
+    ).toBe((await ds.getById("users", newId))!.full_name);
+    expect((await ds.getById(FOLLOWS, "fan"))!.targets).toEqual([
+      "team:t-1",
+      `player:${newId}`,
+      "match:m-1",
+    ]);
   });
 });

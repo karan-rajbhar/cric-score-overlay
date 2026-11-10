@@ -37,7 +37,7 @@ import { OVERS_COLLECTION } from "../scorecard";
 import { firestoreOf, runScoringTransaction } from "../scoring/tx";
 import { syncMatchRecords } from "../stats-sync";
 import type { MatchesRow } from "../types";
-import { canDeleteMatch } from "./auth-helpers";
+import { canDeleteMatch, isTournamentOrganiser } from "./auth-helpers";
 import { recalculateTournamentStandings } from "./standings";
 import { chunk, IN_CHUNK_SIZE } from "../datasource";
 
@@ -178,6 +178,39 @@ async function purge(
     player_matches: records.deleted,
     invitations_updated: invitationsUpdated,
   };
+}
+
+/**
+ * For a tournament being deleted: removes its fixtures that never started
+ * (status scheduled, no innings) with everything they own (steps 3 and 4).
+ * Only the tournament's organisers may; the points table is not
+ * recomputed, as it goes with the tournament. Matches
+ * that started stay. Answers how many fixtures were removed.
+ */
+export async function deleteUnplayedFixtures(
+  ctx: DeleteMatchContext,
+  tournamentId: string,
+): Promise<number> {
+  if (!(await isTournamentOrganiser(ctx.ds, tournamentId, ctx.uid))) {
+    throw new DbQueryError("not_authorized", "42501");
+  }
+  const fixtures = await ctx.ds.query("matches", [
+    { field: "tournament_id", op: "==", value: tournamentId },
+    { field: "status", op: "==", value: "scheduled" },
+  ]);
+  const started = new Set<string>();
+  for (const ids of chunk(
+    fixtures.map((m) => m.id),
+    IN_CHUNK_SIZE,
+  )) {
+    const innings = await ctx.ds.query("innings", [
+      { field: "match_id", op: "in", value: ids },
+    ]);
+    for (const inn of innings) started.add(String(inn.match_id));
+  }
+  const unplayed = fixtures.filter((m) => !started.has(m.id));
+  for (const m of unplayed) await purge(ctx, m.id, true);
+  return unplayed.length;
 }
 
 export async function deleteMatch(

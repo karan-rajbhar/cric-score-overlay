@@ -35,6 +35,23 @@ describe("MatchDetails", () => {
     expect(screen.queryByText("Not specified")).toBeNull();
   });
 
+  it("says whether a revised target came from DLS or was set by hand", () => {
+    const revision = { innings_number: 2, target_runs: 98, overs: 12 };
+    const { unmount } = render(
+      <MatchDetails match={makeMatch({ dls_revision: revision })} />,
+    );
+    expect(screen.getByText("Revised target (DLS)")).toBeInTheDocument();
+    expect(screen.getByText("98 runs in 12 overs")).toBeInTheDocument();
+    unmount();
+    render(
+      <MatchDetails
+        match={makeMatch({ dls_revision: { ...revision, by_hand: true } })}
+      />,
+    );
+    expect(screen.getByText("Revised target")).toBeInTheDocument();
+    expect(screen.queryByText(/DLS/)).toBeNull();
+  });
+
   it("never shows the database id", () => {
     render(<MatchDetails match={makeMatch({ id: "d3623f89" })} />);
     expect(screen.queryByText("Match ID")).toBeNull();

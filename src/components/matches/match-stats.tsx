@@ -86,7 +86,7 @@ export function MatchStats({ match }: MatchStatsProps) {
     () =>
       sortedInnings.map((inn) => ({
         innings: inn,
-        table: buildOverTable(inningsBalls(inn, ballLog)),
+        table: buildOverTable(inningsBalls(inn, ballLog), inn),
       })),
     [sortedInnings, ballLog],
   );
@@ -157,6 +157,7 @@ export function MatchStats({ match }: MatchStatsProps) {
             const phases = phaseSplits(
               inningsBalls(innings, ballLog),
               match.overs_per_innings,
+              innings,
             );
             return (
               <Disclosure

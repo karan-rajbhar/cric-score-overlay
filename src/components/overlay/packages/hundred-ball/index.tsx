@@ -164,13 +164,13 @@ export const HUNDRED_BALL: BroadcastPackage = {
       p.variant === "strap" ? (
         <EstimateStrap p={p} testId="hb-win-predictor" />
       ) : (
-        <EstimateCard state={p.state} testId="hb-win-predictor" />
+        <EstimateCard state={p.state} match={p.match} testId="hb-win-predictor" />
       ),
     projectedScore: (p) =>
       p.variant === "strap" ? (
         <EstimateStrap p={p} testId="hb-projected" />
       ) : (
-        <EstimateCard state={p.state} testId="hb-projected" />
+        <EstimateCard state={p.state} match={p.match} testId="hb-projected" />
       ),
     breakStrap: HundredBreak,
     message: HundredMessage,

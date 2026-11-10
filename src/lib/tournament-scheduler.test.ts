@@ -11,6 +11,7 @@ import {
   type BracketMatch,
   type KnockoutFixture,
 } from "./tournament-scheduler";
+import { nrrFigures } from "./tournament-standings";
 
 const teams = (n: number) => Array.from({ length: n }, (_, i) => `t${i + 1}`);
 const pairs = (fixtures: KnockoutFixture[]) =>
@@ -141,26 +142,35 @@ describe("splitIntoGroups", () => {
 describe("groupStandings", () => {
   it("ranks by points, then net run rate", () => {
     const groups = [{ name: "A", teamIds: ["a", "b", "c"] }];
-    const m = (x: string, y: string, w: string | null, totals: BracketMatch["totals"]) =>
+    // Innings in batting order: [team, runs, wickets, balls].
+    type Inn = [string, number, number, number];
+    const m = (x: string, y: string, w: string | null, innings: Inn[]) =>
       played("group", x, y, w, {
         group: "A",
-        totals,
-        quotaBalls: 120,
-        ballsPerOver: 6,
+        totals: nrrFigures(
+          { overs_per_innings: 20, balls_per_over: 6 },
+          innings.map(([team, runs, wickets, balls], i) => ({
+            team_id: team,
+            innings_number: i + 1,
+            total_runs: runs,
+            total_wickets: wickets,
+            total_balls: balls,
+          })),
+        ),
         resultType: w ? "win" : "no_result",
       });
     const standings = groupStandings(groups, [
       m("a", "b", "a", [
-        { teamId: "a", runs: 180, balls: 120, allOut: false },
-        { teamId: "b", runs: 100, balls: 60, allOut: true },
+        ["a", 180, 4, 120],
+        ["b", 100, 10, 60],
       ]),
       m("b", "c", "b", [
-        { teamId: "b", runs: 150, balls: 120, allOut: false },
-        { teamId: "c", runs: 149, balls: 120, allOut: false },
+        ["b", 150, 5, 120],
+        ["c", 149, 5, 120],
       ]),
       m("c", "a", "c", [
-        { teamId: "c", runs: 160, balls: 120, allOut: false },
-        { teamId: "a", runs: 150, balls: 120, allOut: false },
+        ["c", 160, 5, 120],
+        ["a", 150, 5, 120],
       ]),
     ]).get("A")!;
     // All on 2 points: a has the best net run rate (b was all out, so
@@ -181,7 +191,7 @@ describe("groupStandings", () => {
           group: "A",
           status: "abandoned",
           resultType: "abandoned",
-          totals: [{ teamId: "a", runs: 50, balls: 30, allOut: false }],
+          totals: [{ teamId: "a", runs: 50, overs: 5 }],
         }),
       ],
     ).get("A")!;

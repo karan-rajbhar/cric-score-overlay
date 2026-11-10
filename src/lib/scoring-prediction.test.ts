@@ -260,6 +260,22 @@ describe("instant scoring predictions", () => {
     });
   });
 
+  it("refuses to change a batter the ball log names, as the engine does", () => {
+    const change = (strikerId: string, nonStrikerId: string): QueuedAction => ({
+      queueId: `c-${strikerId}-${nonStrikerId}`,
+      matchId: M,
+      type: "setBatsmen",
+      enqueuedAt: 0,
+      payload: { strikerId, nonStrikerId },
+    });
+    // Before a ball: a wrong pick, changed.
+    expect(foldPending(stateOf(), [change("p1", "p3")], NAMES).applied).toBe(1);
+    // After a dot faced by p1, p2 (0 off 0) has shared a ball.
+    expect(
+      foldPending(stateOf(), [ball(0), change("p1", "p3")], NAMES),
+    ).toMatchObject({ applied: 1, reason: "batter_has_batted" });
+  });
+
   it("keeps the base only while it is the current innings", () => {
     const { snapshot, base } = stateOf();
     const o: OversRow = {

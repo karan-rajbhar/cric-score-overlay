@@ -22,6 +22,7 @@ import {
   broadcastViewAvailable,
 } from "~/components/overlay/broadcast-suite-overlay";
 import { strapAvailable } from "~/components/overlay/lower-third-straps";
+import { ballsPerOverOf, oversText } from "~/components/overlay/overlay-kit";
 import { useStageMatch } from "~/components/overlay/overlay-data";
 import { OverlayPreview } from "~/components/overlay/overlay-preview";
 import {
@@ -49,6 +50,7 @@ import {
   autoRulesIn,
   isReplayRule,
   manualAutoRules,
+  sponsorsFromLines,
   type HoldMode,
   type SceneLayout,
 } from "~/lib/overlay-state";
@@ -181,11 +183,6 @@ const HOLDS: Array<{ id: HoldMode; label: string; hint: string }> = [
 const RULE_SECONDS = [3, 4, 5, 6, 8, 10, 15, 20, 30, 45];
 
 const STRAP_SECONDS = [5, 8, 10, 15];
-
-function oversText(balls: number | null | undefined): string {
-  if (!balls) return "0.0";
-  return `${Math.floor(balls / 6)}.${balls % 6}`;
-}
 
 function Panel({
   title,
@@ -370,12 +367,14 @@ export function ControlClient({
   // What is on air: the overlay state (one listener), as the overlay sees it.
   const producer = useOverlayProducer(matchId, isDemo);
   const { doc, send, last } = producer;
+  const bpo = ballsPerOverOf(pageMatch);
   const layers = useOverlayLayers({
     doc,
     loaded: producer.loaded,
     state,
     serverNow,
     muted: true,
+    ballsPerOver: bpo,
   });
   const { scene } = layers;
   const listening = producer.status === "connected";
@@ -398,9 +397,11 @@ export function ControlClient({
   const [loadingSnapshots, setLoadingSnapshots] = useState(false);
   const [sponsorText, setSponsorText] = useState(scene.sponsor);
   const [tickerText, setTickerText] = useState(scene.tickerText);
-  const [sponsorsText, setSponsorsText] = useState(
-    scene.sponsors.map((s) => s.name).join("\n"),
-  );
+  // The sponsor list shows what is on air (the club's sponsors copied in
+  // when the stream starts included) until the producer edits it.
+  const [sponsorsEdit, setSponsorsEdit] = useState<string | null>(null);
+  const sponsorsText =
+    sponsorsEdit ?? scene.sponsors.map((s) => s.name).join("\n");
   const [volume, setVolume] = useState(Math.round(scene.volume * 100));
   // The forms start from what is stored, once it has been read.
   const [formsLoaded, setFormsLoaded] = useState(false);
@@ -408,7 +409,6 @@ export function ControlClient({
     setFormsLoaded(true);
     setSponsorText(scene.sponsor);
     setTickerText(scene.tickerText);
-    setSponsorsText(scene.sponsors.map((s) => s.name).join("\n"));
     setVolume(Math.round(scene.volume * 100));
     setReplayScene(scene.replayScene);
   }
@@ -638,7 +638,7 @@ export function ControlClient({
                 {team1} v {team2}
                 <span className="ml-2 font-score tabular-nums text-slate-200">
                   {state.total_runs ?? 0}/{state.total_wickets ?? 0} (
-                  {oversText(state.total_balls)} ov)
+                  {oversText(state.total_balls, bpo)} ov)
                 </span>
               </p>
             </div>
@@ -1392,11 +1392,11 @@ export function ControlClient({
               className="mt-4 space-y-2"
               onSubmit={(e) => {
                 e.preventDefault();
-                const sponsors = sponsorsText
-                  .split("\n")
-                  .map((name) => name.trim())
-                  .filter(Boolean)
-                  .map((name, i) => ({ id: `s${i + 1}`, name }));
+                const sponsors = sponsorsFromLines(
+                  sponsorsText,
+                  scene.sponsors,
+                );
+                setSponsorsEdit(null);
                 void send(
                   { type: "SET_SPONSORS", sponsors },
                   sponsors.length
@@ -1415,7 +1415,7 @@ export function ControlClient({
                 id={ids.sponsors}
                 rows={3}
                 value={sponsorsText}
-                onChange={(e) => setSponsorsText(e.target.value)}
+                onChange={(e) => setSponsorsEdit(e.target.value)}
                 className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-base text-white sm:text-sm"
               />
               <button type="submit" className={QUIET}>

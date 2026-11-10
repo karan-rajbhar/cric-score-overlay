@@ -301,6 +301,79 @@ describe("ControlClient", () => {
     ).toBeInTheDocument();
   });
 
+  it("takes an event card off the preview after its seconds, and with Clear", () => {
+    // A box with a width, so the preview draws the stage.
+    class SizedResizeObserver {
+      constructor(private cb: ResizeObserverCallback) {}
+      observe() {
+        this.cb(
+          [{ contentRect: { width: 960 } } as ResizeObserverEntry],
+          this as unknown as ResizeObserver,
+        );
+      }
+      unobserve() {}
+      disconnect() {}
+    }
+    window.ResizeObserver =
+      SizedResizeObserver as unknown as typeof ResizeObserver;
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    try {
+      renderDemo();
+      const sting = () => document.querySelector("[data-sting-type]");
+      fireEvent.click(screen.getByRole("button", { name: /^Six/ }));
+      act(() => vi.advanceTimersByTime(0));
+      expect(sting()).toBeInTheDocument();
+      act(() => vi.advanceTimersByTime(60_000));
+      expect(sting()).toBeNull();
+
+      fireEvent.click(screen.getByRole("button", { name: /^Four/ }));
+      act(() => vi.advanceTimersByTime(0));
+      expect(sting()).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: /Clear graphics/ }));
+      act(() => vi.advanceTimersByTime(1000));
+      expect(sting()).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps the sponsors' logos when the producer edits the list, which follows what is on air", () => {
+    renderReal();
+    const box = () =>
+      screen.getByLabelText(/Sponsors taking turns/) as HTMLTextAreaElement;
+    act(() => watchOf("overlay_state").next(null));
+    expect(box().value).toBe("");
+    // The club's sponsors are copied in after the stream starts.
+    const logo = "https://cdn.example.com/smith.png";
+    act(() =>
+      watchOf("overlay_state").next({
+        version: 1,
+        scene: {
+          sponsors: [
+            { id: "c1", name: "Smith Builders", logoUrl: logo, tagline: "Since 1990" },
+            { id: "c2", name: "Riverside Dairy" },
+          ],
+        },
+      }),
+    );
+    expect(box().value).toBe("Smith Builders\nRiverside Dairy");
+
+    fireEvent.change(box(), {
+      target: { value: "Smith Builders\nRiverside Dairy\nNew Sponsor" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save sponsors" }));
+    expect(sentPayload()).toMatchObject({
+      type: "SET_SPONSORS",
+      sponsors: [
+        { id: "c1", name: "Smith Builders", logoUrl: logo, tagline: "Since 1990" },
+        { id: "c2", name: "Riverside Dairy" },
+        { name: "New Sponsor" },
+      ],
+    });
+    const ids = sentPayload().sponsors.map((s: { id: string }) => s.id);
+    expect(new Set(ids).size).toBe(3);
+  });
+
   it("picks themes from the shared list", () => {
     renderDemo();
     const look = screen

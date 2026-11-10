@@ -41,7 +41,7 @@ import {
   type IncrementalOutput,
 } from "./incremental";
 import { startsNewPartnership } from "./recompute";
-import { inningsLimits } from "./result";
+import { inningsLimits, type LimitsMatch } from "./result";
 
 type WithId<T> = T & { id: string };
 
@@ -197,8 +197,11 @@ export function newBall(
 }
 
 export function inningsComplete(
-  match: MatchesRow,
-  innings: InningsRow,
+  match: LimitsMatch,
+  innings: Pick<
+    InningsRow,
+    "innings_number" | "target_runs" | "total_runs" | "total_wickets" | "total_balls"
+  >,
 ): boolean {
   const limits = inningsLimits(match, innings.innings_number);
   const targetReached =
@@ -527,11 +530,13 @@ export function penaltyFields(
  * The documents after `event` (from {@link newEventBall}: a retirement at a
  * full crease, or penalty / bonus runs to the batting side at a full crease
  * with a bowler) applied to the running totals, as `ballDocsAfter` does for
- * a delivery. Null for any other event or when that would not be exact:
- * the engine then recomputes the innings, and the screen waits for it.
+ * a delivery. Null for any other event, for one that completes the innings
+ * (the next innings or the result is the server's to decide), or when that
+ * would not be exact: the engine then recomputes the innings, and the
+ * screen waits for it.
  */
 export function eventDocsAfter(input: {
-  match: BallMatch;
+  match: BallMatch & LimitsMatch;
   innings: WithId<InningsRow>;
   overDoc: BallDocsInput["overDoc"];
   event: WithId<BallByBallRow>;
@@ -550,7 +555,10 @@ export function eventDocsAfter(input: {
     (event.runs_scored ?? 0) === 0 &&
     !event.is_wicket;
   if (!penalty && !isRetirementAtCrease(event)) return null;
-  return docsAfterEntry(match, innings, sortedOver, event, now);
+  const docs = docsAfterEntry(match, innings, sortedOver, event, now);
+  if (docs && inningsComplete(match, { ...innings, ...docs.inningsPatch }))
+    return null;
+  return docs;
 }
 
 /**
@@ -567,12 +575,52 @@ function untouched(b: BattingEntry): boolean {
 }
 
 /**
+ * Whether the innings' ball log names `userId` as a batter, read from the
+ * innings document alone: a batter who shared a logged ball (a wide or an
+ * event at the crease too) is in one of its stands, and one with runs,
+ * balls or a dismissal has an entry.
+ */
+export function hasBattedIn(
+  innings: Pick<InningsRow, "batting" | "partnerships">,
+  userId: string,
+): boolean {
+  const row = (innings.batting ?? []).find((b) => b.user_id === userId);
+  if (row && !untouched(row)) return true;
+  return (innings.partnerships ?? []).some(
+    (p) => p.batsman1_id === userId || p.batsman2_id === userId,
+  );
+}
+
+/**
+ * The engine's error for a crease change that would take off a batter the
+ * ball log names (`batter_has_batted`), else null. Change is for a wrong
+ * pick before their first ball: the next recompute would put such a batter
+ * back from the log. They retire instead, or are replaced throughout
+ * (`replace_batter`, which moves the log's entries).
+ */
+export function creaseChangeError(
+  innings: Pick<InningsRow, "batting" | "partnerships">,
+  strikerId: string,
+  nonStrikerId: string,
+): string | null {
+  const leaving = (innings.batting ?? []).filter(
+    (b) =>
+      b.is_current_batsman &&
+      b.user_id !== strikerId &&
+      b.user_id !== nonStrikerId,
+  );
+  return leaving.some((b) => hasBattedIn(innings, b.user_id))
+    ? "batter_has_batted"
+    : null;
+}
+
+/**
  * The innings' batting entries with `strikerId` / `nonStrikerId` at the
  * crease, or null when nothing changes. Newcomers are appended at the next
  * batting positions. A batter sent away from the crease
  * before anything happened to them (a wrong pick, corrected) is dropped, so
  * they keep no scorecard row or batting position. Validation (roster,
- * already out) is the caller's.
+ * already out, {@link creaseChangeError}) is the caller's.
  */
 export function battingWithCrease(
   batting: readonly BattingEntry[],

@@ -72,6 +72,7 @@ interface QualificationCalculatorButtonProps {
     points: number;
     netRunRate: number;
     qualificationStatus?: string | null;
+    remainingMatches: number;
   }>;
 }
 

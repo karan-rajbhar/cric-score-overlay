@@ -1671,6 +1671,23 @@ describe("the chase and DLS revisions", () => {
     );
   });
 
+  it("does not call a target and overs set by hand DLS", () => {
+    const dls_revision = {
+      innings_number: 2,
+      target_runs: 98,
+      overs: 12,
+      by_hand: true,
+    };
+    const match = makeMatch({
+      innings: [first, { ...chase, target_runs: 98 }],
+      dls_revision,
+    });
+    expect(inningsOvers(match, 2)).toBe(12);
+    expect(chaseLine(match, { ...chase, target_runs: 98 }, "Kings")).toBe(
+      "Kings need 58 runs from 36 balls (revised target 98)",
+    );
+  });
+
   it("has no line without a target or once it is reached", () => {
     const match = makeMatch();
     expect(chaseLine(match, first, "Tigers")).toBeNull();

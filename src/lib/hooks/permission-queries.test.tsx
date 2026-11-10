@@ -21,9 +21,18 @@ vi.mock("~/lib/firebase/client", () => ({
   getFirebaseDb: vi.fn(),
 }));
 
+const myClubs = vi.fn(async () => [
+  { id: "c1", name: "Riverside CC", role: "member" as const },
+]);
+vi.mock("~/app/matches/club-data", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/app/matches/club-data")>()),
+  fetchMyClubs: () => myClubs(),
+}));
+
 import {
   useCanDeleteMatchQuery,
   useMatchAdminQuery,
+  useMatchClubChoices,
 } from "./useMatchQueries";
 
 function wrapper({ children }: { children: React.ReactNode }) {
@@ -45,5 +54,36 @@ describe("permission checks right after load", () => {
   it("still say no for someone else", async () => {
     const { result } = renderHook(() => useMatchAdminQuery("m1", "viewer"), { wrapper });
     await waitFor(() => expect(result.current.data).toBe(false));
+  });
+});
+
+describe("Add to club", () => {
+  const match = { id: "m1", club_id: null, tournament_id: null };
+
+  it("is offered to whoever may delete the match, with their clubs", async () => {
+    const { result } = renderHook(
+      () => useMatchClubChoices(match, "creator", true, true),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.choosable).toHaveLength(1));
+    expect(result.current.offer).toBe(true);
+  });
+
+  it("is not offered to a co-scorer, whom setMatchClub would refuse", async () => {
+    myClubs.mockClear();
+    rpc.mockClear();
+    const { result } = renderHook(
+      () => useMatchClubChoices(match, "coscorer", true, true),
+      { wrapper },
+    );
+    await waitFor(() =>
+      expect(rpc).toHaveBeenCalledWith(
+        "can_delete_match",
+        expect.objectContaining({ p_user_id: "coscorer" }),
+      ),
+    );
+    await new Promise((r) => setTimeout(r, 0));
+    expect(result.current).toMatchObject({ offer: false, choosable: [] });
+    expect(myClubs).not.toHaveBeenCalled();
   });
 });

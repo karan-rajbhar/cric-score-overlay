@@ -174,9 +174,14 @@ export function teamGroups(input: EligibilityInput): {
     clubAdminIds,
   );
   const isClubOrganizer = Boolean(clubId && clubAdminIds.has(clubId));
+  // In a tournament only its organisers may host with a team it has not
+  // confirmed (createMatch refuses anyone else).
+  const hostable = (t: SetupTeam) =>
+    myTeamIds.has(t.id) &&
+    (!tournamentId || input.isTournamentOrganizer || tournamentTeamIds.has(t.id));
 
   const team1: TeamGroup[] = [
-    { label: "My teams", teams: teams.filter((t) => myTeamIds.has(t.id)) },
+    { label: "My teams", teams: teams.filter(hostable) },
     {
       label: "Tournament teams",
       teams: input.isTournamentOrganizer

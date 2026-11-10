@@ -115,7 +115,11 @@ function LowerThird({
 }
 
 /** This innings' figures from the live row (no reads). */
-export function inningsStats(state: LiveMatchState, slot: PlayerSlot): {
+export function inningsStats(
+  state: LiveMatchState,
+  slot: PlayerSlot,
+  ballsPerOver = 6,
+): {
   headline: string;
   stats: Stat[];
 } | null {
@@ -124,9 +128,14 @@ export function inningsStats(state: LiveMatchState, slot: PlayerSlot): {
     return {
       headline: `${state.bowler_wickets ?? 0}-${state.bowler_runs ?? 0}`,
       stats: [
-        { label: "Overs", value: oversText(state.bowler_balls) },
+        { label: "Overs", value: oversText(state.bowler_balls, ballsPerOver) },
         { label: "Maidens", value: state.bowler_maidens ?? 0 },
-        { label: "Econ", value: economyText(state.bowler_runs, state.bowler_balls) ?? "–" },
+        {
+          label: "Econ",
+          value:
+            economyText(state.bowler_runs, state.bowler_balls, ballsPerOver) ??
+            "–",
+        },
       ],
     };
   }
@@ -159,9 +168,14 @@ export function inningsStats(state: LiveMatchState, slot: PlayerSlot): {
 export function InningsFiguresCard({
   state,
   slot,
-}: OverlayThemeProps & { state: LiveMatchState; slot: PlayerSlot }) {
+  ballsPerOver = 6,
+}: OverlayThemeProps & {
+  state: LiveMatchState;
+  slot: PlayerSlot;
+  ballsPerOver?: number;
+}) {
   const who = playerInSlot(state, slot);
-  const figures = inningsStats(state, slot);
+  const figures = inningsStats(state, slot, ballsPerOver);
   if (!who.name || !figures) return null;
   const badge =
     slot === "bowler"

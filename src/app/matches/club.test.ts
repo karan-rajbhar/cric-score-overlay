@@ -72,7 +72,18 @@ describe("setMatchClub: who may", () => {
   const clubOf = async (id: string) =>
     (await ds.getById("matches", id)) as Doc | null;
 
-  it("lets a member who scores the match add it, with the side that counts", async () => {
+  /** The caller's rights over m1, as the scoring screen asks for them. */
+  async function rights(uid: string) {
+    signIn(uid);
+    const db = state.client as ReturnType<typeof serverClientFor>;
+    const [{ data: admin }, { data: del }] = await Promise.all([
+      db.rpc<boolean>("is_match_admin", { p_match_id: "m1" }),
+      db.rpc<boolean>("can_delete_match", { p_match_id: "m1" }),
+    ]);
+    return { admin, del };
+  }
+
+  it("lets the match's creator add it to their club, with the side that counts", async () => {
     signIn("scorer");
     expect(await setMatchClub("m1", "c1", "team1")).toEqual({ error: null });
     expect(await clubOf("m1")).toMatchObject({
@@ -83,30 +94,65 @@ describe("setMatchClub: who may", () => {
     expect(refreshLiveState).toHaveBeenCalledWith(expect.anything(), "m1");
   });
 
-  it("lets the club's admins add any match", async () => {
+  it("refuses the club's admins a match they have no rights over", async () => {
     for (const id of ["owner", "admin"]) {
+      expect(await rights(id)).toEqual({ admin: false, del: false });
       signIn(id);
-      expect(await setMatchClub("m1", "c1", "both")).toEqual({ error: null });
-      expect((await clubOf("m1"))?.club_side ?? null).toBeNull();
-      await ds.update("matches", "m1", { club_id: null });
+      expect((await setMatchClub("m1", "c1", "both")).error).toMatch(
+        /creator or its club's admins/,
+      );
+      expect(await rights(id)).toEqual({ admin: false, del: false });
     }
+    expect((await clubOf("m1"))?.club_id).toBeNull();
+  });
+
+  it("refuses a co-scorer who runs a club, as the move would let them delete the match", async () => {
+    await ds.insert("clubs", [
+      { id: "c3", name: "Own CC", owner_id: "outsider" },
+    ]);
+    expect(await rights("outsider")).toEqual({ admin: true, del: false });
+    signIn("outsider");
+    expect((await setMatchClub("m1", "c3", "both")).error).toMatch(
+      /creator or its club's admins/,
+    );
+    expect((await clubOf("m1"))?.club_id).toBeNull();
+    expect(await rights("outsider")).toEqual({ admin: true, del: false });
   });
 
   it("refuses a scorer who is not a member, and a member who does not score", async () => {
     for (const id of ["outsider", "member"]) {
       signIn(id);
-      expect((await setMatchClub("m1", "c1", "both")).error).toMatch(
-        /club's admins, or members who score this match/,
-      );
+      expect((await setMatchClub("m1", "c1", "both")).error).toBeTruthy();
     }
     expect((await clubOf("m1"))?.club_id).toBeNull();
   });
 
-  it("needs leave to take a match out of its club as well", async () => {
+  it("refuses the creator a club they do not belong to", async () => {
+    signIn("scorer");
+    expect((await setMatchClub("m1", "c2", "both")).error).toMatch(
+      /club you belong to/,
+    );
+    expect((await clubOf("m1"))?.club_id).toBeNull();
+  });
+
+  it("lets the club's admins take a match out of their club", async () => {
+    await ds.update("matches", "m1", { club_id: "c1" });
+    signIn("member");
+    expect((await setMatchClub("m1", null, "both")).error).toBeTruthy();
+    expect((await clubOf("m1"))?.club_id).toBe("c1");
+    signIn("admin");
+    expect(await setMatchClub("m1", null, "both")).toEqual({ error: null });
+    expect((await clubOf("m1"))?.club_id).toBeNull();
+  });
+
+  it("needs rights over the match to move it from one club to another", async () => {
     await ds.update("matches", "m1", { club_id: "c2" });
-    signIn("scorer"); // a member of c1 but not of c2
+    signIn("admin"); // an admin of c1, with no rights over the match
     expect((await setMatchClub("m1", "c1", "both")).error).toBeTruthy();
     expect((await clubOf("m1"))?.club_id).toBe("c2");
+    signIn("scorer"); // the creator, a member of c1
+    expect(await setMatchClub("m1", "c1", "both")).toEqual({ error: null });
+    expect((await clubOf("m1"))?.club_id).toBe("c1");
   });
 
   it("leaves a tournament match with its tournament's club", async () => {

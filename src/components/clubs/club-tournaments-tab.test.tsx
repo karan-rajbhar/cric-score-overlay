@@ -1,5 +1,6 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach, beforeAll } from "vitest";
+import { updateTournament } from "~/app/tournaments/actions";
 import { ClubTournamentsTab } from "./club-tournaments-tab";
 
 beforeAll(() => {
@@ -108,6 +109,25 @@ describe("ClubTournamentsTab Component", () => {
     expect(screen.getByRole("link", { name: /host tournament/i })).toBeInTheDocument();
   });
 
+  it("offers to enrol a squad only while a tournament is not over", () => {
+    render(
+      <ClubTournamentsTab
+        clubId="club-1"
+        clubName="Metro CC"
+        tournaments={dummyTournaments}
+        seasons={dummySeasons}
+        teams={dummyTeams}
+        isAdmin={true}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Enrol club squad into Championship 2026" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Enrol club squad into Winter Cup 2025" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("renders empty state when no tournaments exist", () => {
     render(
       <ClubTournamentsTab
@@ -121,5 +141,35 @@ describe("ClubTournamentsTab Component", () => {
     );
 
     expect(screen.getByText(/no tournaments yet/i)).toBeInTheDocument();
+  });
+
+  it("keeps the status and wickets of a tournament saved from Manage", async () => {
+    vi.mocked(updateTournament).mockResolvedValueOnce({ success: true } as never);
+    render(
+      <ClubTournamentsTab
+        clubId="club-1"
+        clubName="Metro CC"
+        tournaments={[
+          { ...dummyTournaments[0]!, overs_per_innings: 20, wickets_per_innings: 7 },
+        ]}
+        seasons={dummySeasons}
+        teams={[]}
+        isAdmin={true}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /manage tournament settings/i }),
+    );
+    fireEvent.change(screen.getByLabelText(/venue/i), {
+      target: { value: "North Oval" },
+    });
+    fireEvent.submit(screen.getByTestId("tournament-manage-form"));
+
+    await waitFor(() => expect(updateTournament).toHaveBeenCalled());
+    const fd = vi.mocked(updateTournament).mock.calls[0]![1];
+    expect(fd.get("venue")).toBe("North Oval");
+    expect(fd.get("status")).toBe("ongoing");
+    expect(fd.get("wickets_per_innings")).toBe("7");
   });
 });

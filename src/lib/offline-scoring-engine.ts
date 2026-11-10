@@ -39,6 +39,13 @@ export interface LocalScoringContext {
    */
   noBallCountsAsFaced?: boolean;
   wideCountsAsFaced?: boolean;
+  /**
+   * The match's cap on deliveries per over (`max_balls_per_over`: wides
+   * and no-balls count; null or absent: none), and the deliveries of the
+   * current over so far.
+   */
+  maxBallsPerOver?: number | null;
+  deliveriesInOver?: number;
 }
 
 /**
@@ -76,6 +83,7 @@ export interface MatchLike {
   current_ball: number;
   overs_per_innings: number;
   balls_per_over?: number | null;
+  max_balls_per_over?: number | null;
   wickets_per_innings?: number | null;
   noball_counts_as_ball_faced?: boolean | null;
   wide_counts_as_ball_faced?: boolean | null;
@@ -97,6 +105,29 @@ export interface MatchLike {
       wickets_taken: number;
     }>;
   }>;
+}
+
+/** Whether a ball counts towards the cap on deliveries (penalty / bonus runs do not). */
+function isDelivery(ball: BallInput): boolean {
+  return ball.extraType !== "penalty" && ball.extraType !== "bonus";
+}
+
+/**
+ * Counts `ball` among the over's deliveries and, at the cap on deliveries
+ * (`max_balls_per_over`) before the over's legal balls are bowled, ends the
+ * over as the server's engine does: it counts as complete, for the innings
+ * and for its bowler, so the next ball starts the next over.
+ */
+function endAtCap(ctx: LocalScoringContext, ball: BallInput): void {
+  if (!isDelivery(ball)) return;
+  ctx.deliveriesInOver = (ctx.deliveriesInOver ?? 0) + 1;
+  const cap = ctx.maxBallsPerOver;
+  if (cap == null || ctx.deliveriesInOver < cap) return;
+  const rest = ctx.ballsPerOver - ctx.currentBall;
+  if (rest <= 0) return;
+  ctx.totalBalls += rest;
+  ctx.bowlerBallsBowled += rest;
+  ctx.currentBall = ctx.ballsPerOver;
 }
 
 /**
@@ -213,6 +244,7 @@ export function processDeliveryLocally(ctx: LocalScoringContext, ball: BallInput
     newCtx.currentBall += 1;
     newCtx.bowlerBallsBowled += 1;
   }
+  endAtCap(newCtx, ball);
 
   if (ball.isWicket) {
     const isRetiredHurt = ball.dismissalType === "retired_hurt";
@@ -262,6 +294,7 @@ export function processDeliveryLocally(ctx: LocalScoringContext, ball: BallInput
     overCompleted = true;
     newCtx.currentOver += 1;
     newCtx.currentBall = 0;
+    newCtx.deliveriesInOver = 0;
     needsBowler = true;
     
     // End of over strike rotation
@@ -335,13 +368,15 @@ export function processDeliveryLocally(ctx: LocalScoringContext, ball: BallInput
  * @param strikerId The active striker's ID
  * @param nonStrikerId The active non-striker's ID
  * @param bowlerId The active bowler's ID
+ * @param deliveriesInOver Deliveries of the current over so far (for the cap)
  * @returns An initialized LocalScoringContext ready for processDeliveryLocally
  */
 export function buildContextFromMatch(
   match: MatchLike,
   strikerId: string | null,
   nonStrikerId: string | null,
-  bowlerId: string | null
+  bowlerId: string | null,
+  deliveriesInOver = 0,
 ): LocalScoringContext {
   const innings = match.innings?.find((i) => i.innings_number === match.current_innings);
 
@@ -404,8 +439,26 @@ export function buildContextFromMatch(
         : (match.wickets_per_innings || 10),
     noBallCountsAsFaced: match.noball_counts_as_ball_faced !== false,
     wideCountsAsFaced: Boolean(match.wide_counts_as_ball_faced),
-    targetRuns: innings?.target_runs || null
+    targetRuns: innings?.target_runs || null,
+    maxBallsPerOver: match.max_balls_per_over ?? null,
+    deliveriesInOver,
   };
+}
+
+/**
+ * The deliveries among an over's balls, as the cap counts them: wides and
+ * no-balls do; retirements and penalty / bonus runs (logged between
+ * deliveries) do not.
+ */
+export function deliveriesIn(
+  balls: ReadonlyArray<{ bowler_id?: string | null; extra_type?: string | null }>,
+): number {
+  return balls.filter(
+    (b) =>
+      Boolean(b.bowler_id) &&
+      b.extra_type !== "penalty" &&
+      b.extra_type !== "bonus",
+  ).length;
 }
 
 /**

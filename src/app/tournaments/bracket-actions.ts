@@ -10,6 +10,13 @@ import {
   type BracketMatch,
   type NextRound,
 } from "~/lib/tournament-scheduler";
+import {
+  nrrFigures,
+  type NrrInnings,
+  type NrrMatch,
+} from "~/lib/tournament-standings";
+import type { TournamentRulesSource } from "~/app/matches/create/match-setup";
+import { fixtureRulesOf, isTournamentOver } from "./rules";
 
 /**
  * "Create next round" for knockout and mixed tournaments: the groups, the
@@ -41,13 +48,6 @@ export interface NextRoundPreview {
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-interface SummaryEntry {
-  team_id?: string | null;
-  total_runs?: number | null;
-  total_balls?: number | null;
-  total_wickets?: number | null;
-}
-
 interface Loaded {
   db: ServerClient;
   userId: string;
@@ -58,15 +58,11 @@ interface Loaded {
   latestScheduled: string | null;
 }
 
-const num = (v: unknown, fallback: number) =>
-  Number(v) > 0 ? Number(v) : fallback;
 const str = (v: unknown) => (typeof v === "string" ? v : null);
 
 /** A group / knockout match as the planner sees it; null for other matches. */
 function toBracketMatch(m: Record<string, unknown>): BracketMatch | null {
   if (m.stage !== "group" && m.stage !== "knockout") return null;
-  const bpo = num(m.balls_per_over, 6);
-  const cap = num(m.wickets_per_innings, 10);
   return {
     id: String(m.id),
     stage: m.stage,
@@ -77,16 +73,10 @@ function toBracketMatch(m: Record<string, unknown>): BracketMatch | null {
     status: String(m.status),
     winnerId: str(m.winning_team_id),
     resultType: str(m.result_type),
-    ballsPerOver: bpo,
-    quotaBalls: num(m.overs_per_innings, 0) * bpo,
-    totals: ((m.innings_summary ?? []) as SummaryEntry[])
-      .filter((e) => e.team_id)
-      .map((e) => ({
-        teamId: e.team_id!,
-        runs: e.total_runs ?? 0,
-        balls: e.total_balls ?? 0,
-        allOut: (e.total_wickets ?? 0) >= cap,
-      })),
+    totals: nrrFigures(
+      m as NrrMatch,
+      (m.innings_summary ?? []) as NrrInnings[],
+    ),
   };
 }
 
@@ -129,7 +119,7 @@ async function load(
   const { data: tournament } = await db
     .from("tournaments")
     .select(
-      "id, name, tournament_format, match_format, overs_per_innings, venue, start_date, club_id, season_id, wickets_per_innings, last_man_stands, golden_ball, created_by",
+      "id, name, status, tournament_format, match_format, overs_per_innings, custom_overs, venue, start_date, club_id, season_id, wickets_per_innings, last_man_stands, golden_ball, created_by",
     )
     .eq("id", tournamentId)
     .maybeSingle();
@@ -151,7 +141,7 @@ async function load(
       db
         .from("matches")
         .select(
-          "id, status, stage, round, group_name, team1_id, team2_id, winning_team_id, result_type, scheduled_at, balls_per_over, overs_per_innings, wickets_per_innings, innings_summary",
+          "id, status, stage, round, group_name, team1_id, team2_id, winning_team_id, result_type, scheduled_at, balls_per_over, overs_per_innings, wickets_per_innings, dls_revision, innings_summary",
         )
         .eq("tournament_id", tournamentId),
     ]);
@@ -185,6 +175,10 @@ async function load(
 }
 
 function plan(loaded: Loaded, options: NextRoundOptions): NextRound {
+  // A tournament that is over takes no new fixtures.
+  if (isTournamentOver(loaded.tournament.status as string | null)) {
+    return { kind: "invalid", reason: "This tournament is over" };
+  }
   return planNextRound({
     format: loaded.tournament.tournament_format as string | null,
     seeds: loaded.seeds,
@@ -268,20 +262,50 @@ export async function previewNextRound(
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** The day after the latest fixture, else the start date, else tomorrow. */
-function firstDay(loaded: Loaded): number {
+/**
+ * When the round starts: `firstMatchAt` (an ISO timestamp the organiser's
+ * browser builds from their local day and time), else the day after the
+ * latest fixture, else the start date at 10:00 UTC, else tomorrow. Null
+ * when `firstMatchAt` cannot be read.
+ */
+function firstDay(loaded: Loaded, firstMatchAt: string | undefined): number | null {
+  if (firstMatchAt) {
+    const chosen = Date.parse(firstMatchAt);
+    return Number.isNaN(chosen) ? null : chosen;
+  }
   if (loaded.latestScheduled) {
     const t = Date.parse(loaded.latestScheduled);
     if (!Number.isNaN(t)) return t + DAY_MS;
   }
-  const start = Date.parse(String(loaded.tournament.start_date ?? ""));
+  const start = Date.parse(`${String(loaded.tournament.start_date)}T10:00:00.000Z`);
   return Number.isNaN(start) ? Date.now() + DAY_MS : start;
 }
 
-/** Creates the next round's matches. */
+/** What every match of a round shares: the tournament's rules and links. */
+function commonFields(loaded: Loaded) {
+  const t = loaded.tournament;
+  return {
+    ...fixtureRulesOf(t as TournamentRulesSource),
+    tournament_id: t.id,
+    club_id: (t.club_id as string | null) ?? null,
+    season_id: (t.season_id as string | null) ?? null,
+    last_man_stands: (t.last_man_stands as boolean | null) ?? false,
+    golden_ball: (t.golden_ball as boolean | null) ?? false,
+    venue: (t.venue as string | null) ?? null,
+    status: "scheduled",
+    created_by: loaded.userId,
+    match_admins: [loaded.userId],
+  };
+}
+
+/**
+ * Creates the next round's matches, from `firstMatchAt` (see `firstDay`):
+ * group rounds a day apart, a knockout round's matches together.
+ */
 export async function createNextRound(
   tournamentId: string,
   options: NextRoundOptions = {},
+  firstMatchAt?: string,
 ): Promise<{ data: { count: number; label: string } | null; error: string | null }> {
   try {
     const { data: loaded, error } = await load(tournamentId);
@@ -290,22 +314,11 @@ export async function createNextRound(
     if (next.kind !== "groups" && next.kind !== "knockout") {
       return { data: null, error: previewOf(loaded, next).message };
     }
-    const t = loaded.tournament;
-    const day0 = firstDay(loaded);
-    const common = {
-      match_format: (t.match_format as string | null) ?? "T20",
-      overs_per_innings: (t.overs_per_innings as number | null) ?? 20,
-      tournament_id: t.id,
-      club_id: (t.club_id as string | null) ?? null,
-      season_id: (t.season_id as string | null) ?? null,
-      wickets_per_innings: (t.wickets_per_innings as number | null) ?? 10,
-      last_man_stands: (t.last_man_stands as boolean | null) ?? false,
-      golden_ball: (t.golden_ball as boolean | null) ?? false,
-      venue: (t.venue as string | null) ?? null,
-      status: "scheduled",
-      created_by: loaded.userId,
-      match_admins: [loaded.userId],
-    };
+    const day0 = firstDay(loaded, firstMatchAt);
+    if (day0 === null) {
+      return { data: null, error: "Pick the first match's day and time" };
+    }
+    const common = commonFields(loaded);
     const rows =
       next.kind === "groups"
         ? next.fixtures.map((f) => {

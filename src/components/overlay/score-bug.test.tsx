@@ -41,6 +41,11 @@ describe("ScoreBug", () => {
     expect(screen.getByText("Powerplay")).toBeInTheDocument();
   });
 
+  it("counts a DLS revision's overs in the chase", () => {
+    render(<ScoreBug state={{ ...S, overs_per_innings: 20, dls_overs: 12 }} />);
+    expect(screen.getByText("of 12 overs")).toBeInTheDocument();
+  });
+
   it.each(["bottom", "top", "compact"] as const)("draws the %s layout", (layout) => {
     render(<ScoreBug state={S} layout={layout} />);
     expect(screen.getByTestId("score-bug")).toHaveAttribute("data-layout", layout);

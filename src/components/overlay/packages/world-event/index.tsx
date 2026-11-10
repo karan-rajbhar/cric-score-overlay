@@ -10,6 +10,7 @@
  * Original artwork throughout: no event, league or broadcaster marks.
  */
 
+import { ballsPerOverOf } from "../../overlay-kit";
 import type { BroadcastPackage, ElementMotion, MotionSpec, PackageElements } from "../types";
 import {
   WorldEventBowlingCard,
@@ -70,9 +71,9 @@ export const WORLD_EVENT_ELEMENTS: PackageElements = {
   chase: WorldEventChase,
   thisOver: (p) =>
     p.variant === "strap" ? (
-      <WorldEventThisOverStrap state={p.state} layout={p.layout} strap={p.strap} />
+      <WorldEventThisOverStrap state={p.state} layout={p.layout} strap={p.strap} bpo={ballsPerOverOf(p.match)} />
     ) : (
-      <WorldEventThisOverCard state={p.state} />
+      <WorldEventThisOverCard state={p.state} bpo={ballsPerOverOf(p.match)} />
     ),
   sting: WorldEventSting,
   scorecard: WorldEventScorecard,
@@ -91,13 +92,13 @@ export const WORLD_EVENT_ELEMENTS: PackageElements = {
   playerOfTheMatch: WorldEventPlayerOfTheMatch,
   winPredictor: (p) =>
     p.variant === "strap" ? (
-      <WorldEventWinStrap state={p.state} layout={p.layout} strap={p.strap} />
+      <WorldEventWinStrap state={p.state} layout={p.layout} strap={p.strap} bpo={ballsPerOverOf(p.match)} />
     ) : (
       <WorldEventWinPredictor {...p} />
     ),
   projectedScore: (p) =>
     p.variant === "strap" ? (
-      <WorldEventWinStrap state={p.state} layout={p.layout} strap={p.strap} />
+      <WorldEventWinStrap state={p.state} layout={p.layout} strap={p.strap} bpo={ballsPerOverOf(p.match)} />
     ) : (
       <WorldEventProjectedScore {...p} />
     ),

@@ -10,7 +10,7 @@
  */
 
 import type { ReactNode } from "react";
-import { eyebrowOf } from "../../overlay-kit";
+import { ballsPerOverOf, eyebrowOf } from "../../overlay-kit";
 import type { LiveMatchState } from "../../types";
 import {
   axisMax,
@@ -313,7 +313,7 @@ export function RunRates(p: P<"runRates">) {
   if (!series || !series.some((s) => s.table.length)) return null;
   const shown = series.slice(0, 2);
   const maxOvers = maxOversOf(p.state, shown);
-  const rates = shown.map((s) => phaseRates(s.table, maxOvers));
+  const rates = shown.map((s) => phaseRates(s.table, maxOvers, ballsPerOverOf(p.match)));
   const phases = rates[0]!;
   const rate = (si: number, pi: number) => {
     const r = rates[si]?.[pi];

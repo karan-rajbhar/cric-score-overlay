@@ -298,7 +298,7 @@ function BowlerFigures({ state, photoUrl, bpo }: { state: LiveMatchState; photoU
       {state.bowler_maidens !== null && state.bowler_maidens !== undefined && (
         <Stat label="Maidens" value={state.bowler_maidens} />
       )}
-      <Stat label="Economy" value={economyText(state.bowler_runs, state.bowler_balls) ?? "-"} />
+      <Stat label="Economy" value={economyText(state.bowler_runs, state.bowler_balls, bpo) ?? "-"} />
       {tokens.length > 0 && (
         <span className="ml-auto flex items-center gap-4">
           <span className={cn(TEXT, "font-semibold uppercase")} style={{ fontSize: "1rem", letterSpacing: "0.08em", color: FN.muted }}>
@@ -314,7 +314,7 @@ function BowlerFigures({ state, photoUrl, bpo }: { state: LiveMatchState; photoU
 export function FranchiseBowlerLowerThird(p: OverlayElementProps["bowlerLowerThird"]) {
   const photo = avatarOf(p.match, p.state.bowler_id);
   if (p.variant === "strap" && custom(p.strap)) {
-    const text = strapText(p.strap!, p.state);
+    const text = strapText(p.strap!, p.state, ballsPerOverOf(p.match));
     if (!text?.title) return null;
     const side = bowlerSide(p.state);
     return <WordedBand text={text} tone={side.tone} code={side.code} photo={{ url: photo, name: text.title }} />;
@@ -364,7 +364,7 @@ export function FranchiseNewBowler(p: OverlayElementProps["newBowler"]) {
       {current && (s.bowler_balls ?? 0) > 0 && (
         <>
           <Stat label="Overs" value={oversText(s.bowler_balls, bpo)} size="sm" />
-          <Stat label="Economy" value={economyText(s.bowler_runs, s.bowler_balls) ?? "-"} size="sm" />
+          <Stat label="Economy" value={economyText(s.bowler_runs, s.bowler_balls, bpo) ?? "-"} size="sm" />
         </>
       )}
       {text.detail && <BandText muted>{text.detail}</BandText>}
@@ -503,7 +503,7 @@ export function FranchisePlayerOfTheMatch(p: OverlayElementProps["playerOfTheMat
           value={
             <>
               {bowl.wickets_taken}-{bowl.runs_conceded}
-              <span style={{ fontSize: "1.25rem", color: FN.muted }}> ({oversText(bowl.balls_bowled)})</span>
+              <span style={{ fontSize: "1.25rem", color: FN.muted }}> ({oversText(bowl.balls_bowled, ballsPerOverOf(p.match))})</span>
             </>
           }
           accent
@@ -593,7 +593,15 @@ function Headline({ children, size = "3.25rem", style }: { children: ReactNode; 
   );
 }
 
-export function FranchisePartnershipStrap({ state, strap }: { state: LiveMatchState; strap: ActiveLowerThirdStrap | null }) {
+export function FranchisePartnershipStrap({
+  state,
+  strap,
+  bpo = 6,
+}: {
+  state: LiveMatchState;
+  strap: ActiveLowerThirdStrap | null;
+  bpo?: number;
+}) {
   if (custom(strap)) {
     const text = strapText(strap!, state);
     if (!text?.title) return null;
@@ -625,7 +633,7 @@ export function FranchisePartnershipStrap({ state, strap }: { state: LiveMatchSt
     >
       <Stat label="Runs" value={runs} size="sm" />
       <Stat label="Balls" value={balls} size="sm" />
-      <Stat label="Run rate" value={balls > 0 ? ((runs * 6) / balls).toFixed(2) : "-"} size="sm" accent />
+      <Stat label="Run rate" value={balls > 0 ? ((runs * bpo) / balls).toFixed(2) : "-"} size="sm" accent />
       {state.last_wicket && (
         <BandText muted>
           Since {state.last_wicket.score}/{state.last_wicket.wicket_number}
@@ -729,8 +737,8 @@ export function FranchiseThisOverStrap({ state, strap, bpo }: { state: LiveMatch
 
 // ---- win predictor and projection ------------------------------------------------
 
-export function PredictorStrap({ state }: { state: LiveMatchState }) {
-  const est = winPredictorFromLive(state);
+export function PredictorStrap({ state, bpo = 6 }: { state: LiveMatchState; bpo?: number }) {
+  const est = winPredictorFromLive(state, { ballsPerOver: bpo });
   if (!est || est.kind !== "chase") return null;
   const tones = matchTones(state);
   const { batting, bowling } = sidesOf(state);
@@ -784,7 +792,7 @@ export function PredictorStrap({ state }: { state: LiveMatchState }) {
 
 /** The projection range and totals at fixed rates (first innings). */
 export function ProjectionStrap({ state, bpo }: { state: LiveMatchState; bpo: number }) {
-  const est = winPredictorFromLive(state);
+  const est = winPredictorFromLive(state, { ballsPerOver: bpo });
   const range = est?.kind === "projection" ? est : null;
   const rates = projectedTotals(state, bpo);
   if (!range && !rates.length) return null;
@@ -834,7 +842,17 @@ export const BREAK_COPY: Record<BreakKind, { kicker: string; title: string }> = 
   powerplay: { kicker: "Powerplay", title: "Powerplay" },
 };
 
-export function BreakBandStrap({ state, kind, strap }: { state: LiveMatchState; kind: BreakKind; strap: ActiveLowerThirdStrap | null }) {
+export function BreakBandStrap({
+  state,
+  kind,
+  strap,
+  bpo = 6,
+}: {
+  state: LiveMatchState;
+  kind: BreakKind;
+  strap: ActiveLowerThirdStrap | null;
+  bpo?: number;
+}) {
   const text = strapText(strap ?? { id: "fn-break", type: kind, title: "" }, state);
   if (kind === "powerplay" && !state.powerplay && !custom(strap)) return null;
   const copy = BREAK_COPY[kind];
@@ -872,7 +890,7 @@ export function BreakBandStrap({ state, kind, strap }: { state: LiveMatchState; 
             scored && (
               <span className={cn(FIGURE, "ml-auto shrink-0")} style={{ fontSize: "3rem" }}>
                 {state.total_runs}/{state.total_wickets ?? 0}
-                <span style={{ fontSize: "1.375rem", color: FN.muted }}> ({oversText(state.total_balls)})</span>
+                <span style={{ fontSize: "1.375rem", color: FN.muted }}> ({oversText(state.total_balls, bpo)})</span>
               </span>
             )
           )}

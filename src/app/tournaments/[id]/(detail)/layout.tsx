@@ -8,10 +8,7 @@ import {
   loadTournament,
   TOURNAMENT_MATCH_COLUMNS,
 } from "../tournament-view";
-import {
-  attachMatchTeams,
-  MATCH_TEAM_COLUMNS,
-} from "~/lib/firebase/team-snapshot";
+import { attachMatchTeams } from "~/lib/firebase/team-snapshot";
 import { Button } from "~/components/ui/button";
 import { PageTrail } from "~/components/ds/page-trail";
 import { backLabelOf, parentOf, tournamentTrail } from "~/lib/navigation";
@@ -63,6 +60,8 @@ import { isBracketFormat, NextRoundDialog } from "~/components/tournaments/next-
 import { StatGrid, StatTile } from "~/components/ds/stat-tile";
 import { PointsTable } from "~/components/ds/standings";
 import { matchGroupsOf } from "~/lib/match-groups";
+import { remainingMatchesByTeam } from "~/lib/tournament-standings";
+import { isTournamentOver } from "~/app/tournaments/rules";
 import { SponsorLogosDialog } from "~/components/streaming/sponsor-logos-manager";
 
 export const dynamic = "force-dynamic";
@@ -92,6 +91,8 @@ interface MatchRow {
   win_margin_type: string | null;
   result_description: string | null;
   winning_team_id: string | null;
+  team1_id: string | null;
+  team2_id: string | null;
   team1: { id: string; name: string; short_name: string | null } | null;
   team2: { id: string; name: string; short_name: string | null } | null;
   innings?: InningsRow[];
@@ -329,8 +330,14 @@ export default async function TournamentLayout({
   const confirmedRegistrations = (registrations ?? []).filter(
     (r) => r.status === "confirmed",
   );
-  const registeredTeamIds = (registrations ?? []).map((r) => r.team_id);
+  // A team rejected or withdrawn may register again.
+  const registeredTeamIds = (registrations ?? [])
+    .filter((r) => r.status === "pending" || r.status === "confirmed")
+    .map((r) => r.team_id);
 
+  const remainingMatches = remainingMatchesByTeam(
+    (matches ?? []) as unknown as MatchRow[],
+  );
   const teamsForCalculator = (standings ?? []).map((s) => {
     const teamObj = s.team as { name: string } | null;
     return {
@@ -340,6 +347,7 @@ export default async function TournamentLayout({
       points: Number(s.points ?? 0),
       netRunRate: Number(s.net_run_rate ?? 0),
       qualificationStatus: s.qualification_status ?? "in_contention",
+      remainingMatches: remainingMatches.get(s.team_id) ?? 0,
     };
   });
 
@@ -377,7 +385,7 @@ export default async function TournamentLayout({
   });
 
   // Scheduling and following are over when the tournament is.
-  const over = ["completed", "cancelled"].includes(tournament.status ?? "");
+  const over = isTournamentOver(tournament.status);
   const registerTeam = canRegisterTeams && !over && (
     <RegisterTeamDialog
       tournamentId={tournament.id}
@@ -533,7 +541,7 @@ export default async function TournamentLayout({
 
       <ContentSheet className="mt-4 sm:mt-8">
       <StatGrid compact>
-        <StatTile compact icon={Users} label="Teams" value={(registrations ?? []).length} />
+        <StatTile compact icon={Users} label="Teams" value={confirmedRegistrations.length} />
         <StatTile compact icon={Swords} label="Matches" value={typedMatches.length} />
         <StatTile compact icon={CheckCircle2} label="Completed" value={completedMatches.length} />
         <StatTile compact
@@ -574,17 +582,8 @@ export default async function TournamentLayout({
                 title="No standings yet"
                 description="The points table fills in as registered teams play their fixtures."
               />
-              {canRegisterTeams && (
-                <div className="flex justify-center">
-                  <RegisterTeamDialog
-                    tournamentId={tournament.id}
-                    availableTeams={
-                      isTournamentAdmin ? undefined : availableTeams
-                    }
-                    registeredTeamIds={registeredTeamIds}
-                    isOrganiser={isTournamentAdmin}
-                  />
-                </div>
+              {registerTeam && (
+                <div className="flex justify-center">{registerTeam}</div>
               )}
             </div>
           ) : (
@@ -639,7 +638,7 @@ export default async function TournamentLayout({
 
         {/* TAB 2: FIXTURES & MATCHES */}
         <TabsContent value="fixtures" className="mt-4 space-y-6 sm:mt-6">
-          {isTournamentAdmin && (
+          {isTournamentAdmin && !over && (
             <div className="flex flex-wrap items-center justify-end gap-2">
               {typedMatches.length === 0 &&
                 !isBracketFormat(tournament.tournament_format) && (
@@ -648,7 +647,13 @@ export default async function TournamentLayout({
                   startDate={tournament.start_date}
                 />
               )}
-              {isBracketFormat(tournament.tournament_format) && <NextRoundDialog tournamentId={tournament.id} />}
+              {isBracketFormat(tournament.tournament_format) && (
+                <NextRoundDialog
+                  tournamentId={tournament.id}
+                  startDate={tournament.start_date}
+                  latestScheduledAt={typedMatches.at(-1)?.scheduled_at}
+                />
+              )}
               <Button asChild size="sm" className="gap-1.5">
                 <Link href={`/matches/create?tournamentId=${tournament.id}`}>
                   <Plus className="h-4 w-4 shrink-0" />
@@ -753,17 +758,8 @@ export default async function TournamentLayout({
 
         {/* TAB 3: TEAMS & SQUADS */}
         <TabsContent value="teams" className="mt-4 space-y-6 sm:mt-6">
-          {canRegisterTeams && (
-            <div className="flex justify-end">
-              <RegisterTeamDialog
-                tournamentId={tournament.id}
-                availableTeams={
-                  isTournamentAdmin ? undefined : availableTeams
-                }
-                registeredTeamIds={registeredTeamIds}
-                isOrganiser={isTournamentAdmin}
-              />
-            </div>
+          {registerTeam && (
+            <div className="flex justify-end">{registerTeam}</div>
           )}
 
           {/* Join requests: all for the organisers, your own otherwise */}

@@ -10,6 +10,7 @@ import type { Innings, Match, TeamPlayer } from "~/lib/match-types";
 import { cn } from "~/lib/utils";
 import {
   BallTrack,
+  ballsPerOverOf,
   CardShell,
   economyText,
   eyebrowOf,
@@ -261,9 +262,16 @@ export function PartnershipCard({
   );
 }
 
-export function OverSummaryCard({ state }: { state: LiveMatchState }) {
+export function OverSummaryCard({
+  state,
+  ballsPerOver,
+}: {
+  state: LiveMatchState;
+  /** The match's (`ballsPerOverOf`). */
+  ballsPerOver: number;
+}) {
   const over = (state.current_over ?? 0) + 1;
-  const econ = economyText(state.bowler_runs, state.bowler_balls);
+  const econ = economyText(state.bowler_runs, state.bowler_balls, ballsPerOver);
   return (
     <CardShell
       className="max-w-[52rem]"
@@ -275,7 +283,7 @@ export function OverSummaryCard({ state }: { state: LiveMatchState }) {
         </span>
       }
     >
-      <BallTrack balls={overTokens(state)} slots={6} />
+      <BallTrack balls={overTokens(state)} slots={ballsPerOver} />
       {state.current_bowler_name && (
         <p className="mt-4 flex items-baseline justify-between gap-4 text-lg">
           <span className="truncate font-medium">
@@ -286,7 +294,7 @@ export function OverSummaryCard({ state }: { state: LiveMatchState }) {
               {state.bowler_wickets ?? 0}-{state.bowler_runs ?? 0}
             </span>{" "}
             <span className={OV.cardMuted}>
-              ({oversText(state.bowler_balls)}
+              ({oversText(state.bowler_balls, ballsPerOver)}
               {econ ? ` · Econ ${econ}` : ""})
             </span>
           </span>
@@ -322,7 +330,7 @@ export function ResultCard({
               <p className="text-[2.5rem] font-bold tabular-nums">
                 {scoreOf(inn)}
                 <span className={cn("ml-2 text-lg font-normal", OV.cardMuted)}>
-                  ({oversText(inn.total_balls)} ov)
+                  ({oversText(inn.total_balls, ballsPerOverOf(match))} ov)
                 </span>
               </p>
             </div>

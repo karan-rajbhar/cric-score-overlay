@@ -250,7 +250,7 @@ export const FRANCHISE_NIGHT: BroadcastPackage = {
     newBowler: FranchiseNewBowler,
     partnership: (p) =>
       p.variant === "strap" ? (
-        <FranchisePartnershipStrap state={p.state} strap={p.strap} />
+        <FranchisePartnershipStrap state={p.state} strap={p.strap} bpo={ballsPerOverOf(p.match)} />
       ) : (
         <PartnershipCard {...p} />
       ),
@@ -270,7 +270,7 @@ export const FRANCHISE_NIGHT: BroadcastPackage = {
       p.variant === "card" ? (
         <BreakCard {...p} />
       ) : (
-        <BreakBandStrap state={p.state} kind={p.kind} strap={p.strap} />
+        <BreakBandStrap state={p.state} kind={p.kind} strap={p.strap} bpo={ballsPerOverOf(p.match)} />
       ),
     message: FranchiseMessage,
     scorecard: FranchiseScorecard,
@@ -302,7 +302,7 @@ function EstimateElement(
   const chase = winPredictorFromLive(p.state)?.kind === "chase";
   if (p.variant === "strap") {
     return chase ? (
-      <PredictorStrap state={p.state} />
+      <PredictorStrap state={p.state} bpo={bpo} />
     ) : (
       <ProjectionStrap state={p.state} bpo={bpo} />
     );

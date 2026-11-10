@@ -43,7 +43,7 @@ export function MatchWormChart({ match, ballLog: ballLogProp }: MatchWormChartPr
           ? match.team1.short_name
           : match.team2.short_name) ??
         (inn.team_id === match.team1_id ? match.team1.name : match.team2.name),
-      table: buildOverTable(inningsBalls(inn, ballLog)),
+      table: buildOverTable(inningsBalls(inn, ballLog), inn),
     }));
   }, [match, ballLog]);
 

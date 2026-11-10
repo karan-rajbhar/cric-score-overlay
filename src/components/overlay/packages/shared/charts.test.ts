@@ -77,6 +77,32 @@ describe("over series", () => {
     expect(phaseRates(table, 20)[2]!.runRate).toBeNull();
   });
 
+  it("counts a part-bowled over by its balls", () => {
+    const legal = (over: number, runs: number) =>
+      ball(over, runs, { bowler_id: "bowl" });
+    // 1.1 overs: 12 off the first over, then a four; a wide is no ball.
+    const t = overTable([
+      ...[2, 2, 2, 2, 2, 2].map((r) => legal(0, r)),
+      ball(1, 0, { bowler_id: "bowl", extra_type: "wide", extras: 1 }),
+      legal(1, 3),
+    ]);
+    expect(t.map((o) => o.balls)).toEqual([6, 1]);
+    expect(phaseRates(t, 20)[0]!.runRate).toBeCloseTo((16 * 6) / 7);
+    // Five-ball overs: 6 + 1 balls are 1.4 overs.
+    expect(phaseRates(t, 20, 5)[0]!.runRate).toBeCloseTo((16 * 5) / 7);
+    // An innings ending mid-over: 45 in the death overs, 15.0 to 19.1.
+    const death = [16, 17, 18, 19].map((n) => ({
+      overNumber: n,
+      runs: 10,
+      wickets: 0,
+      cumulativeRuns: 0,
+      cumulativeWickets: 0,
+      balls: 6,
+    }));
+    death.push({ ...death[0]!, overNumber: 20, runs: 5, balls: 1 });
+    expect(phaseRates(death, 20)[2]!.runRate).toBeCloseTo(10.8);
+  });
+
   it("sizes the axes", () => {
     expect(chartOvers(20, [table])).toBe(20);
     expect(chartOvers(null, [table])).toBe(20);

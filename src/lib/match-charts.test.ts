@@ -95,3 +95,40 @@ describe("a retirement in the charts", () => {
     expect(rows[0]).toMatchObject({ wickets: 1 });
   });
 });
+
+describe("a penalty awarded to the side yet to bat", () => {
+  // 12 singles in 2 overs by t1, and in over 1 five penalty runs to the
+  // fielding side t2: logged here, carried into t2's own innings.
+  const single = (over: number, n: number) =>
+    ({
+      over_number: over,
+      ball_number: n,
+      bowler_id: "bw1",
+      runs_scored: 1,
+      extras: 0,
+      is_wicket: false,
+    }) as BallEvent;
+  const balls = [
+    ...[1, 2, 3, 4, 5, 6].map((n) => single(0, n)),
+    {
+      over_number: 0,
+      ball_number: 6,
+      bowler_id: null,
+      runs_scored: 0,
+      extras: 5,
+      extra_type: "penalty",
+      penalty_team_id: "t2",
+      is_wicket: false,
+    } as unknown as BallEvent,
+    ...[1, 2, 3, 4, 5, 6].map((n) => single(1, n)),
+  ];
+
+  it("adds nothing to this innings' overs, worm or phases", () => {
+    const innings = { team_id: "t1" };
+    const table = buildOverTable(balls, innings);
+    expect(table.map((o) => o.runs)).toEqual([6, 6]);
+    expect(table.at(-1)?.cumulativeRuns).toBe(12);
+    const phases = phaseSplits(balls, 20, innings);
+    expect(phases.reduce((n, p) => n + p.runs, 0)).toBe(12);
+  });
+});

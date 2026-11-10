@@ -19,7 +19,12 @@ import type {
   Match,
 } from "~/lib/match-types";
 import type { LiveMatchState } from "../../types";
-import { ballsPerOverOf, chaseLine, oversText } from "../shared/derive";
+import {
+  ballsPerOverOf,
+  chaseLine,
+  oversLimitOf as limitedOversOf,
+  oversText,
+} from "../shared/derive";
 
 /** "1st", "2nd", "3rd", "4th", "11th", "21st". */
 export function ordinal(n: number): string {
@@ -203,8 +208,7 @@ export function previousInnings(
 /** The overs an innings may last, for "of 20" (none in a multi-innings match). */
 export function oversLimitOf(state: LiveMatchState): number | null {
   if (isMultiInnings(state.match_format)) return null;
-  if ((state.innings_number ?? 1) >= 3) return 1;
-  return state.overs_per_innings ?? null;
+  return limitedOversOf(state);
 }
 
 // ---- scorecard lines ---------------------------------------------------------

@@ -23,7 +23,12 @@ import { logicalMatch } from "../scoring/__fixtures__/legacy";
 import { stage2Driver, type Stage2Side } from "../scoring/__fixtures__/stage2";
 import { recomputeInnings } from "../scoring/recompute";
 import type { InningsRow, MatchesRow } from "../types";
-import { awardPenaltyRuns, recomputeInningsRpc, undoLastBall } from "./scoring";
+import {
+  awardPenaltyRuns,
+  recomputeInningsRpc,
+  retireBatter,
+  undoLastBall,
+} from "./scoring";
 
 function setup(incremental: boolean) {
   const side = stage2Driver(
@@ -251,6 +256,135 @@ describe.each([true, false])(
         extras_penalties: 5,
       });
       await expect(award(side, "nobody")).rejects.toThrow();
+    });
+  },
+);
+
+describe.each([true, false])(
+  "penalty runs that complete the innings (incremental: %s)",
+  (incremental) => {
+    it("finishes a chase that penalty runs take to its target; undo reopens it", async () => {
+      const { side, replay } = setup(incremental);
+      for (let i = 0; i < 6; i += 1)
+        await replay.step({ kind: "ball", ball: { runs: 1 } });
+      await replay.step({ kind: "ball", ball: { runs: 2 } });
+      expect(innings(side, 2)).toMatchObject({ total_runs: 2, target_runs: 7 });
+
+      // To the batting side: 2 + 5 reaches 7.
+      await awardPenaltyRuns(side.ctx, {
+        p_match_id: "M",
+        p_runs: 5,
+        p_type: "penalty",
+        p_reason: "ball hit the helmet",
+      });
+      expect(innings(side, 2)).toMatchObject({
+        total_runs: 7,
+        is_completed: true,
+      });
+      expect(match(side)).toMatchObject({
+        status: "completed",
+        result_type: "win",
+        winning_team_id: "TB",
+        win_margin: 10,
+        win_margin_type: "wickets",
+        result_description: "Bravo won by 10 wickets",
+      });
+      expectConsistent(side);
+
+      await undoLastBall(side.ctx, "M");
+      expect(innings(side, 2)).toMatchObject({
+        total_runs: 2,
+        is_completed: false,
+      });
+      expect(match(side)).toMatchObject({
+        status: "live",
+        current_innings: 2,
+        result_type: null,
+        winning_team_id: null,
+        result_description: null,
+      });
+      expectConsistent(side);
+    });
+  },
+);
+
+describe.each([true, false])(
+  "a retirement that completes the innings (incremental: %s)",
+  (incremental) => {
+    it("closes an innings a retirement takes to its last wicket", async () => {
+      const { side, replay } = setup(incremental);
+      await side.ds.update("matches", "M", { wickets_per_innings: 2 });
+      await replay.step({ kind: "ball", ball: { runs: 1 } });
+      await replay.step({ kind: "ball", ball: { runs: 0, wicket: "bowled" } });
+      await replay.step({ kind: "ball", ball: { runs: 2 } });
+      const striker = (innings(side, 1)!.batting ?? []).find(
+        (b) => b.is_current_batsman && b.is_striker,
+      )!.user_id;
+
+      await retireBatter(side.ctx, {
+        p_match_id: "M",
+        p_player_id: striker,
+        p_type: "retired_out",
+      });
+      expect(innings(side, 1)).toMatchObject({
+        total_runs: 3,
+        total_wickets: 2,
+        is_completed: true,
+      });
+      expect(innings(side, 2)).toMatchObject({
+        team_id: "TB",
+        target_runs: 4,
+        is_completed: false,
+      });
+      expect(match(side)).toMatchObject({ status: "live", current_innings: 2 });
+
+      // Undo takes the retirement back and reopens innings 1.
+      await undoLastBall(side.ctx, "M");
+      expect(innings(side, 2)).toBeUndefined();
+      expect(innings(side, 1)).toMatchObject({
+        total_wickets: 1,
+        is_completed: false,
+      });
+      expect(match(side).current_innings).toBe(1);
+      expectConsistent(side);
+    });
+  },
+);
+
+describe.each([true, false])(
+  "penalty runs to the fielding side in a super over (incremental: %s)",
+  (incremental) => {
+    it("go to their super-over innings, not the main match's", async () => {
+      const { side, replay } = setup(incremental);
+      // 6 each, then TB bat the super over's first innings.
+      for (let i = 0; i < 12; i += 1)
+        await replay.step({ kind: "ball", ball: { runs: 1 } });
+      expect(match(side)).toMatchObject({ result_type: "tie" });
+      await replay.step({ kind: "super_over" });
+      expect(innings(side, 3)).toMatchObject({ team_id: "TB" });
+      await replay.step({ kind: "ball", ball: { runs: 2 } });
+
+      await award(side, "TA");
+      expect(innings(side, 1)).toMatchObject({
+        total_runs: 6,
+        extras_penalties: 0,
+      });
+      expect(innings(side, 3)).toMatchObject({ total_runs: 2 });
+      expect(
+        (match(side).innings_summary ?? []).find((s) => s.innings_number === 1)
+          ?.total_runs,
+      ).toBe(6);
+
+      // TB's over ends: TA start their super-over innings on 5, chasing 3.
+      for (let i = 0; i < 5; i += 1)
+        await replay.step({ kind: "ball", ball: { runs: 0 } });
+      expect(innings(side, 4)).toMatchObject({
+        team_id: "TA",
+        total_runs: 5,
+        extras_penalties: 5,
+        target_runs: 3,
+      });
+      expectConsistent(side);
     });
   },
 );

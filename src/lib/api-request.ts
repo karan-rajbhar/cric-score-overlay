@@ -2,10 +2,10 @@ import type { NextRequest } from "next/server";
 
 /**
  * Checks shared by the JSON routes that act for a signed-in user
- * (`/api/scoring/replay`, `/api/overlay/command`). The session cookie is
- * SameSite=Lax, so they also require a same-origin `Origin` header (the
- * check Next.js applies to server actions) and a JSON body, which a
- * cross-site form cannot send.
+ * (`/api/scoring/replay`, `/api/overlay/command`) or set the session
+ * (`/api/auth/session`). The session cookie is SameSite=Lax, so they also
+ * require a same-origin `Origin` header (the check Next.js applies to
+ * server actions) and a JSON body, which a cross-site form cannot send.
  */
 
 /** The request's `Origin` is this host (behind a proxy: X-Forwarded-Host). */

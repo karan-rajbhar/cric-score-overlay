@@ -2,7 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createObsBridge } from "~/components/overlay/obs-bridge";
-import { useStageMatch } from "~/components/overlay/overlay-data";
+import {
+  useDelayed,
+  useFreshMatch,
+  useStageMatch,
+} from "~/components/overlay/overlay-data";
+import { ballsPerOverOf } from "~/components/overlay/overlay-kit";
 import { OverlayStage } from "~/components/overlay/overlay-stage";
 import type { LiveMatchState } from "~/components/overlay/types";
 import {
@@ -42,27 +47,12 @@ interface OverlayClientProps {
 }
 
 /**
- * `value`, each change shown `delayMs` later (the first one at once). For a
- * stream whose video runs behind the scoring.
- */
-export function useDelayed<T>(value: T, delayMs: number): T {
-  const [shown, setShown] = useState(value);
-  useEffect(() => {
-    const id = setTimeout(() => setShown(value), Math.max(0, delayMs));
-    return () => {
-      // Each change gets its own timer: none is dropped by the next one.
-      if (delayMs <= 0) clearTimeout(id);
-    };
-  }, [value, delayMs]);
-  return delayMs > 0 ? shown : value;
-}
-
-/**
  * The OBS browser source: a transparent 1920x1080 page with the match's
  * score and what the control room puts on air. It follows two documents,
  * 1 read each per change: `live_state/{matchId}` (every ball) and
  * `overlay_state/{matchId}` (every producer command), plus the live
- * scorecard only while a scorecard is on screen. Nothing on it is a
+ * scorecard only while a scorecard is on screen, and reads the match again
+ * when it or a squad changes (`useFreshMatch`). Nothing on it is a
  * control: setting up and producing happen on the match page and in the
  * control room.
  */
@@ -90,6 +80,9 @@ export function OverlayClient({
   );
 
   const producer = useOverlayStateDoc(matchId, isRealMatch);
+  // The match read again when it or a squad changes (player of the
+  // match, Playing XI, settings such as balls per over).
+  const freshMatch = useFreshMatch(matchId, match, live);
   // Replays through OBS (the browser source's API; nothing elsewhere).
   const replayScene = producer.doc?.scene.replayScene;
   const bridge = useMemo(
@@ -103,6 +96,7 @@ export function OverlayClient({
     params,
     state,
     serverNow,
+    ballsPerOver: ballsPerOverOf(freshMatch),
     onReplay: (item: ReplayRequest) =>
       void bridge.replay({ seconds: item.durationMs / 1000 }),
   });
@@ -116,11 +110,14 @@ export function OverlayClient({
   }, []);
   const ready = !isRealMatch || producer.loaded || waited;
 
-  // Scorecards follow the live scorecard while one is on air.
-  const currentMatch = useStageMatch(matchId, match, {
-    view: layers.view,
-    card: layers.card,
-  });
+  // Scorecards follow the live scorecard while one is on air, held for
+  // `?delay=` like the score.
+  const currentMatch = useStageMatch(
+    matchId,
+    freshMatch,
+    { view: layers.view, card: layers.card },
+    delayMs,
+  );
 
   // Interact (OBS) or keyboard: Escape takes one-off graphics off here, G
   // shows the safe-zone guides for lining the source up.

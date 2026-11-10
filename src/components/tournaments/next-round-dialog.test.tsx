@@ -2,7 +2,11 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { createNextRound, previewNextRound } from "~/app/tournaments/bracket-actions";
-import { NextRoundDialog, isBracketFormat } from "./next-round-dialog";
+import {
+  NextRoundDialog,
+  isBracketFormat,
+  suggestedStart,
+} from "./next-round-dialog";
 
 const refresh = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
@@ -45,18 +49,37 @@ describe("NextRoundDialog", () => {
       data: { count: 2, label: "Semi-final" },
       error: null,
     });
-    render(<NextRoundDialog tournamentId="r1" />);
+    render(<NextRoundDialog tournamentId="r1" startDate="2026-12-10" />);
     fireEvent.click(screen.getByRole("button", { name: "Create next round" }));
     expect(await screen.findByText("Strikers vs Titans")).toBeInTheDocument();
+    // The start date at 10:00 local time is offered; the organiser moves it.
+    expect(screen.getByLabelText("First match day")).toHaveValue("2026-12-10");
+    expect(screen.getByLabelText("Start time")).toHaveValue("10:00");
+    fireEvent.change(screen.getByLabelText("Start time"), {
+      target: { value: "14:30" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Create 2 matches" }));
     await waitFor(() =>
       expect(toast.success).toHaveBeenCalledWith("Semi-final: 2 matches created"),
     );
-    expect(createNextRound).toHaveBeenCalledWith("r1", {
-      groupCount: 2,
-      qualifiersPerGroup: 2,
-    });
+    expect(createNextRound).toHaveBeenCalledWith(
+      "r1",
+      { groupCount: 2, qualifiersPerGroup: 2 },
+      new Date("2026-12-10T14:30").toISOString(),
+    );
     expect(refresh).toHaveBeenCalled();
+  });
+
+  it("offers the day after the latest fixture, at its time", () => {
+    const latest = new Date("2026-12-10T14:30").toISOString();
+    expect(suggestedStart(latest, "2026-12-01")).toEqual({
+      day: "2026-12-11",
+      time: "14:30",
+    });
+    expect(suggestedStart(null, null, new Date("2026-12-31T09:00"))).toEqual({
+      day: "2027-01-01",
+      time: "10:00",
+    });
   });
 
   it("says why nothing can be created yet", async () => {

@@ -223,6 +223,7 @@ import {
   deliveryKind,
   deliveryLabel,
   economyRate,
+  inningsOvers,
   matchFormatName,
 } from "~/lib/cricket";
 import { useMatchShare } from "~/components/matches/use-match-share";
@@ -1100,18 +1101,17 @@ function useScoringScreen() {
     return true;
   };
 
+  /** Revise the chase's target; a refusal is shown in the dialog. */
   const handleReviseTargetConfirm = async (params: {
     targetRuns: number | null;
     overs?: number | null;
   }) => {
-    if (!match) return;
+    if (!match) return { error: null };
     const res = await callServer(() => updateTargetRuns(match.id, params));
-    if (res.error) {
-      toast.error(res.error);
-    } else {
-      toast.success("Target updated");
-      await syncFromDb();
-    }
+    if (res.error) return { error: res.error };
+    toast.success("Target updated");
+    await syncFromDb();
+    return { error: null };
   };
 
   /** Correct a ball (any over); the error is shown in the dialog. */
@@ -1421,6 +1421,7 @@ function MatchToolsMenu({ s }: { s: LoadedScreen }) {
     isScorer,
     setShowMatchSettingsDialog,
     match,
+    isChase,
     setShowReviseTargetDialog,
     strikerDisplay,
     setRetireTarget,
@@ -1505,7 +1506,11 @@ function MatchToolsMenu({ s }: { s: LoadedScreen }) {
               </Link>
             </DropdownMenuItem>
           )}
-          {match.status === "live" && isScorer && (
+          {/* The main match's chase only (updateTargetRuns refuses others). */}
+          {match.status === "live" &&
+            isScorer &&
+            isChase &&
+            !isSuperOverInnings(match.current_innings ?? 1) && (
             <DropdownMenuItem
               onClick={() => setShowReviseTargetDialog(true)}
               className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
@@ -2876,6 +2881,7 @@ function ScoringDialogs({ s }: { s: LoadedScreen }) {
         battingTeamPlayers={battingTeamPlayers}
         battingTeamName={battingTeam?.name}
         battingPerformances={currentInnings?.batting_performances}
+        partnerships={currentInnings?.partnerships}
         bowlingTeamPlayerIds={bowlingTeamPlayerIds}
         currentBowlerId={currentBowlerId}
         strikerId={strikerId}
@@ -3187,7 +3193,8 @@ function ScoringDialogs({ s }: { s: LoadedScreen }) {
         open={showReviseTargetDialog}
         onOpenChange={setShowReviseTargetDialog}
         currentTarget={currentInnings?.target_runs}
-        currentOvers={match.overs_per_innings}
+        currentOvers={inningsOvers(match, match.current_innings ?? 1)}
+        maxOvers={match.overs_per_innings}
         onConfirm={handleReviseTargetConfirm}
         isProcessing={isProcessing}
       />

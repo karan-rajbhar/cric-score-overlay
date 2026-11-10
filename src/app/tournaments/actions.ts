@@ -8,7 +8,13 @@ import { teamSnapshot } from "~/lib/firebase/team-snapshot";
 import type { TeamSnapshot } from "~/lib/firebase/types";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { TOURNAMENT_STATUSES, tournamentRulesFrom } from "./rules";
+import {
+  fixtureRulesOf,
+  isTournamentOver,
+  TOURNAMENT_STATUSES,
+  tournamentRulesFrom,
+  tournamentShapeFrom,
+} from "./rules";
 
 export async function createTournament(formData: FormData) {
   const db = await createServerClient();
@@ -27,6 +33,8 @@ export async function createTournament(formData: FormData) {
 
   const rules = tournamentRulesFrom(formData);
   if ("error" in rules) return { error: rules.error };
+  const shape = tournamentShapeFrom(formData);
+  if ("error" in shape) return { error: shape.error };
 
   if (clubId) {
     const { data: club } = await db
@@ -63,16 +71,13 @@ export async function createTournament(formData: FormData) {
     .insert({
       name,
       description: (formData.get("description") as string) || null,
-      tournament_format:
-        (formData.get("tournament_format") as string) || "league",
+      ...shape,
       match_format: rules.match_format,
       overs_per_innings: rules.overs_per_innings,
       ...(rules.wickets_per_innings !== null
         ? { wickets_per_innings: rules.wickets_per_innings }
         : {}),
       venue: (formData.get("venue") as string) || null,
-      start_date: (formData.get("start_date") as string) || null,
-      end_date: (formData.get("end_date") as string) || null,
       club_id: clubId,
       created_by: user.id,
       status: "upcoming",
@@ -106,6 +111,25 @@ async function checkTournamentAdminAuth(
   if (!tournament) return false;
   if (tournament.created_by === userId) return true;
   return isClubAdminOf(db, tournament.club_id, userId);
+}
+
+/** Refusal for new teams or fixtures once a tournament is over. */
+const OVER = "This tournament is over";
+
+/** The tournament's club, and the refusal when it is over. */
+async function openTournament(
+  db: Awaited<ReturnType<typeof createServerClient>>,
+  tournamentId: string,
+): Promise<{ clubId: string | null; error: string | null }> {
+  const { data } = await db
+    .from("tournaments")
+    .select("club_id, status")
+    .eq("id", tournamentId)
+    .maybeSingle();
+  return {
+    clubId: data?.club_id ?? null,
+    error: isTournamentOver(data?.status) ? OVER : null,
+  };
 }
 
 /** Most teams the "Register team" dialog lists, so it cannot read them all. */
@@ -144,6 +168,46 @@ export async function getRegistrableTeams(tournamentId: string): Promise<{
   };
 }
 
+/**
+ * Writes a team's registration: a new row, or the old one of a team
+ * rejected or withdrawn before. Refuses a team already in or waiting.
+ * Answers the error to show, if any.
+ */
+async function saveRegistration(
+  db: Awaited<ReturnType<typeof createServerClient>>,
+  tournamentId: string,
+  teamId: string,
+  fields: { registered_by: string; status: string; payment_status: string },
+): Promise<string | null> {
+  const { data: previous } = await db
+    .from("tournament_registrations")
+    .select("id, status")
+    .eq("tournament_id", tournamentId)
+    .eq("team_id", teamId)
+    .maybeSingle();
+  if (previous?.status === "pending" || previous?.status === "confirmed") {
+    return "This team is already registered";
+  }
+  const { error } = previous
+    ? await db
+        .from("tournament_registrations")
+        .update({
+          ...fields,
+          registered_at: new Date().toISOString(),
+          approved_by: null,
+          approved_at: null,
+        })
+        .eq("id", previous.id)
+    : await db
+        .from("tournament_registrations")
+        .insert({ tournament_id: tournamentId, team_id: teamId, ...fields });
+  if (error) {
+    console.error("registerTeamForTournament error:", error);
+    return error.message;
+  }
+  return null;
+}
+
 export async function registerTeamForTournament(
   tournamentId: string,
   teamId: string,
@@ -156,6 +220,9 @@ export async function registerTeamForTournament(
   if (!user) return { error: "You must be logged in to register a team" };
 
   await ensureUserProfile(db, user);
+
+  const tourn = await openTournament(db, tournamentId);
+  if (tourn.error) return { error: tourn.error };
 
   const isTournAdmin = await checkTournamentAdminAuth(
     db,
@@ -172,20 +239,12 @@ export async function registerTeamForTournament(
 
   // Organisers add teams directly; a team's own request waits for them.
   const status = isTournAdmin ? "confirmed" : "pending";
-  const { error: regError } = await db
-    .from("tournament_registrations")
-    .insert({
-      tournament_id: tournamentId,
-      team_id: teamId,
-      registered_by: user.id,
-      status,
-      payment_status: isTournAdmin ? "paid" : "pending",
-    });
-
-  if (regError) {
-    console.error("registerTeamForTournament error:", regError);
-    return { error: regError.message };
-  }
+  const regError = await saveRegistration(db, tournamentId, teamId, {
+    registered_by: user.id,
+    status,
+    payment_status: isTournAdmin ? "paid" : "pending",
+  });
+  if (regError) return { error: regError };
 
   if (status === "confirmed") {
     // Initialise the team's row in the points table.
@@ -194,16 +253,8 @@ export async function registerTeamForTournament(
     });
   }
 
-  const { data: tourn } = await db
-    .from("tournaments")
-    .select("club_id")
-    .eq("id", tournamentId)
-    .single();
-
   revalidatePath(`/tournaments/${tournamentId}`);
-  if (tourn?.club_id) {
-    revalidatePath(`/clubs/${tourn.club_id}`);
-  }
+  if (tourn.clubId) revalidatePath(`/clubs/${tourn.clubId}`);
   return { success: true, status };
 }
 
@@ -286,9 +337,19 @@ export async function overridePointsTableEntry(
   return { success: true };
 }
 
+const REGISTRATION_DECISIONS: ReadonlySet<string> = new Set([
+  "confirmed",
+  "rejected",
+]);
+
+/**
+ * Confirm or reject a registration. The organiser check runs against the
+ * tournament the registration belongs to; `_tournamentId` (what the page
+ * sent) is not trusted for it.
+ */
 export async function updateRegistrationStatus(
   registrationId: string,
-  tournamentId: string,
+  _tournamentId: string,
   status: "confirmed" | "rejected",
 ) {
   const db = await createServerClient();
@@ -298,11 +359,20 @@ export async function updateRegistrationStatus(
 
   if (!user) return { error: "You must be logged in" };
 
-  const isTournAdmin = await checkTournamentAdminAuth(
-    db,
-    tournamentId,
-    user.id,
-  );
+  if (!REGISTRATION_DECISIONS.has(status)) {
+    return { error: "Unknown registration status" };
+  }
+
+  const { data: registration } = await db
+    .from("tournament_registrations")
+    .select("tournament_id, status")
+    .eq("id", registrationId)
+    .maybeSingle();
+  const tournamentId = registration?.tournament_id as string | undefined;
+
+  const isTournAdmin =
+    !!tournamentId &&
+    (await checkTournamentAdminAuth(db, tournamentId, user.id));
   if (!isTournAdmin) {
     return {
       error: "Only tournament organizers can approve or reject registrations.",
@@ -323,7 +393,8 @@ export async function updateRegistrationStatus(
     return { error: error.message };
   }
 
-  if (status === "confirmed") {
+  // The team joins the points table, or leaves it once rejected.
+  if (status === "confirmed" || registration?.status === "confirmed") {
     await db.rpc("recalculate_tournament_standings", {
       p_tournament_id: tournamentId,
     });
@@ -334,10 +405,36 @@ export async function updateRegistrationStatus(
 }
 
 /**
+ * The pairings whose two teams have no match in the tournament yet (either
+ * way round), so generating again, from a stale page or by a second
+ * organiser, creates no fixture twice.
+ */
+async function withoutFixtures<P extends { homeTeamId: string; awayTeamId: string }>(
+  db: Awaited<ReturnType<typeof createServerClient>>,
+  tournamentId: string,
+  pairings: P[],
+): Promise<{ pairings: P[]; error: string | null }> {
+  const { data, error } = await db
+    .from("matches")
+    .select("team1_id, team2_id")
+    .eq("tournament_id", tournamentId);
+  if (error) return { pairings: [], error: error.message };
+  const key = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
+  const taken = new Set(
+    (data ?? []).map((m) => key(String(m.team1_id), String(m.team2_id))),
+  );
+  return {
+    pairings: pairings.filter((p) => !taken.has(key(p.homeTeamId, p.awayTeamId))),
+    error: null,
+  };
+}
+
+/**
  * Round-robin fixtures for the confirmed teams, one round a day starting at
  * `firstMatchAt` (an ISO timestamp the organiser's browser builds from
  * their local day and time). Without it: the start date (or today) at
- * 10:00 UTC.
+ * 10:00 UTC. Matches take the rules the match wizard would
+ * (`fixtureRulesOf`); a pair that already has a fixture gets none.
  */
 export async function generateTournamentFixtures(
   tournamentId: string,
@@ -374,13 +471,15 @@ export async function generateTournamentFixtures(
   const { data: tournament, error: tourError } = await db
     .from("tournaments")
     .select(
-      "id, name, match_format, overs_per_innings, venue, start_date, club_id, wickets_per_innings, last_man_stands, golden_ball, season_id",
+      "id, name, status, match_format, overs_per_innings, custom_overs, venue, start_date, club_id, wickets_per_innings, last_man_stands, golden_ball, season_id",
     )
     .eq("id", tournamentId)
     .single();
 
   if (tourError || !tournament)
     return { error: tourError?.message ?? "Tournament not found" };
+  if (isTournamentOver(tournament.status)) return { error: OVER };
+  const rules = fixtureRulesOf(tournament);
 
   // Fetch confirmed teams
   const { data: regs, error: regError } = await db
@@ -398,9 +497,15 @@ export async function generateTournamentFixtures(
     };
 
   const teamIds = regs.map((r) => r.team_id).filter(Boolean) as string[];
-  const pairings = generateRoundRobinFixtures(teamIds);
-
-  if (pairings.length === 0) return { error: "No pairings could be generated" };
+  const { pairings, error: pairError } = await withoutFixtures(
+    db,
+    tournamentId,
+    generateRoundRobinFixtures(teamIds),
+  );
+  if (pairError) return { error: pairError };
+  if (pairings.length === 0) {
+    return { error: "Every pair of teams already has a fixture." };
+  }
 
   const teamById = new Map<string, TeamSnapshot>();
   regs.forEach((r) => {
@@ -426,8 +531,7 @@ export async function generateTournamentFixtures(
 
     return {
       title: `${team1Name} vs ${team2Name} (Round ${p.round})`,
-      match_format: tournament.match_format ?? "T20",
-      overs_per_innings: tournament.overs_per_innings ?? 20,
+      ...rules,
       team1_id: p.homeTeamId,
       team2_id: p.awayTeamId,
       team1_snapshot: team1,
@@ -435,7 +539,6 @@ export async function generateTournamentFixtures(
       tournament_id: tournament.id,
       club_id: tournament.club_id,
       season_id: tournament.season_id,
-      wickets_per_innings: tournament.wickets_per_innings ?? 10,
       last_man_stands: tournament.last_man_stands ?? false,
       golden_ball: tournament.golden_ball ?? false,
       venue: tournament.venue,
@@ -484,11 +587,7 @@ export async function updateTournament(
   if (!name) return { error: "Tournament name is required" };
 
   const description = (formData.get("description") as string)?.trim() || null;
-  const tournament_format =
-    (formData.get("tournament_format") as string) || "league";
   const venue = (formData.get("venue") as string)?.trim() || null;
-  const start_date = (formData.get("start_date") as string) || null;
-  const end_date = (formData.get("end_date") as string) || null;
   const season_id = (formData.get("season_id") as string) || null;
   const is_public = formData.get("is_public") !== "false";
 
@@ -500,9 +599,8 @@ export async function updateTournament(
   if (rawStatus && !TOURNAMENT_STATUSES.has(rawStatus)) {
     return { error: "Unknown tournament status" };
   }
-  if (start_date && end_date && end_date < start_date) {
-    return { error: "The end date is before the start date" };
-  }
+  const shape = tournamentShapeFrom(formData);
+  if ("error" in shape) return { error: shape.error };
 
   const last_man_stands = formData.get("last_man_stands") === "true";
   const golden_ball = formData.get("golden_ball") === "true";
@@ -518,7 +616,7 @@ export async function updateTournament(
     .update({
       name,
       description,
-      tournament_format,
+      ...shape,
       match_format,
       overs_per_innings,
       ...(wickets_per_innings !== null ? { wickets_per_innings } : {}),
@@ -526,8 +624,6 @@ export async function updateTournament(
       last_man_stands,
       golden_ball,
       venue,
-      start_date,
-      end_date,
       season_id: season_id && season_id !== "none" ? season_id : null,
       is_public,
       updated_at: new Date().toISOString(),
@@ -550,6 +646,12 @@ export async function updateTournament(
   return { success: true };
 }
 
+/**
+ * Deletes a tournament with its registrations and points table, and its
+ * fixtures that never started (`delete_unplayed_fixtures`, the cleanup of
+ * `delete_match`). Matches that started or finished stay, outside any
+ * tournament.
+ */
 export async function deleteTournament(tournamentId: string) {
   const db = await createServerClient();
   const {
@@ -575,6 +677,14 @@ export async function deleteTournament(tournamentId: string) {
     .select("club_id")
     .eq("id", tournamentId)
     .single();
+
+  const { error: fixturesError } = await db.rpc("delete_unplayed_fixtures", {
+    p_tournament_id: tournamentId,
+  });
+  if (fixturesError) {
+    console.error("deleteTournament fixtures error:", fixturesError);
+    return { error: fixturesError.message };
+  }
 
   const { error } = await db
     .from("tournaments")

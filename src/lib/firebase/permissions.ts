@@ -60,14 +60,19 @@ export async function clubRoleOf(
 }
 
 /**
- * Who may put a match into a club or take it out of one: that club's
- * admins, or a member of it who scores the match (`isMatchAdmin`).
+ * Who may change a match's club. A club's admins may score and delete its
+ * matches, so moving a match into a club needs those rights over it already
+ * (`canDeleteMatch`: its creator, or an admin of the club it is in now) and
+ * a place in the club it goes to (`joining`: the user's role there;
+ * undefined when it goes into no new club). Taking it out of its club, or
+ * changing whose stats count, needs the same rights, which that club's
+ * admins have.
  */
 export function canSetMatchClub(
-  role: "admin" | "member" | null,
-  isMatchAdmin: boolean,
+  canDeleteMatch: boolean,
+  joining: "admin" | "member" | null | undefined,
 ): boolean {
-  return role === "admin" || (role === "member" && isMatchAdmin);
+  return canDeleteMatch && joining !== null;
 }
 
 /**

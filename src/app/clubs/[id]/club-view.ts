@@ -36,6 +36,7 @@ export interface TournamentRow {
   venue: string | null;
   season_id: string | null;
   overs_per_innings?: number | null;
+  wickets_per_innings?: number | null;
 }
 
 export interface MatchRow {

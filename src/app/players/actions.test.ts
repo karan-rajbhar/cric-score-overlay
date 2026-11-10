@@ -116,6 +116,19 @@ describe("Players Actions - Username and Handle Management", () => {
       expect(res.success).toBe(false);
       expect(res.error).toBe("This username is already taken");
     });
+
+    it("writes nothing itself when the RPC fails (the RPC claims the handle)", async () => {
+      mockGetUser.mockResolvedValueOnce({ data: { user: { id: "u-1" } } });
+      mockRpc.mockResolvedValueOnce({
+        data: null,
+        error: { message: "deadline exceeded" },
+      });
+
+      const res = await updateUsername("new_handle");
+      expect(res.success).toBe(false);
+      expect(res.error).toBe("Could not save the username. Try again.");
+      expect(mockFrom).not.toHaveBeenCalled();
+    });
   });
 
   describe("getPlayerByIdOrHandle", () => {

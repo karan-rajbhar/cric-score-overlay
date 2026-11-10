@@ -22,7 +22,7 @@ import { rebuildStats } from "../stats.mjs";
 import type { Seed } from "../scoring/__fixtures__/golden";
 import type { PlayerMatchesRow } from "../types";
 import { canDeleteMatch } from "./auth-helpers";
-import { deleteMatch } from "./delete-match";
+import { deleteMatch, deleteUnplayedFixtures } from "./delete-match";
 import { recalculateTournamentStandings } from "./standings";
 
 const seed = JSON.parse(
@@ -330,5 +330,41 @@ describe("delete_match keeps aggregates exactly consistent", () => {
     expect(memory.all("player_career_stats")).toHaveLength(0);
     expect(memory.all("leaderboards")).toHaveLength(0);
     await expectConsistent(memory);
+  });
+});
+
+describe("deleteUnplayedFixtures", () => {
+  function tables() {
+    return new MemoryDataSource({
+      tournaments: [{ id: "t1", name: "Cup", created_by: "organiser" }],
+      matches: [
+        { id: "fixture", tournament_id: "t1", status: "scheduled" },
+        { id: "started", tournament_id: "t1", status: "scheduled" },
+        { id: "played", tournament_id: "t1", status: "completed" },
+      ],
+      innings: [{ id: "inn", match_id: "started", innings_number: 1 }],
+    });
+  }
+  const ids = (memory: MemoryDataSource) =>
+    memory.all("matches").map((m) => m.id).sort();
+
+  it("removes only the tournament's fixtures that never started", async () => {
+    const memory = tables();
+    const removed = await deleteUnplayedFixtures(
+      { ds: memory, db: null, uid: "organiser" },
+      "t1",
+    );
+    expect(removed).toBe(1);
+    expect(ids(memory)).toEqual(["played", "started"]);
+  });
+
+  it("refuses anyone who does not organise the tournament", async () => {
+    const memory = tables();
+    for (const uid of ["someone-else", null]) {
+      await expect(
+        deleteUnplayedFixtures({ ds: memory, db: null, uid }, "t1"),
+      ).rejects.toMatchObject({ message: "not_authorized" });
+    }
+    expect(ids(memory)).toEqual(["fixture", "played", "started"]);
   });
 });

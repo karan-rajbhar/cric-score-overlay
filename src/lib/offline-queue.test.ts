@@ -469,22 +469,35 @@ describe("Offline queue replay through /api/scoring/replay", () => {
     }
   });
 
-  it("treats a 5xx like a dropped connection: retried, then dead-lettered", async () => {
-    enqueuePendingBall(ball(1));
-    const down: ReplayTransport = async () => ({
-      ok: false,
-      status: 503,
-      code: "http_503",
-      message: "Service Unavailable",
-    });
-    expect(await flushPendingActions(matchId, down, { maxRetries: 2 })).toMatchObject({
-      synced: 0,
-      failed: 1,
-    });
-    expect(getPendingActions(matchId)[0]!.retryCount).toBe(1);
-    await flushPendingActions(matchId, down, { maxRetries: 2 });
+  it("treats a 5xx like no reply: the queue stays whole and in order, however often", async () => {
+    for (const [id, runs] of [["A", 1], ["B", 2], ["C", 3]] as const) {
+      enqueueAction(matchId, "recordBall", ball(runs), id, { instant: true });
+    }
+    const sent: string[][] = [];
+    let down = 5;
+    const send: ReplayTransport = async (batch) => {
+      sent.push(batch.actions.map((a) => `${a.id}${a.resent ? "+" : ""}`));
+      if (down > 0) {
+        down -= 1;
+        return { ok: false, status: 503, code: "http_503", message: "Service Unavailable" };
+      }
+      return routeLike({ recordBall: async () => ({ error: null }) })(batch);
+    };
+    for (let i = 0; i < 5; i += 1) {
+      expect(await flushPendingActions(matchId, send, { maxRetries: 2 })).toMatchObject({
+        synced: 0,
+        failed: 1,
+      });
+    }
+    expect(getPendingActions(matchId).map((a) => a.queueId)).toEqual(["A", "B", "C"]);
+    expect(getDeadLetterCount(matchId)).toBe(0);
+    // Not a refusal: nothing may be skipped.
+    expect(refusedHeadAction(matchId)).toBeNull();
+
+    // The server is back: everything, in order, as resends.
+    expect(await flushPendingActions(matchId, send)).toMatchObject({ synced: 3, failed: 0 });
+    expect(sent.at(-1)).toEqual(["A+", "B+", "C+"]);
     expect(getPendingActions(matchId)).toHaveLength(0);
-    expect(getDeadLetterCount(matchId)).toBe(1);
   });
 
   it("marks an action sent before as resent, and never gives up on one that got no reply", async () => {

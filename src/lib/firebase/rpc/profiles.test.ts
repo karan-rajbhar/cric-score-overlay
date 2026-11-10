@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { AppUser } from "../auth-types";
-import { MemoryDataSource } from "../datasource";
-import { addTeamPlayer, createTeamPlayer, ensureOwnProfile } from "./profiles";
+import { MemoryDataSource, type Doc, type NativeFilter } from "../datasource";
+import { derivedFieldsDataSource } from "../derived-fields";
+import {
+  addTeamPlayer,
+  createTeamPlayer,
+  ensureOwnProfile,
+  updateOwnUsername,
+  USERNAMES_COLLECTION,
+} from "./profiles";
 
 function googleUser(id: string, email: string | null, name = "Ann"): AppUser {
   return {
@@ -185,5 +192,214 @@ describe("addTeamPlayer", () => {
       { field: "user_id", op: "==", value: "u1" },
     ]);
     expect(rows).toMatchObject([{ team_id: "t1", added_by: "coscorer" }]);
+  });
+});
+
+describe("addTeamPlayer for a placeholder", () => {
+  it("adds one only for someone who runs a team that has it", async () => {
+    const ds = new MemoryDataSource({
+      teams: [
+        { id: "t1", created_by: "owner", club_id: null },
+        { id: "t2", created_by: "rival", club_id: null },
+        { id: "t3", created_by: "owner", club_id: null },
+        { id: "mine", created_by: "outsider", club_id: null },
+      ],
+      users: [
+        { id: "p2", full_name: "Placeholder", is_placeholder: true },
+        { id: "orphan", full_name: "Nobody's", is_placeholder: true },
+      ],
+      team_players: [{ id: "tp", team_id: "t2", user_id: "p2" }],
+      matches: [
+        {
+          id: "m1",
+          created_by: "owner",
+          match_admins: ["coscorer"],
+          team1_id: "t1",
+          team2_id: "t2",
+          status: "live",
+        },
+      ],
+    });
+    const squadOf = async (teamId: string) =>
+      (
+        await ds.query("team_players", [
+          { field: "team_id", op: "==", value: teamId },
+        ])
+      ).map((r) => r.user_id);
+
+    // An outsider, and a team admin with no say over the player's team.
+    await expect(addTeamPlayer(ds, "outsider", "mine", "p2")).rejects.toThrow(
+      /not_authorized/,
+    );
+    await expect(addTeamPlayer(ds, "owner", "t3", "p2")).rejects.toThrow(
+      /not_authorized/,
+    );
+    await expect(addTeamPlayer(ds, "outsider", "mine", "orphan")).rejects.toThrow(
+      /not_authorized/,
+    );
+    expect(await squadOf("mine")).toEqual([]);
+    expect(await squadOf("t3")).toEqual([]);
+
+    // The match's scorer, from the other side's squad ("Plays for ...").
+    await addTeamPlayer(ds, "coscorer", "t1", "p2", "m1");
+    expect(await squadOf("t1")).toEqual(["p2"]);
+    // The player's own team admin, to another team of theirs.
+    await addTeamPlayer(ds, "rival", "t2", "p2");
+    await ds.update("teams", "t3", { captain_id: "rival" });
+    await addTeamPlayer(ds, "rival", "t3", "p2");
+    expect(await squadOf("t3")).toEqual(["p2"]);
+  });
+});
+
+describe("addTeamPlayer for a placeholder in no squad", () => {
+  it("adds them back for an admin of a team they played for", async () => {
+    // Taken out of every squad by mistake; one batted for t1, one bowled
+    // for t1 (in t2's innings), both against t2.
+    const ds = new MemoryDataSource({
+      teams: [
+        { id: "t1", created_by: "owner", club_id: null },
+        { id: "t2", created_by: "rival", club_id: null },
+        { id: "t3", created_by: "owner", club_id: null },
+        { id: "mine", created_by: "outsider", club_id: null },
+      ],
+      users: [
+        { id: "bat", full_name: "Batter", is_placeholder: true },
+        { id: "bowl", full_name: "Bowler", is_placeholder: true },
+      ],
+      matches: [{ id: "m0", team1_id: "t1", team2_id: "t2", status: "completed" }],
+      innings: [
+        { id: "i1", match_id: "m0", team_id: "t1", innings_number: 1 },
+        { id: "i2", match_id: "m0", team_id: "t2", innings_number: 2 },
+      ],
+      player_matches: [
+        { id: "m0_bat", match_id: "m0", user_id: "bat", batting: [{ innings_id: "i1" }], bowling: [] },
+        { id: "m0_bowl", match_id: "m0", user_id: "bowl", batting: [], bowling: [{ innings_id: "i2" }] },
+      ],
+    });
+    const squads = async () =>
+      (await ds.query("team_players", [])).map((r) => `${r.team_id}:${r.user_id}`).sort();
+
+    for (const player of ["bat", "bowl"]) {
+      // Not for the other side's admin, nor an outsider.
+      await expect(addTeamPlayer(ds, "rival", "t2", player)).rejects.toThrow(
+        /placeholder_of_other_team/,
+      );
+      await expect(addTeamPlayer(ds, "outsider", "mine", player)).rejects.toThrow(
+        /placeholder_of_other_team/,
+      );
+    }
+    expect(await squads()).toEqual([]);
+
+    await addTeamPlayer(ds, "owner", "t1", "bat");
+    await addTeamPlayer(ds, "owner", "t3", "bowl");
+    expect(await squads()).toEqual(["t1:bat", "t3:bowl"]);
+  });
+});
+
+/**
+ * Just enough of an Admin Firestore over a memory data source for the
+ * transactions `runScoringTransaction` runs, serializable like Firestore's
+ * (one transaction at a time), which the memory data source alone is not.
+ */
+function serializableFirestore(ds: MemoryDataSource) {
+  type Ref = { table: string; id: string };
+  type Query = { table: string; filters: NativeFilter[]; where: unknown };
+  const query = (table: string, filters: NativeFilter[]): Query => ({
+    table,
+    filters,
+    where: (field: string, op: NativeFilter["op"], value: unknown) =>
+      query(table, [...filters, { field, op, value }]),
+  });
+  const snap = (doc: Doc | null, id: string) => ({
+    exists: !!doc,
+    id,
+    data: () => (doc ? { ...doc, id: undefined } : undefined),
+  });
+  let queue: Promise<unknown> = Promise.resolve();
+  return {
+    collection: (table: string) => ({
+      doc: (id: string): Ref => ({ table, id }),
+      ...query(table, []),
+    }),
+    runTransaction<R>(fn: (tx: unknown) => Promise<R>): Promise<R> {
+      const run = queue.then(async () => {
+        const writes: (() => Promise<void>)[] = [];
+        const tx = {
+          get: async (target: Ref | Query) =>
+            "id" in target
+              ? snap(await ds.getById(target.table, target.id), target.id)
+              : {
+                  docs: (await ds.query(target.table, target.filters)).map(
+                    (d) => snap(d, d.id),
+                  ),
+                },
+          getAll: async (...refs: Ref[]) =>
+            Promise.all(refs.map(async (r) => snap(await ds.getById(r.table, r.id), r.id))),
+          set: (ref: Ref, data: Doc, opts?: { merge?: boolean }) =>
+            writes.push(async () => {
+              const before = opts?.merge ? await ds.getById(ref.table, ref.id) : null;
+              await ds.insert(ref.table, [{ ...before, ...data, id: ref.id }]);
+            }),
+          delete: (ref: Ref) => writes.push(() => ds.delete(ref.table, ref.id)),
+        };
+        const result = await fn(tx);
+        for (const write of writes) await write();
+        return result;
+      });
+      queue = run.catch(() => {});
+      return run;
+    },
+  };
+}
+
+describe("updateOwnUsername", () => {
+  const people = () =>
+    new MemoryDataSource({
+      users: [
+        { id: "u1", full_name: "Karan One", username: "karan_one" },
+        { id: "u2", full_name: "Karan Two", username: "karan_two" },
+      ],
+    });
+
+  it("gives a handle saved by two people at once to one of them", async () => {
+    const ds = people();
+    Object.assign(ds, { firestore: serializableFirestore(ds) });
+    const results = await Promise.all([
+      updateOwnUsername(ds, "u1", "karan"),
+      updateOwnUsername(ds, "u2", "karan"),
+    ]);
+    expect(results.filter((r) => r.ok)).toHaveLength(1);
+    expect(results.find((r) => !r.ok)).toEqual({
+      ok: false,
+      error: "This username is already taken",
+    });
+    const holders = ds.all("users").filter((u) => u.username === "karan");
+    expect(holders).toHaveLength(1);
+    expect(await ds.getById(USERNAMES_COLLECTION, "karan")).toMatchObject({
+      user_id: holders[0]!.id,
+    });
+  });
+
+  it("frees the old handle and keeps search keys on the new one", async () => {
+    const ds = people();
+    const session = derivedFieldsDataSource(ds);
+    expect(await updateOwnUsername(session, "u1", "karan")).toEqual({
+      ok: true,
+      username: "karan",
+    });
+    expect(await updateOwnUsername(session, "u1", "karan_r")).toMatchObject({
+      ok: true,
+    });
+    expect(await ds.getById(USERNAMES_COLLECTION, "karan")).toBeNull();
+    expect(await updateOwnUsername(session, "u2", "karan")).toMatchObject({
+      ok: true,
+    });
+    expect(await updateOwnUsername(session, "u1", "karan")).toEqual({
+      ok: false,
+      error: "This username is already taken",
+    });
+    expect((await ds.getById("users", "u1"))!.search_prefixes).toContain(
+      "karan_r",
+    );
   });
 });

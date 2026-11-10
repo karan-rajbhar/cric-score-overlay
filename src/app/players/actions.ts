@@ -101,42 +101,25 @@ export async function updateUsername(
     };
   }
 
-  // Use the security definer RPC which performs atomic checks and updates
+  // The only write path: it claims the handle and saves the profile in one
+  // transaction, so two people cannot both take it.
   const { data, error } = await db.rpc("update_own_username", {
     p_username: validation.cleanUsername,
   });
 
   if (error) {
     console.error("update_own_username RPC error:", error);
-    // Fallback to direct update using authenticated RLS
-    const { error: updateError } = await db
-      .from("users")
-      .update({
-        username: validation.cleanUsername,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", user.id);
-
-    if (updateError) {
-      if (updateError.code === "23505") {
-        return {
-          success: false,
-          error: "This username is already taken",
-        };
-      }
-      return {
-        success: false,
-        error: updateError.message || "Failed to update username",
-      };
-    }
-  } else {
-    const result = data as { ok: boolean; error?: string; username?: string };
-    if (!result.ok) {
-      return {
-        success: false,
-        error: result.error || "Failed to update username",
-      };
-    }
+    return {
+      success: false,
+      error: "Could not save the username. Try again.",
+    };
+  }
+  const result = data as { ok: boolean; error?: string; username?: string };
+  if (!result.ok) {
+    return {
+      success: false,
+      error: result.error || "Failed to update username",
+    };
   }
 
   // Update user auth metadata if possible so client sessions have it immediately

@@ -130,8 +130,9 @@ export function inningsOvers(
 
 /**
  * The chase in a line, "Warriors need 40 runs from 30 balls", counting the
- * overs the innings has (a DLS revision's, then named: "(DLS target 98)");
- * null without a target or once it is reached.
+ * overs the innings has (a revision's, then named: "(DLS target 98)", or
+ * "(revised target 98)" for one set by hand); null without a target or
+ * once it is reached.
  */
 export function chaseLine(
   match: Pick<Match, "overs_per_innings" | "dls_revision">,
@@ -154,9 +155,18 @@ export function chaseLine(
     left > 0
       ? `${battingName} need ${runs} from ${left} ${left === 1 ? "ball" : "balls"}`
       : `${battingName} need ${runs}`;
-  return dlsRevisionFor(match, inn.innings_number)
-    ? `${line} (DLS target ${target})`
-    : line;
+  return `${line}${revisedTargetNote(match, inn.innings_number, target)}`;
+}
+
+/** " (DLS target 98)", or " (revised target 98)" for one set by hand. */
+function revisedTargetNote(
+  match: Pick<Match, "dls_revision">,
+  inningsNumber: number,
+  target: number,
+): string {
+  const revision = dlsRevisionFor(match, inningsNumber);
+  if (!revision) return "";
+  return ` (${revision.by_hand ? "revised" : "DLS"} target ${target})`;
 }
 
 /**

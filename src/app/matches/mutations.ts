@@ -5,11 +5,18 @@ import { prefixSearch } from "~/lib/firebase/search";
 import { createServerClient } from "~/lib/firebase/server";
 import { isClubAdminOf } from "~/lib/firebase/permissions";
 import { refreshLiveState } from "~/lib/firebase/live-sync";
-import { matchEventOf, notifyFollowersAfter } from "~/lib/push/notify";
+import {
+  inningsEndEventOf,
+  matchEventOf,
+  notifyFollowersAfter,
+  progressEventOf,
+  type MatchProgress,
+} from "~/lib/push/notify";
 import { ensureUserProfile } from "~/lib/firebase/user-profile";
 import { teamSnapshot } from "~/lib/firebase/team-snapshot";
 import { isClubSide } from "~/lib/firebase/derive.mjs";
-import type { ClubSide } from "~/lib/firebase/types";
+import { isSuperOverInnings } from "~/lib/firebase/scoring/result";
+import type { ClubSide, DlsRevision } from "~/lib/firebase/types";
 import { refreshLiveMatchesFor } from "~/lib/firebase/live-sync";
 import { invalidateMatchCache } from "~/lib/match-cache";
 import { afterDeleteHref } from "~/lib/match-delete";
@@ -87,7 +94,9 @@ export async function createMatch(formData: MatchFormData) {
     formData.tournamentId
       ? db
           .from("tournaments")
-          .select("id, created_by, club_id")
+          .select(
+            "id, created_by, club_id, season_id, last_man_stands, golden_ball",
+          )
           .eq("id", formData.tournamentId)
           .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
@@ -116,15 +125,20 @@ export async function createMatch(formData: MatchFormData) {
     return { data: null, error: "Selected opponent team does not exist" };
   }
 
+  // A tournament match counts for the tournament's club and season and
+  // plays its special rules, whatever the form sent (as its generated
+  // fixtures do).
+  const tournament = formData.tournamentId ? tournamentRes.data : null;
+  const clubId = formData.tournamentId
+    ? (tournament?.club_id ?? null)
+    : formData.clubId || null;
+
   // Collect relevant club IDs to check admin / ownership in one batch
   const relevantClubIds = Array.from(
     new Set(
-      [
-        team1.club_id,
-        team2.club_id,
-        formData.clubId,
-        tournamentRes.data?.club_id,
-      ].filter((id): id is string => Boolean(id)),
+      [team1.club_id, team2.club_id, clubId].filter((id): id is string =>
+        Boolean(id),
+      ),
     ),
   );
 
@@ -168,19 +182,15 @@ export async function createMatch(formData: MatchFormData) {
     team1.vice_captain_id === user.id;
 
   const isTournamentAdmin = Boolean(
-    tournamentRes.data &&
-      (tournamentRes.data.created_by === user.id ||
-        isClubAdmin(tournamentRes.data.club_id)),
+    tournament &&
+      (tournament.created_by === user.id || isClubAdmin(tournament.club_id)),
   );
 
   const isAuthorized =
     isTeam1Mine ||
     myTeamIds.has(team1.id) ||
     isClubAdmin(team1.club_id) ||
-    isTournamentAdmin ||
-    (formData.clubId &&
-      team1.club_id === formData.clubId &&
-      isClubAdmin(formData.clubId));
+    isTournamentAdmin;
 
   if (!isAuthorized) {
     return {
@@ -192,7 +202,6 @@ export async function createMatch(formData: MatchFormData) {
 
   // Validate tournamentId association if provided
   if (formData.tournamentId) {
-    const tournament = tournamentRes.data;
     if (!tournament) {
       return { data: null, error: "Selected tournament does not exist" };
     }
@@ -204,34 +213,31 @@ export async function createMatch(formData: MatchFormData) {
         .map((r) => r.team_id),
     );
 
-    if (
-      !isTournamentAdmin &&
-      !registeredTeamIds.has(formData.team1Id) &&
-      !registeredTeamIds.has(formData.team2Id)
-    ) {
-      return {
-        data: null,
-        error:
-          "Neither team is registered in the selected tournament, and you are not an organizer of this tournament.",
-      };
-    }
-
     if (!registeredTeamIds.has(formData.team2Id)) {
       return {
         data: null,
         error: "The selected opponent team is not registered in this tournament.",
       };
     }
+
+    // Only organisers may bring in a host side the tournament has not
+    // confirmed: the match counts in its points table.
+    if (!isTournamentAdmin && !registeredTeamIds.has(formData.team1Id)) {
+      return {
+        data: null,
+        error: "Team 1 is not registered in this tournament.",
+      };
+    }
   }
 
-  // Validate clubId association if provided
-  if (formData.clubId) {
-    const club = (clubsRes.data ?? []).find((c) => c.id === formData.clubId);
+  // Validate the club chosen for a match outside a tournament
+  if (!formData.tournamentId && clubId) {
+    const club = (clubsRes.data ?? []).find((c) => c.id === clubId);
     if (!club) {
       return { data: null, error: "Selected club does not exist" };
     }
 
-    if (!isClubAdmin(formData.clubId) && team1.club_id !== formData.clubId) {
+    if (!isClubAdmin(clubId) && team1.club_id !== clubId) {
       return {
         data: null,
         error:
@@ -242,8 +248,8 @@ export async function createMatch(formData: MatchFormData) {
 
   // Validate Team 2 (Opponent) eligibility under Option 1
   if (!formData.tournamentId) {
-    if (formData.clubId) {
-      const isTeam2InClub = team2.club_id === formData.clubId;
+    if (clubId) {
+      const isTeam2InClub = team2.club_id === clubId;
       const isTeam2Mine =
         team2.created_by === user.id ||
         team2.captain_id === user.id ||
@@ -294,18 +300,26 @@ export async function createMatch(formData: MatchFormData) {
       scheduled_at: formData.scheduledAt,
       umpire1_name: formData.umpire1Name,
       umpire2_name: formData.umpire2Name,
-      club_id: formData.clubId,
+      club_id: clubId,
       // Only a club match has sides that count for a club; "both" is the
       // default, so it is not stored.
       club_side:
-        formData.clubId && formData.clubSide && formData.clubSide !== "both"
+        clubId && formData.clubSide && formData.clubSide !== "both"
           ? formData.clubSide
           : null,
       tournament_id: formData.tournamentId,
-      season_id: formData.seasonId,
       wickets_per_innings: formData.wicketsPerInnings ?? 10,
-      last_man_stands: formData.lastManStands ?? false,
-      golden_ball: formData.goldenBall ?? false,
+      ...(tournament
+        ? {
+            season_id: tournament.season_id ?? null,
+            last_man_stands: tournament.last_man_stands ?? false,
+            golden_ball: tournament.golden_ball ?? false,
+          }
+        : {
+            season_id: formData.seasonId,
+            last_man_stands: formData.lastManStands ?? false,
+            golden_ball: formData.goldenBall ?? false,
+          }),
       created_by: user.id,
       match_admins: [user.id],
       status: "scheduled",
@@ -325,13 +339,115 @@ async function checkMatchAdminAuth(
   matchId: string,
   userId: string,
 ): Promise<boolean> {
+  return (await matchAdminCheck(db, matchId, userId)).allowed;
+}
+
+/**
+ * checkMatchAdminAuth, also answering where the match stood (from the same
+ * read), so an action can tell what it changed (`progressEventOf`).
+ */
+async function matchAdminCheck(
+  db: Awaited<ReturnType<typeof createServerClient>>,
+  matchId: string,
+  userId: string,
+): Promise<{ allowed: boolean; match: MatchProgress | null }> {
   const { data: match } = await db
     .from("matches")
-    .select("created_by, match_admins, club_id, tournament_id")
+    .select(
+      "created_by, match_admins, club_id, tournament_id, status, current_innings",
+    )
     .eq("id", matchId)
     .single();
+  if (!match) return { allowed: false, match: null };
+  return { allowed: await isAdminOfMatch(db, match, userId), match };
+}
 
-  if (!match) return false;
+/**
+ * What a finished match needs however it finished (a delivery, End
+ * innings, an edit, penalty runs, a retirement): its tournament and club
+ * pages revalidated and the automatic player of the match. Never fails the
+ * action that finished it.
+ */
+async function afterMatchCompleted(
+  db: Awaited<ReturnType<typeof createServerClient>>,
+  matchId: string,
+): Promise<void> {
+  try {
+    const { data: matchData } = await db
+      .from("matches")
+      .select("tournament_id, club_id")
+      .eq("id", matchId)
+      .single();
+    if (matchData?.tournament_id) {
+      revalidatePath(`/tournaments/${matchData.tournament_id}`);
+      revalidatePath("/tournaments");
+    }
+    if (matchData?.club_id) {
+      revalidatePath(`/clubs/${matchData.club_id}`);
+      revalidatePath("/clubs");
+    }
+    await autoAssignPlayerOfTheMatch(matchId);
+  } catch (err) {
+    console.error("After the match completed:", err);
+  }
+}
+
+/**
+ * What an action other than a delivery changed (an edit, penalty runs, a
+ * retirement), handled as `recordBall` handles a delivery: followers hear
+ * about the result or the innings break, and a match it finished gets
+ * `afterMatchCompleted`.
+ */
+async function settleProgress(
+  db: Awaited<ReturnType<typeof createServerClient>>,
+  matchId: string,
+  before: MatchProgress | null,
+  after: MatchProgress | null | undefined,
+): Promise<void> {
+  const progress = progressEventOf(before, after);
+  if (!progress) return;
+  notifyFollowersAfter(matchId, progress.event, progress.state);
+  if (progress.event === "result") await afterMatchCompleted(db, matchId);
+}
+
+/**
+ * settleProgress for an action answered with the committed documents: the
+ * match as committed, read again only when the reply could not carry it.
+ * Never fails the action.
+ */
+async function settleProgressAfterEvent(
+  db: Awaited<ReturnType<typeof createServerClient>>,
+  matchId: string,
+  before: MatchProgress | null,
+  reply: { delta: ScoringDelta | null } | null,
+): Promise<void> {
+  if (!before || before.status === "completed") return;
+  try {
+    let after: MatchProgress | null = reply?.delta?.match ?? null;
+    if (!after) {
+      const { data } = await db
+        .from("matches")
+        .select("status, current_innings, result_description")
+        .eq("id", matchId)
+        .single();
+      after = data;
+    }
+    await settleProgress(db, matchId, before, after);
+  } catch (err) {
+    console.error("Could not settle the change:", err);
+  }
+}
+
+async function isAdminOfMatch(
+  db: Awaited<ReturnType<typeof createServerClient>>,
+  match: {
+    created_by?: string | null;
+    match_admins?: string[] | null;
+    club_id?: string | null;
+    tournament_id?: string | null;
+  },
+  userId: string,
+): Promise<boolean> {
   if (match.created_by === userId) return true;
   if ((match.match_admins ?? []).includes(userId)) return true;
 
@@ -364,6 +480,58 @@ async function checkMatchAdminAuth(
   return false;
 }
 
+/**
+ * Innings 1 of a match being started. When it is there already, either
+ * another scorer started the match (refused) or an earlier start stopped
+ * before writing the match, whose innings this one takes over.
+ */
+async function openFirstInnings(
+  db: Awaited<ReturnType<typeof createServerClient>>,
+  matchId: string,
+  battingTeamId: string,
+): Promise<{ innings: Record<string, unknown> } | { error: string }> {
+  const { data, error } = await db
+    .from("innings")
+    .insert({ match_id: matchId, team_id: battingTeamId, innings_number: 1 })
+    .select()
+    .single();
+  if (!error) return { innings: data };
+  const { data: match } = await db
+    .from("matches")
+    .select("status")
+    .eq("id", matchId)
+    .single();
+  if (match?.status !== "scheduled") {
+    return { error: "This match has already started" };
+  }
+  const { data: leftover } = await db
+    .from("innings")
+    .update({ team_id: battingTeamId })
+    .eq("match_id", matchId)
+    .eq("innings_number", 1)
+    .select()
+    .single();
+  return leftover
+    ? { innings: leftover }
+    : { error: friendlyError(error.message) };
+}
+
+/** The side the toss sends in to bat, for a match still to start. */
+function battingSideOf(
+  match: { status: string | null; team1_id: string; team2_id: string },
+  tossWinnerId: string,
+  tossDecision: "bat" | "bowl",
+): string | { error: string } {
+  if (match.status !== "scheduled") {
+    return { error: "This match has already started" };
+  }
+  if (tossWinnerId !== match.team1_id && tossWinnerId !== match.team2_id) {
+    return { error: "Choose the team that won the toss" };
+  }
+  if (tossDecision === "bat") return tossWinnerId;
+  return tossWinnerId === match.team1_id ? match.team2_id : match.team1_id;
+}
+
 export async function startMatch(
   matchId: string,
   tossWinnerId: string,
@@ -388,18 +556,20 @@ export async function startMatch(
 
   const { data: match, error: matchError } = await db
     .from("matches")
-    .select("team1_id, team2_id")
+    .select("status, team1_id, team2_id")
     .eq("id", matchId)
     .single();
   if (matchError || !match) {
     return { data: null, error: "Match not found" };
   }
-  const battingTeamId =
-    tossDecision === "bat"
-      ? tossWinnerId
-      : tossWinnerId === match.team1_id
-        ? match.team2_id
-        : match.team1_id;
+  const battingTeamId = battingSideOf(match, tossWinnerId, tossDecision);
+  if (typeof battingTeamId !== "string") {
+    return { data: null, error: battingTeamId.error };
+  }
+  // The innings first: a start that fails there leaves the match as it was.
+  const opened = await openFirstInnings(db, matchId, battingTeamId);
+  if ("error" in opened) return { data: null, error: opened.error };
+  const innings = opened.innings;
   const { error: updateError } = await db
     .from("matches")
     .update({
@@ -413,19 +583,7 @@ export async function startMatch(
     })
     .eq("id", matchId);
   if (updateError) {
-    return { data: null, error: updateError.message };
-  }
-  const { data: innings, error: inningsError } = await db
-    .from("innings")
-    .insert({
-      match_id: matchId,
-      team_id: battingTeamId,
-      innings_number: 1,
-    })
-    .select()
-    .single();
-  if (inningsError) {
-    return { data: null, error: inningsError.message };
+    return { data: null, error: friendlyError(updateError.message) };
   }
   await refreshLiveState(db, matchId);
   notifyFollowersAfter(matchId, "started");
@@ -491,29 +649,7 @@ export async function recordBall(params: {
     invalidateMatchCache(params.matchId);
     revalidatePath(`/matches/${params.matchId}`);
 
-    if ((data as ScoringState)?.match_completed) {
-      const { data: matchData } = await db
-        .from("matches")
-        .select("tournament_id, club_id")
-        .eq("id", params.matchId)
-        .single();
-
-      if (matchData?.tournament_id) {
-        revalidatePath(`/tournaments/${matchData.tournament_id}`);
-        revalidatePath("/tournaments");
-      }
-      if (matchData?.club_id) {
-        revalidatePath(`/clubs/${matchData.club_id}`);
-        revalidatePath("/clubs");
-      }
-
-      // Automatically determine and assign Player of the Match
-      try {
-        await autoAssignPlayerOfTheMatch(params.matchId);
-      } catch (potmErr) {
-        console.error("Auto POTM assignment failed:", potmErr);
-      }
-    }
+    if (data?.match_completed) await afterMatchCompleted(db, params.matchId);
 
     return { data, error: null, delta: reply?.delta ?? null };
   } catch (err) {
@@ -679,9 +815,27 @@ export async function setCurrentBowler(
   }
 }
 
+/**
+ * `inningsNumber`: the innings the scorer meant to end; once it has ended
+ * (or is not the current one) this does nothing (see `end_innings`).
+ */
+/**
+ * The reply reports a match this call finished. A queued End innings
+ * replayed after the match ended changes nothing (it names an ended
+ * innings) and must not pick the player of the match again over the
+ * scorer's choice.
+ */
+function finishedNow(
+  state: ScoringState | null,
+  before: MatchProgress | null,
+): boolean {
+  return Boolean(state?.match_completed) && before?.status !== "completed";
+}
+
 export async function endInnings(
   matchId: string,
   clientActionId?: string | null,
+  inningsNumber?: number | null,
 ): Promise<{ data: ScoringState | null; error: string | null }> {
   try {
     const db = await createServerClient();
@@ -693,8 +847,12 @@ export async function endInnings(
       return { data: null, error: "You must be logged in to end innings" };
     }
 
-    const isAuthorized = await checkMatchAdminAuth(db, matchId, user.id);
-    if (!isAuthorized) {
+    const { allowed, match: before } = await matchAdminCheck(
+      db,
+      matchId,
+      user.id,
+    );
+    if (!allowed) {
       return {
         data: null,
         error:
@@ -705,38 +863,23 @@ export async function endInnings(
     const { data, error } = await db.rpc("end_innings", {
       p_match_id: matchId,
       p_client_action_id: clientActionId ?? null,
+      p_innings_number: inningsNumber ?? null,
     });
     if (error) {
       console.error("end_innings failed:", error);
       return { data: null, error: friendlyError(error.message) };
     }
-    notifyFollowersAfter(matchId, matchEventOf(data as ScoringState), data as ScoringState);
+    notifyFollowersAfter(
+      matchId,
+      inningsEndEventOf(data as ScoringState),
+      data as ScoringState,
+    );
     invalidateMatchCache(matchId);
     revalidatePath(`/matches/${matchId}`);
     revalidatePath(`/matches/${matchId}/score`);
 
-    if ((data as ScoringState)?.match_completed) {
-      const { data: matchData } = await db
-        .from("matches")
-        .select("tournament_id, club_id")
-        .eq("id", matchId)
-        .single();
-
-      if (matchData?.tournament_id) {
-        revalidatePath(`/tournaments/${matchData.tournament_id}`);
-        revalidatePath("/tournaments");
-      }
-      if (matchData?.club_id) {
-        revalidatePath(`/clubs/${matchData.club_id}`);
-        revalidatePath("/clubs");
-      }
-
-      // Automatically determine and assign Player of the Match
-      try {
-        await autoAssignPlayerOfTheMatch(matchId);
-      } catch (potmErr) {
-        console.error("Auto POTM assignment failed:", potmErr);
-      }
+    if (finishedNow(data as ScoringState, before)) {
+      await afterMatchCompleted(db, matchId);
     }
 
     return { data: data as ScoringState, error: null };
@@ -791,8 +934,11 @@ export async function setPlayerOfTheMatch(
 
 /**
  * Automatically calculates and awards Player of the Match using cricket analytics impact scoring.
+ * Not exported: every export of this file is a server action anyone can
+ * call, and this one checks no caller (`afterMatchCompleted`'s callers
+ * have).
  */
-export async function autoAssignPlayerOfTheMatch(
+async function autoAssignPlayerOfTheMatch(
   matchId: string,
 ): Promise<{ success: boolean; potmId: string | null; error: string | null }> {
   try {
@@ -929,6 +1075,9 @@ export async function updateDlsTarget(
         innings_number: innings.innings_number,
         target_runs: targetRuns,
         overs: revisedOvers,
+        // Written out: an update merges into the stored map, so a mark
+        // left by a revision set by hand would otherwise stay.
+        by_hand: false,
       },
     })
     .eq("id", matchId);
@@ -971,12 +1120,12 @@ export async function updateBall(params: {
       return { data: null, error: "You must be logged in to edit deliveries" };
     }
 
-    const isAuthorized = await checkMatchAdminAuth(
+    const { allowed, match: before } = await matchAdminCheck(
       db,
       params.matchId,
       user.id,
     );
-    if (!isAuthorized) {
+    if (!allowed) {
       return {
         data: null,
         error:
@@ -984,7 +1133,7 @@ export async function updateBall(params: {
       };
     }
 
-    const { data, error } = await db.rpc("update_ball", {
+    const { data, error } = await db.rpc<ScoringState>("update_ball", {
       p_match_id: params.matchId,
       p_ball_id: params.ballId,
       p_batsman_id: params.batsmanId ?? null,
@@ -1005,10 +1154,12 @@ export async function updateBall(params: {
       return { data: null, error: friendlyError(error.message) };
     }
 
+    // An edit can finish the match or close the innings.
+    await settleProgress(db, params.matchId, before, data);
     invalidateMatchCache(params.matchId);
     revalidatePath(`/matches/${params.matchId}`);
     revalidatePath(`/matches/${params.matchId}/score`);
-    return { data: data as ScoringState, error: null };
+    return { data, error: null };
   } catch (err) {
     console.error("Unexpected error in updateBall:", err);
     return {
@@ -1092,6 +1243,175 @@ export interface MatchSettingsUpdate {
   clubSide?: ClubSide;
 }
 
+/** The match fields a settings save writes as they are. */
+function matchSettingsPatch(
+  settings: MatchSettingsUpdate,
+): Record<string, unknown> {
+  const fields: Array<[keyof MatchSettingsUpdate, string]> = [
+    ["matchFormat", "match_format"],
+    ["oversPerInnings", "overs_per_innings"],
+    ["wicketsPerInnings", "wickets_per_innings"],
+    ["lastManStands", "last_man_stands"],
+    ["goldenBall", "golden_ball"],
+    ["freeHit", "free_hit"],
+    ["title", "title"],
+    ["ballsPerOver", "balls_per_over"],
+    ["maxBallsPerOver", "max_balls_per_over"],
+    ["wideCountsAsBallFaced", "wide_counts_as_ball_faced"],
+    ["noBallCountsAsBallFaced", "noball_counts_as_ball_faced"],
+    ["wideRunsToBatsman", "wide_runs_to_batsman"],
+    ["noballExtrasToBatsman", "noball_extras_to_batsman"],
+  ];
+  const patch: Record<string, unknown> = {};
+  for (const [key, column] of fields) {
+    if (settings[key] !== undefined) patch[column] = settings[key];
+  }
+  // The write hooks move the records and milestone totals with it.
+  if (settings.clubSide !== undefined)
+    patch.club_side = settings.clubSide === "both" ? null : settings.clubSide;
+  return patch;
+}
+
+/**
+ * Rules deciding who is credited with what: a change re-scores every
+ * innings already played. [setting, column, value when unset]
+ */
+const CREDITING_RULES: Array<[keyof MatchSettingsUpdate, string, boolean]> = [
+  ["wideRunsToBatsman", "wide_runs_to_batsman", false],
+  ["noballExtrasToBatsman", "noball_extras_to_batsman", false],
+  ["wideCountsAsBallFaced", "wide_counts_as_ball_faced", false],
+  ["noBallCountsAsBallFaced", "noball_counts_as_ball_faced", true],
+];
+
+interface SettingsPlan {
+  /** A chase target typed by hand that differs from the stored one. */
+  target: { inningsId: string; runs: number } | null;
+  /** Innings to recompute after the save, in order. */
+  recompute: string[];
+}
+
+interface SettingsInnings {
+  id: string;
+  innings_number: number;
+  target_runs: number | null;
+  total_balls: number | null;
+  is_completed: boolean | null;
+}
+
+interface SettingsMatch {
+  current_innings: number | null;
+  overs_per_innings: number | null;
+  balls_per_over: number | null;
+  dls_revision: { innings_number: number } | null;
+}
+
+/**
+ * Why the save cannot change the over: balls per over stay once an over
+ * has a ball, and the overs cannot drop to what the innings in play has
+ * bowled (nothing would close it; a super over or a DLS-revised chase does
+ * not play to them).
+ */
+function overRefusal(
+  settings: MatchSettingsUpdate,
+  match: SettingsMatch,
+  innings: SettingsInnings[],
+  open: SettingsInnings | null,
+): string | null {
+  const bpo = match.balls_per_over || 6;
+  const newBpo = settings.ballsPerOver ?? bpo;
+  if (newBpo !== bpo && innings.some((i) => (i.total_balls ?? 0) > 0)) {
+    return "Balls per over cannot change once a ball has been bowled";
+  }
+  return oversRefusal(settings, match, open);
+}
+
+function oversRefusal(
+  settings: MatchSettingsUpdate,
+  match: SettingsMatch,
+  open: SettingsInnings | null,
+): string | null {
+  const bpo = match.balls_per_over || 6;
+  const overs = settings.oversPerInnings ?? match.overs_per_innings ?? 20;
+  if (
+    open &&
+    oversGovern(match, open.innings_number) &&
+    overs !== (match.overs_per_innings ?? 20) &&
+    overs * bpo <= (open.total_balls ?? 0)
+  ) {
+    return "The overs must be more than the overs already bowled";
+  }
+  return null;
+}
+
+/** The match's overs set the innings' length (not a super over or DLS). */
+function oversGovern(match: SettingsMatch, inningsNumber: number): boolean {
+  return (
+    !isSuperOverInnings(inningsNumber) &&
+    match.dls_revision?.innings_number !== inningsNumber
+  );
+}
+
+/**
+ * A target counts only for the chase in play, and only when it changed:
+ * sending back the one shown must not undo a DLS revision.
+ */
+function targetChange(
+  targetRuns: number | null | undefined,
+  open: SettingsInnings | null,
+): SettingsPlan["target"] | { error: string } {
+  if (targetRuns == null) return null;
+  if (!open || open.innings_number % 2 !== 0) {
+    return { error: "A target can be set only during a chase" };
+  }
+  return open.target_runs === targetRuns
+    ? null
+    : { inningsId: open.id, runs: targetRuns };
+}
+
+/**
+ * Checks a settings save against the match as it stands (the dialog sends
+ * every setting, changed or not) and says what else it must do.
+ */
+async function planSettingsSave(
+  db: Awaited<ReturnType<typeof createServerClient>>,
+  matchId: string,
+  settings: MatchSettingsUpdate,
+): Promise<SettingsPlan | { error: string }> {
+  const [{ data: match }, { data: rows }] = await Promise.all([
+    db
+      .from("matches")
+      .select(
+        "current_innings, overs_per_innings, balls_per_over, dls_revision, wide_runs_to_batsman, noball_extras_to_batsman, wide_counts_as_ball_faced, noball_counts_as_ball_faced",
+      )
+      .eq("id", matchId)
+      .single(),
+    db
+      .from("innings")
+      .select("id, innings_number, target_runs, total_balls, is_completed")
+      .eq("match_id", matchId),
+  ]);
+  if (!match) return { error: "Match not found" };
+  const innings = ((rows ?? []) as SettingsInnings[]).sort(
+    (a, b) => a.innings_number - b.innings_number,
+  );
+  const current = innings.find(
+    (i) => i.innings_number === (match.current_innings ?? 1),
+  );
+  const open = current && !current.is_completed ? current : null;
+
+  const refusal = overRefusal(settings, match as SettingsMatch, innings, open);
+  if (refusal) return { error: refusal };
+  const target = targetChange(settings.targetRuns, open);
+  if (target && "error" in target) return target;
+
+  const stored = match as unknown as Record<string, boolean | null>;
+  const rulesChanged = CREDITING_RULES.some(
+    ([key, column, unset]) =>
+      settings[key] !== undefined && settings[key] !== (stored[column] ?? unset),
+  );
+  return { target, recompute: rulesChanged ? innings.map((i) => i.id) : [] };
+}
+
 export async function updateMatchSettings(
   matchId: string,
   settings: MatchSettingsUpdate,
@@ -1124,6 +1444,10 @@ export async function updateMatchSettings(
       };
     }
 
+    if (settings.targetRuns != null && !isTargetRuns(settings.targetRuns)) {
+      return { success: false, error: "The target must be at least 1 run" };
+    }
+
     const db = await createServerClient();
     const {
       data: { user },
@@ -1145,39 +1469,25 @@ export async function updateMatchSettings(
       };
     }
 
-    const matchUpdates: Record<string, unknown> = {};
-    if (settings.matchFormat !== undefined)
-      matchUpdates.match_format = settings.matchFormat;
-    if (settings.oversPerInnings !== undefined)
-      matchUpdates.overs_per_innings = settings.oversPerInnings;
-    if (settings.wicketsPerInnings !== undefined)
-      matchUpdates.wickets_per_innings = settings.wicketsPerInnings;
-    if (settings.lastManStands !== undefined)
-      matchUpdates.last_man_stands = settings.lastManStands;
-    if (settings.goldenBall !== undefined)
-      matchUpdates.golden_ball = settings.goldenBall;
-    if (settings.freeHit !== undefined)
-      matchUpdates.free_hit = settings.freeHit;
-    if (settings.title !== undefined) matchUpdates.title = settings.title;
-    if (settings.ballsPerOver !== undefined)
-      matchUpdates.balls_per_over = settings.ballsPerOver;
-    if (settings.maxBallsPerOver !== undefined)
-      matchUpdates.max_balls_per_over = settings.maxBallsPerOver;
-    if (settings.wideCountsAsBallFaced !== undefined)
-      matchUpdates.wide_counts_as_ball_faced = settings.wideCountsAsBallFaced;
-    if (settings.noBallCountsAsBallFaced !== undefined)
-      matchUpdates.noball_counts_as_ball_faced =
-        settings.noBallCountsAsBallFaced;
-    if (settings.wideRunsToBatsman !== undefined)
-      matchUpdates.wide_runs_to_batsman = settings.wideRunsToBatsman;
-    if (settings.noballExtrasToBatsman !== undefined)
-      matchUpdates.noball_extras_to_batsman = settings.noballExtrasToBatsman;
-    // The write hooks move the records and milestone totals with it.
-    if (settings.clubSide !== undefined)
-      matchUpdates.club_side =
-        settings.clubSide === "both" ? null : settings.clubSide;
+    const plan = await planSettingsSave(db, matchId, settings);
+    if ("error" in plan) return { success: false, error: plan.error };
+    const revisedTarget = plan.target;
+
+    if (revisedTarget) {
+      const { error: innErr } = await db
+        .from("innings")
+        .update({ target_runs: revisedTarget.runs })
+        .eq("id", revisedTarget.inningsId)
+        .eq("match_id", matchId);
+      if (innErr) {
+        console.error("updateMatchSettings failed on the target:", innErr);
+        return { success: false, error: friendlyError(innErr.message) };
+      }
+    }
+
+    const matchUpdates = matchSettingsPatch(settings);
     // A target set by hand replaces any DLS revision.
-    if (settings.targetRuns !== undefined) matchUpdates.dls_revision = null;
+    if (revisedTarget) matchUpdates.dls_revision = null;
 
     if (Object.keys(matchUpdates).length > 0) {
       const { error: matchErr } = await db
@@ -1190,25 +1500,14 @@ export async function updateMatchSettings(
       }
     }
 
-    if (settings.targetRuns !== undefined) {
-      const { data: matchData } = await db
-        .from("matches")
-        .select("current_innings")
-        .eq("id", matchId)
-        .single();
-
-      const currentInningsNum = matchData?.current_innings ?? 2;
-      const { error: innErr } = await db
-        .from("innings")
-        .update({ target_runs: settings.targetRuns })
-        .eq("match_id", matchId)
-        .eq("innings_number", currentInningsNum);
-
-      if (innErr) {
-        console.error(
-          "updateMatchSettings failed on innings target_runs:",
-          innErr,
-        );
+    // A crediting rule changed: re-score what was played under the old one.
+    for (const inningsId of plan.recompute) {
+      const { error } = await db.rpc("recompute_innings", {
+        p_innings_id: inningsId,
+      });
+      if (error) {
+        console.error("updateMatchSettings failed to recompute:", error);
+        return { success: false, error: friendlyError(error.message) };
       }
     }
 
@@ -1228,14 +1527,69 @@ export async function updateMatchSettings(
   }
 }
 
+interface AbandonParams {
+  reason: string;
+  resultType?: "abandoned" | "no_result" | "win";
+  winningTeamId?: string | null;
+  notes?: string | null;
+}
+
+interface AbandonedMatch {
+  status: string | null;
+  team1_id: string;
+  team2_id: string;
+  team1_snapshot: { name?: string | null } | null;
+  team2_snapshot: { name?: string | null } | null;
+}
+
+/**
+ * The result fields of a match ended early. Only a match still to finish
+ * ends early (the menu offers it for live and scheduled matches): a
+ * finished one keeps its result. Awarded, it names the side and has no
+ * margin; otherwise nobody won.
+ */
+function abandonedResult(
+  match: AbandonedMatch,
+  params: AbandonParams,
+): { fields: Record<string, unknown> } | { error: string } {
+  if (match.status !== "live" && match.status !== "scheduled") {
+    return { error: "This match has already ended" };
+  }
+  const resultType = params.resultType ?? "abandoned";
+  const winner = resultType === "win" ? awardedSide(match, params) : null;
+  if (resultType === "win" && !winner) {
+    return { error: "Choose the side the match is awarded to" };
+  }
+  const outcome = winner
+    ? `Match awarded to ${winner.name}: ${params.reason}`
+    : `Match abandoned: ${params.reason}`;
+  return {
+    fields: {
+      status: "abandoned",
+      result_type: resultType,
+      result_description: [outcome, params.notes].filter(Boolean).join(". "),
+      winning_team_id: winner ? winner.id : null,
+      win_margin: null,
+      win_margin_type: null,
+    },
+  };
+}
+
+/** The side named as the winner, if it plays in the match. */
+function awardedSide(
+  match: AbandonedMatch,
+  params: AbandonParams,
+): { id: string; name: string } | null {
+  const id = params.winningTeamId;
+  if (id !== match.team1_id && id !== match.team2_id) return null;
+  const snapshot =
+    id === match.team1_id ? match.team1_snapshot : match.team2_snapshot;
+  return { id, name: snapshot?.name ?? "the winners" };
+}
+
 export async function abandonMatch(
   matchId: string,
-  params: {
-    reason: string;
-    resultType?: "abandoned" | "no_result" | "win";
-    winningTeamId?: string | null;
-    notes?: string | null;
-  },
+  params: AbandonParams,
 ): Promise<{ success: boolean; error: string | null }> {
   try {
     const db = await createServerClient();
@@ -1255,24 +1609,18 @@ export async function abandonMatch(
       };
     }
 
-    const resultDescription = params.notes
-      ? `Match abandoned: ${params.reason}. ${params.notes}`
-      : `Match abandoned: ${params.reason}`;
-
-    const updatePayload: Record<string, unknown> = {
-      status: "abandoned",
-      result_type: params.resultType ?? "abandoned",
-      result_description: resultDescription,
-      actual_end_time: new Date().toISOString(),
-    };
-
-    if (params.resultType === "win" && params.winningTeamId) {
-      updatePayload.winning_team_id = params.winningTeamId;
-    }
+    const { data: match } = await db
+      .from("matches")
+      .select("status, team1_id, team2_id, team1_snapshot, team2_snapshot")
+      .eq("id", matchId)
+      .single();
+    if (!match) return { success: false, error: "Match not found" };
+    const result = abandonedResult(match as AbandonedMatch, params);
+    if ("error" in result) return { success: false, error: result.error };
 
     const { error: matchErr } = await db
       .from("matches")
-      .update(updatePayload)
+      .update({ ...result.fields, actual_end_time: new Date().toISOString() })
       .eq("id", matchId);
 
     if (matchErr) {
@@ -1418,8 +1766,12 @@ export async function awardTeamPenalty(
       return { success: false, error: "You must be logged in to award penalty runs" };
     }
 
-    const isMatchAdmin = await checkMatchAdminAuth(db, matchId, user.id);
-    if (!isMatchAdmin) {
+    const { allowed, match: before } = await matchAdminCheck(
+      db,
+      matchId,
+      user.id,
+    );
+    if (!allowed) {
       return {
         success: false,
         error: "Only match administrators or designated scorers can award penalty runs",
@@ -1452,6 +1804,8 @@ export async function awardTeamPenalty(
       return { success: false, error: friendlyError(awardErr.message) };
     }
 
+    // Runs to the batting side can win the chase or end the innings.
+    await settleProgressAfterEvent(db, matchId, before, reply);
     invalidateMatchCache(matchId);
     revalidatePath(`/matches/${matchId}`);
     revalidatePath(`/matches/${matchId}/score`);
@@ -1489,8 +1843,12 @@ export async function retirePlayer(
       return { success: false, error: "You must be logged in to retire a player" };
     }
 
-    const isMatchAdmin = await checkMatchAdminAuth(db, matchId, user.id);
-    if (!isMatchAdmin) {
+    const { allowed, match: before } = await matchAdminCheck(
+      db,
+      matchId,
+      user.id,
+    );
+    if (!allowed) {
       return {
         success: false,
         error: "Only match administrators or designated scorers can retire a player",
@@ -1519,6 +1877,8 @@ export async function retirePlayer(
       return { success: false, error: friendlyError(retireErr.message) };
     }
 
+    // Retired out for the last wicket ends the innings.
+    await settleProgressAfterEvent(db, matchId, before, reply);
     invalidateMatchCache(matchId);
     revalidatePath(`/matches/${matchId}`);
     revalidatePath(`/matches/${matchId}/score`);
@@ -1530,6 +1890,93 @@ export async function retirePlayer(
       error: friendlyError(err instanceof Error ? err.message : "Failed to retire player"),
     };
   }
+}
+
+interface ChaseRevision {
+  inningsId: string;
+  /** The match's `dls_revision`, set by hand: null at the full overs. */
+  revision: DlsRevision | null;
+}
+
+/**
+ * What "Revise target / overs" writes. It applies to the open chase of the
+ * main match (a super over keeps its one over), with a target of at least
+ * 1 run and whole overs the chase can still play, up to the match's.
+ * Fewer overs are the chase's own revision, so the first innings keeps its
+ * quota; at the full overs a target set by hand replaces any revision.
+ */
+async function planChaseRevision(
+  db: Awaited<ReturnType<typeof createServerClient>>,
+  matchId: string,
+  params: { targetRuns: number | null; overs?: number | null },
+): Promise<ChaseRevision | { error: string }> {
+  const target = params.targetRuns;
+  if (!isTargetRuns(target)) {
+    return { error: "The target must be at least 1 run" };
+  }
+  const { data: match } = await db
+    .from("matches")
+    .select("current_innings, overs_per_innings, balls_per_over")
+    .eq("id", matchId)
+    .single();
+  const { data: chase } = await db
+    .from("innings")
+    .select("id, innings_number, total_balls, is_completed")
+    .eq("match_id", matchId)
+    .eq("innings_number", match?.current_innings ?? 1)
+    .maybeSingle();
+  const refusal = chaseRefusal(chase as SettingsInnings | null);
+  if (refusal || !match || !chase) {
+    return { error: refusal ?? "A target can be set only during a chase" };
+  }
+  const overs = revisedOvers(
+    match as SettingsMatch,
+    chase as SettingsInnings,
+    params.overs,
+  );
+  if (typeof overs === "string") return { error: overs };
+  return {
+    inningsId: chase.id,
+    revision: overs
+      ? {
+          innings_number: chase.innings_number,
+          target_runs: target,
+          overs,
+          by_hand: true,
+        }
+      : null,
+  };
+}
+
+function isTargetRuns(runs: number | null | undefined): runs is number {
+  return runs != null && Number.isInteger(runs) && runs >= 1;
+}
+
+function chaseRefusal(chase: SettingsInnings | null): string | null {
+  if (!chase || chase.is_completed || chase.innings_number % 2 !== 0) {
+    return "A target can be set only during a chase";
+  }
+  if (isSuperOverInnings(chase.innings_number)) {
+    return "A super over's target cannot be revised";
+  }
+  return null;
+}
+
+/** The chase's revised overs (null: the full overs), or why not. */
+function revisedOvers(
+  match: SettingsMatch,
+  chase: SettingsInnings,
+  requested: number | null | undefined,
+): number | null | string {
+  const full = match.overs_per_innings ?? 20;
+  const overs = requested ?? full;
+  if (!Number.isInteger(overs) || overs < 1 || overs > full) {
+    return `The revised overs must be a whole number from 1 to ${full}`;
+  }
+  if (overs * (match.balls_per_over || 6) <= (chase.total_balls ?? 0)) {
+    return "The revised overs must be more than the overs already bowled";
+  }
+  return overs < full ? overs : null;
 }
 
 export async function updateTargetRuns(
@@ -1557,30 +2004,25 @@ export async function updateTargetRuns(
       };
     }
 
-    const { data: match } = await db
-      .from("matches")
-      .select("current_innings")
-      .eq("id", matchId)
-      .single();
-
-    const currentInningsNum = match?.current_innings ?? 2;
+    const plan = await planChaseRevision(db, matchId, params);
+    if ("error" in plan) return { success: false, error: plan.error };
 
     const { error: innErr } = await db
       .from("innings")
       .update({ target_runs: params.targetRuns })
-      .eq("match_id", matchId)
-      .eq("innings_number", currentInningsNum);
-
+      .eq("id", plan.inningsId)
+      .eq("match_id", matchId);
     if (innErr) {
       return { success: false, error: friendlyError(innErr.message) };
     }
 
-    // A target set by hand replaces any DLS revision.
-    const matchPatch: Record<string, unknown> = { dls_revision: null };
-    if (params.overs !== undefined && params.overs !== null && params.overs > 0) {
-      matchPatch.overs_per_innings = params.overs;
+    const { error: matchErr } = await db
+      .from("matches")
+      .update({ dls_revision: plan.revision })
+      .eq("id", matchId);
+    if (matchErr) {
+      return { success: false, error: friendlyError(matchErr.message) };
     }
-    await db.from("matches").update(matchPatch).eq("id", matchId);
 
     await refreshLiveState(db, matchId);
     invalidateMatchCache(matchId);

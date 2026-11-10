@@ -488,7 +488,7 @@ export function TournamentManageDialog({
                 Permanent tournament deletion
               </h4>
               <p className="mt-1 text-xs text-muted-foreground">
-                Deleting this tournament will remove all fixtures, points tables, and registered team associations. This action cannot be undone.
+                Deleting this tournament removes its points table, its team registrations and the fixtures that have not started. Matches that started or finished stay, with their scorecards, as matches outside any tournament. This cannot be undone.
               </p>
               <div className="mt-4 space-y-2">
                 <Label htmlFor="confirm-del" className="text-2xs font-medium text-foreground">

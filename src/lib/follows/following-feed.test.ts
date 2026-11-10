@@ -65,6 +65,24 @@ describe("followingFeed", () => {
     expect(feed.upcoming).toEqual([]);
   });
 
+  it("still lists tomorrow's fixtures after many matches started today", async () => {
+    const started = Array.from({ length: 10 }, (_, i) => ({
+      id: `started-${i}`,
+      status: i % 2 ? "live" : "completed",
+      team1_id: team(1),
+      team2_id: `other-${i}`,
+      tournament_id: TOURNAMENT_2,
+      scheduled_at: `2024-08-01T1${i % 2}:00:00.000Z`,
+    }));
+    await ds.insert("matches", started);
+    const feed = await followingFeed(
+      db,
+      [`team:${team(1)}`, `tournament:${TOURNAMENT_2}`],
+      NOW,
+    );
+    expect(feed.upcoming.map((m) => m.id)).toEqual([match(6), match(7)]);
+  });
+
   it("reads only the matches it lists, bounded per query", async () => {
     const before = ds.billedReads;
     await followingFeed(

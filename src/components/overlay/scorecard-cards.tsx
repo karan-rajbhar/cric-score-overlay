@@ -45,6 +45,48 @@ export function scoreOf(innings: Innings): string {
   return `${innings.total_runs ?? 0}/${innings.total_wickets ?? 0}`;
 }
 
+/**
+ * What an innings break shows: the innings just completed (the current one
+ * once it is over, else the one before it, as the next innings exists from
+ * the moment the last one closed; the first when that one is not listed),
+ * and the target the chase has: the live row's, a DLS revision or a super
+ * over's included, else the first innings plus one.
+ */
+export function inningsBreakOf(
+  state: LiveMatchState,
+  innings: Innings[],
+): { innings: Innings; target: number | null } | null {
+  const current = state.innings_number ?? 1;
+  const n = state.innings_completed ? current : current - 1;
+  const done =
+    innings.find((i) => i.innings_number === n) ??
+    innings.find((i) => i.innings_number === 1);
+  if (!done) return null;
+  const target =
+    state.target_runs ??
+    (done.innings_number === 1 ? (done.total_runs ?? 0) + 1 : null);
+  return { innings: done, target };
+}
+
+/**
+ * The innings a summary card lists: the first two, or on a break card the
+ * one just completed, with the chase's target (`inningsBreakOf`).
+ */
+export function summaryInningsOf(
+  state: LiveMatchState,
+  innings: Innings[],
+  breakCard: boolean | undefined,
+): { shown: Innings[]; target: number | null } {
+  if (!breakCard) {
+    const shown = innings
+      .filter((i) => i.innings_number <= 2)
+      .sort((a, b) => a.innings_number - b.innings_number);
+    return { shown, target: null };
+  }
+  const brk = inningsBreakOf(state, innings);
+  return { shown: brk ? [brk.innings] : [], target: brk?.target ?? null };
+}
+
 export function BattingTable({ innings }: { innings: Innings }) {
   const rows = (innings.batting_performances ?? []).filter(
     (b) => b.balls_faced > 0 || b.is_out || b.is_current_batsman,
@@ -92,7 +134,13 @@ export function BattingTable({ innings }: { innings: Innings }) {
   );
 }
 
-export function BowlingTable({ innings }: { innings: Innings }) {
+export function BowlingTable({
+  innings,
+  ballsPerOver = 6,
+}: {
+  innings: Innings;
+  ballsPerOver?: number;
+}) {
   const rows = (innings.bowling_performances ?? []).filter(
     (b) => b.balls_bowled > 0 || b.is_current_bowler,
   );
@@ -114,12 +162,12 @@ export function BowlingTable({ innings }: { innings: Innings }) {
             <td className="max-w-[16rem] truncate px-3 py-2 text-lg font-medium">
               {b.user?.full_name ?? ""}
             </td>
-            <td className={TD}>{oversText(b.balls_bowled)}</td>
+            <td className={TD}>{oversText(b.balls_bowled, ballsPerOver)}</td>
             <td className={TD}>{b.maidens}</td>
             <td className={TD}>{b.runs_conceded}</td>
             <td className={cn(TD, "font-bold")}>{b.wickets_taken}</td>
             <td className={TD}>
-              {economyText(b.runs_conceded, b.balls_bowled) ?? "–"}
+              {economyText(b.runs_conceded, b.balls_bowled, ballsPerOver) ?? "–"}
             </td>
           </tr>
         ))}
@@ -164,11 +212,13 @@ export function InningsCard({
   innings,
   teamName,
   kind,
+  ballsPerOver = 6,
 }: {
   state: LiveMatchState;
   innings: Innings;
   teamName: string;
   kind: "batting" | "bowling" | "full";
+  ballsPerOver?: number;
 }) {
   const title =
     kind === "bowling" ? `${teamName} bowling` : `${teamName} batting`;
@@ -183,7 +233,7 @@ export function InningsCard({
             {scoreOf(innings)}
           </span>
           <span className={cn("block text-lg tabular-nums", OV.barMuted)}>
-            {oversText(innings.total_balls)} overs
+            {oversText(innings.total_balls, ballsPerOver)} overs
           </span>
         </span>
       }
@@ -195,7 +245,7 @@ export function InningsCard({
             <ExtrasLine innings={innings} />
           </div>
           <div className="min-w-0">
-            <BowlingTable innings={innings} />
+            <BowlingTable innings={innings} ballsPerOver={ballsPerOver} />
           </div>
           <div className="col-span-2">
             <FallOfWicketsLine innings={innings} />
@@ -208,7 +258,7 @@ export function InningsCard({
           <FallOfWicketsLine innings={innings} />
         </div>
       ) : (
-        <BowlingTable innings={innings} />
+        <BowlingTable innings={innings} ballsPerOver={ballsPerOver} />
       )}
     </CardShell>
   );

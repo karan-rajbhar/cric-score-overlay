@@ -11,7 +11,11 @@ import {
   DialogTitle,
 } from "~/components/ui/dialog";
 import { cn } from "~/lib/utils";
-import type { BattingPerformance, TeamPlayer } from "~/lib/match-types";
+import type {
+  BattingPerformance,
+  InningsPartnership,
+  TeamPlayer,
+} from "~/lib/match-types";
 import { PlayerPicker, type PickerAddPlayer } from "./PlayerPicker";
 import { buildBatterRows } from "./player-rows";
 import { RoleBand } from "./RoleBand";
@@ -25,6 +29,12 @@ interface BatsmenDialogProps {
   battingTeamName?: string;
   /** This innings' batting figures (runs/balls, out, retired). */
   battingPerformances?: BattingPerformance[];
+  /**
+   * This innings' stands: a batter in one has shared a logged ball (a wide
+   * received, or at the other end), so has batted though their figures
+   * may be 0 (0).
+   */
+  partnerships?: InningsPartnership[];
   bowlingTeamPlayerIds?: Set<string>;
   currentBowlerId?: string | null;
   /**
@@ -68,18 +78,26 @@ interface BatsmenDialogProps {
 }
 
 /**
- * Whether a batter has something on the scorecard (a ball faced, a run, a
- * retirement). Change is for a wrong pick before that: taking such a batter
- * off without a record would leave them "not out" with their runs, off the
- * crease. They retire instead (as PlayHQ allows a change only before the
- * batter's first ball).
+ * Whether the ball log names a batter: a ball faced, a run, a retirement,
+ * or a stand (`inStand`: a ball shared at the other end, or only wides
+ * received). Change is for a wrong pick before that: taking such a batter
+ * off without a record would leave them "not out" off the crease, and the
+ * engine refuses it (`batter_has_batted`, the same rule as `hasBattedIn`).
+ * They retire instead, or are replaced (as PlayHQ allows a change only
+ * before the batter's first ball).
  */
-function hasBatted(perf: BattingPerformance | undefined): boolean {
-  return Boolean(
-    perf &&
-      ((perf.balls_faced ?? 0) > 0 ||
-        (perf.runs_scored ?? 0) > 0 ||
-        perf.dismissal_type),
+function hasBatted(
+  perf: BattingPerformance | undefined,
+  inStand: boolean,
+): boolean {
+  return (
+    inStand ||
+    Boolean(
+      perf &&
+        ((perf.balls_faced ?? 0) > 0 ||
+          (perf.runs_scored ?? 0) > 0 ||
+          perf.dismissal_type),
+    )
   );
 }
 
@@ -98,6 +116,7 @@ export function BatsmenDialog({
   battingTeamPlayers,
   battingTeamName,
   battingPerformances,
+  partnerships,
   bowlingTeamPlayerIds,
   currentBowlerId,
   strikerId,
@@ -172,6 +191,14 @@ export function BatsmenDialog({
     id ? (rows.find((r) => r.id === id)?.name ?? "Unknown") : null;
   const perfOf = (id: string | null) =>
     id ? battingPerformances?.find((p) => p.user_id === id) : undefined;
+  const batted = (id: string | null) =>
+    Boolean(id) &&
+    hasBatted(
+      perfOf(id),
+      (partnerships ?? []).some(
+        (p) => p.batsman1_id === id || p.batsman2_id === id,
+      ),
+    );
 
   const isOpponent = (id: string | null) =>
     Boolean(
@@ -229,7 +256,7 @@ export function BatsmenDialog({
     draft.striker !== draft.nonStriker &&
     !isOpponent(draft.striker) &&
     !isOpponent(draft.nonStriker) &&
-    !leaving.some((id) => hasBatted(perfOf(id))) &&
+    !leaving.some(batted) &&
     !isProcessing;
 
   const confirm = () => {
@@ -280,12 +307,11 @@ export function BatsmenDialog({
         ? strikerId
         : nonStrikerId
       : null;
-  const battedOccupant =
-    occupant && hasBatted(perfOf(occupant)) ? occupant : null;
+  const battedOccupant = occupant && batted(occupant) ? occupant : null;
   const fixing = Boolean(battedOccupant && correcting && onReplace);
   // Who can have been batting instead: not at the crease, not batted yet.
   const correctionRows = rows.filter(
-    (r) => !r.disabledReason && !r.tag && !hasBatted(perfOf(r.id)),
+    (r) => !r.disabledReason && !r.tag && !batted(r.id),
   );
   const canReplace = fixing && Boolean(rightId) && !isProcessing;
   const replace = () => {
@@ -432,9 +458,9 @@ export function BatsmenDialog({
               className="space-y-3 rounded-lg border border-border bg-muted/50 p-3 text-sm"
             >
               <p>
-                {nameOf(battedOccupant)} has batted (
-                {perfOf(battedOccupant)?.runs_scored ?? 0} off{" "}
-                {perfOf(battedOccupant)?.balls_faced ?? 0}).
+                {hasBatted(perfOf(battedOccupant), false)
+                  ? `${nameOf(battedOccupant)} has batted (${perfOf(battedOccupant)?.runs_scored ?? 0} off ${perfOf(battedOccupant)?.balls_faced ?? 0}).`
+                  : `${nameOf(battedOccupant)} has been at the crease for a ball.`}
               </p>
               {onReplace && (
                 <Button

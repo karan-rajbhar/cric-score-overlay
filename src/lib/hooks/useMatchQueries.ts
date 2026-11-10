@@ -4,7 +4,6 @@ import {
   useQuery,
   useQueryClient,
   type QueryClient,
-  type QueryKey,
 } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef } from "react";
 import { createClient, getFirebaseDb } from "~/lib/firebase/client";
@@ -38,7 +37,6 @@ import {
   applyLiveState,
   LIVE_REFETCH_DELAY_MS,
   latestLiveVersion,
-  liveScorecardViewOf,
   overChangesBetween,
   scheduleInvalidate,
   useLiveScorecard,
@@ -54,35 +52,6 @@ const MATCH_ID_RE =
 
 function isMatchId(id: string | null | undefined): id is string {
   return !!id && MATCH_ID_RE.test(id);
-}
-
-/**
- * Refetch `queryKey` once per live change (debounced, deduplicated across
- * components). Only mounted queries refetch, so data behind a closed tab
- * costs nothing. Falls back to a slow poll while the listener is in error.
- */
-function useRefetchOnLiveChange(
-  matchId: string,
-  queryKey: QueryKey,
-  enabled = true,
-) {
-  const queryClient = useQueryClient();
-  const live = useLiveState(isMatchId(matchId) ? matchId : null);
-  const keyHash = JSON.stringify(queryKey);
-
-  useOnLiveChange(live, () => {
-    if (enabled)
-      scheduleInvalidate(queryClient, JSON.parse(keyHash) as QueryKey);
-  });
-
-  useEffect(() => {
-    if (!enabled || live.status !== "error") return;
-    const poll = setInterval(
-      () => scheduleInvalidate(queryClient, JSON.parse(keyHash) as QueryKey),
-      LIVE_FALLBACK_POLL_MS,
-    );
-    return () => clearInterval(poll);
-  }, [enabled, live.status, queryClient, keyHash]);
 }
 
 /**
@@ -186,34 +155,45 @@ export function useMyClubsQuery(userId: string | null | undefined, enabled: bool
 /**
  * "Add to club" for a match: the clubs the user may choose
  * (`clubsForMatch`) and whether to offer the action (`offerAddToClub`).
- * Reads the user's clubs only when `enabled` (a menu or the dialog open).
+ * Changing a match's club takes the right to delete it (`setMatchClub`),
+ * asked of its admins only: the ⋯ menu and the scoring screen ask the same
+ * question already, so the answer is shared, not read again. Reads the
+ * user's clubs only when `enabled` (a menu or the dialog open).
  */
 export function useMatchClubChoices(
-  match: { club_id?: string | null; tournament_id?: string | null },
+  match: { id: string; club_id?: string | null; tournament_id?: string | null },
   userId: string | null | undefined,
   isMatchAdmin: boolean,
   enabled: boolean,
 ) {
-  const { data } = useMyClubsQuery(userId, enabled);
-  const choosable = clubsForMatch(data ?? [], isMatchAdmin);
+  const { data: canDelete } = useCanDeleteMatchQuery(
+    match.id,
+    userId,
+    isMatchAdmin,
+  );
+  const mayChange = canDelete === true;
+  const { data } = useMyClubsQuery(userId, enabled && mayChange);
+  const choosable = clubsForMatch(data ?? [], mayChange);
   return {
     choosable,
-    // Scorers of a match in no club see it at once (the dialog says it is
-    // loading); anyone else once their clubs are known.
+    // Those who may change it see it at once on a match in no club (the
+    // dialog says it is loading); otherwise once their clubs are known.
     offer:
       !!userId &&
       (data
-        ? offerAddToClub(match, choosable, isMatchAdmin)
-        : isMatchAdmin && !match.club_id && !match.tournament_id),
+        ? offerAddToClub(match, choosable, mayChange)
+        : mayChange && !match.club_id && !match.tournament_id),
     loading: !data,
   };
 }
 
 /**
- * The club a finished match probably belongs to: for its scorers, when it
- * is in no club (nor a tournament), the first of their clubs its players
- * have played for (`clubWithRecords`: the user's clubs, then 1 read per
- * club, at most 3). Null otherwise, or once `dismissed`.
+ * The club a finished match probably belongs to: for its scorers who may
+ * change its club (the right to delete it, the answer the page has asked
+ * for already), when it is in no club (nor a tournament), the first of
+ * their clubs its players have played for (`clubWithRecords`: the user's
+ * clubs, then 1 read per club, at most 3). Null otherwise, or once
+ * `dismissed`.
  */
 export function useClubSuggestion(
   match: {
@@ -228,15 +208,21 @@ export function useClubSuggestion(
   isScorer: boolean,
   dismissed: boolean,
 ) {
-  const enabled =
+  const candidate =
     !!userId &&
     isScorer &&
     !dismissed &&
     match.status === "completed" &&
     !match.club_id &&
     !match.tournament_id;
+  const { data: canDelete } = useCanDeleteMatchQuery(
+    match.id,
+    userId,
+    candidate,
+  );
+  const enabled = candidate && canDelete === true;
   const { data: clubs } = useMyClubsQuery(userId, enabled);
-  const choosable = clubsForMatch(clubs ?? [], true);
+  const choosable = clubsForMatch(clubs ?? [], enabled);
   const playerIds = [
     ...(match.team1?.team_players ?? []),
     ...(match.team2?.team_players ?? []),

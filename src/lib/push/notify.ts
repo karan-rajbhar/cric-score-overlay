@@ -35,15 +35,19 @@ const TTL_SECONDS = 6 * 60 * 60;
 
 export type MatchEvent = "started" | "innings_break" | "result" | "abandoned";
 
-/** The scoring reply fields this needs (ScoringState). */
+/**
+ * The scoring reply fields this needs (ScoringState). The reply describes
+ * the match's current innings, which after an innings break is the next
+ * one (the engine opens it in the same commit), so its totals are never
+ * the ended innings': those come from the match's `innings_summary`.
+ */
 export interface EventState {
   match_completed?: boolean | null;
+  /** The current innings is closed and no other was opened. */
   innings_completed?: boolean | null;
+  /** A delivery ended the innings: `current_innings` is the next one. */
   innings_break?: boolean | null;
   current_innings?: number | null;
-  total_runs?: number | null;
-  total_wickets?: number | null;
-  total_balls?: number | null;
   result_description?: string | null;
 }
 
@@ -57,12 +61,57 @@ export function matchEventOf(
   return null;
 }
 
+/**
+ * The event of a reply to "End innings". That reply carries no flag of its
+ * own (only a delivery's has `innings_break`) and describes the innings
+ * the engine opened next, so unless the match is over it is the break.
+ */
+export function inningsEndEventOf(
+  state: EventState | null | undefined,
+): MatchEvent | null {
+  if (!state) return null;
+  return matchEventOf(state) ?? "innings_break";
+}
+
+/** Where a match stands, as its document (or a scoring reply) says. */
+export interface MatchProgress {
+  status?: string | null;
+  current_innings?: number | null;
+  result_description?: string | null;
+}
+
+/**
+ * The structural event of an action that is not a delivery (an edit, a
+ * penalty award, a retirement), from the match before and after it: their
+ * replies carry no flags of their own. The result when it finished the
+ * match, the break when it closed an innings and opened the next; nothing
+ * for a match already finished (`push_log` would stop a second result).
+ */
+export function progressEventOf(
+  before: MatchProgress | null | undefined,
+  after: MatchProgress | null | undefined,
+): { event: MatchEvent; state: EventState } | null {
+  if (!before || !after || before.status === "completed") return null;
+  const state: EventState = {
+    current_innings: after.current_innings,
+    result_description: after.result_description,
+    match_completed: after.status === "completed",
+  };
+  if (state.match_completed) return { event: "result", state };
+  if ((after.current_innings ?? 1) > (before.current_innings ?? 1)) {
+    return { event: "innings_break", state };
+  }
+  return null;
+}
+
 interface SummaryEntry {
   team_id?: string | null;
   innings_number?: number | null;
   total_runs?: number | null;
   total_wickets?: number | null;
   total_balls?: number | null;
+  is_completed?: boolean | null;
+  target_runs?: number | null;
 }
 
 export interface MatchDoc {
@@ -76,6 +125,8 @@ export interface MatchDoc {
   toss_winner_team_id?: string | null;
   toss_decision?: string | null;
   result_description?: string | null;
+  /** "win" on an abandoned match: awarded to one side. */
+  result_type?: string | null;
   balls_per_over?: number | null;
   innings_summary?: SummaryEntry[] | null;
 }
@@ -129,27 +180,47 @@ function startedMessage(match: MatchDoc, base: Base): MatchMessage {
   };
 }
 
+/**
+ * The number of the innings that ended. A reply is about the innings the
+ * engine opened next, so the one before it ended; only a reply flagged
+ * `innings_completed` is about the ended innings itself. Without a reply:
+ * the latest completed innings of the summary.
+ */
+function endedInningsNumber(
+  summary: SummaryEntry[],
+  state?: EventState | null,
+): number {
+  const current = state?.current_innings ?? 0;
+  if (current > 0 && state?.innings_completed) return current;
+  if (current > 1) return current - 1;
+  const completed = summary.filter((e) => e.is_completed);
+  return Math.max(0, ...completed.map((e) => e.innings_number ?? 0));
+}
+
 function inningsBreakMessage(
   match: MatchDoc,
   base: Base,
   state?: EventState | null,
 ): MatchMessage {
   const summary = match.innings_summary ?? [];
-  const number =
-    state?.current_innings ??
-    Math.max(0, ...summary.map((e) => e.innings_number ?? 0));
+  const number = endedInningsNumber(summary, state);
+  const key = `innings_break:${number}`;
   const entry = summary.find((e) => e.innings_number === number);
-  const runs = state?.total_runs ?? entry?.total_runs ?? 0;
-  const wickets = state?.total_wickets ?? entry?.total_wickets ?? 0;
-  const balls = state?.total_balls ?? entry?.total_balls ?? 0;
+  if (!entry) return { ...base, key, body: "Innings break." };
+  const runs = entry.total_runs ?? 0;
   const perOver =
     match.balls_per_over && match.balls_per_over > 0 ? match.balls_per_over : 6;
-  const { name, other } = sidesOf(match, entry?.team_id);
-  const score = `${runs}/${wickets} (${oversText(balls, perOver)})`;
-  const chase = number === 1 && other ? ` ${other} need ${runs + 1} to win.` : "";
+  const overs = oversText(entry.total_balls ?? 0, perOver);
+  const score = `${runs}/${entry.total_wickets ?? 0} (${overs})`;
+  const { name, other } = sidesOf(match, entry.team_id);
+  // The next innings' own target; a first innings always sets one.
+  const next = summary.find((e) => e.innings_number === number + 1);
+  const target = next?.target_runs ?? (number === 1 ? runs + 1 : null);
+  const chase =
+    target != null && other ? ` ${other} need ${target} to win.` : "";
   return {
     ...base,
-    key: `innings_break:${number}`,
+    key,
     body: `Innings break. ${name ? `${name} ${score}` : score}.${chase}`,
   };
 }
@@ -170,7 +241,15 @@ export function matchMessage(
     case "innings_break":
       return inningsBreakMessage(match, base, state);
     case "abandoned":
-      return { ...base, key: "abandoned", body: "Match abandoned." };
+      return {
+        ...base,
+        key: "abandoned",
+        // An awarded match's result names the side.
+        body:
+          match.result_type === "win" && match.result_description
+            ? match.result_description
+            : "Match abandoned.",
+      };
     case "result":
       return {
         ...base,

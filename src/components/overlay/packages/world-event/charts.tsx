@@ -12,7 +12,7 @@ import type { ReactNode } from "react";
 import type { Innings, Match } from "~/lib/match-types";
 import { cn } from "~/lib/utils";
 import { winPredictorFromLive } from "~/lib/win-predictor";
-import { oversText } from "../../overlay-kit";
+import { ballsPerOverOf, oversText } from "../../overlay-kit";
 import type { LiveMatchState } from "../../types";
 import {
   axisMax,
@@ -205,7 +205,7 @@ export function WorldEventRunRates(p: OverlayElementProps["runRates"]) {
   const series = useSeries(p.state, p.match);
   if (!series || !series.some((s) => s.table.length)) return null;
   const maxOvers = chartOvers(p.state.overs_per_innings, series.map((s) => s.table));
-  const bySeries = series.map((s) => phaseRates(s.table, maxOvers));
+  const bySeries = series.map((s) => phaseRates(s.table, maxOvers, ballsPerOverOf(p.match)));
   const phases = bySeries[0] ?? [];
   const max = Math.max(...bySeries.flat().map((r) => r.runRate ?? 0), 1);
   return (
@@ -360,8 +360,9 @@ function PredictorSide({ team, pct, at }: { team: SideInfo; pct: number; at: "le
 
 export function WorldEventWinPredictor(p: OverlayElementProps["winPredictor"]) {
   if (p.variant === "strap") return null;
-  const est = winPredictorFromLive(p.state);
-  if (!est || est.kind !== "chase") return <WorldEventProjectedCard state={p.state} />;
+  const bpo = ballsPerOverOf(p.match);
+  const est = winPredictorFromLive(p.state, { ballsPerOver: bpo });
+  if (!est || est.kind !== "chase") return <WorldEventProjectedCard state={p.state} bpo={bpo} />;
   const { bat, bowl } = battingAndBowling(p.state);
   return (
     <CardFrame
@@ -392,9 +393,9 @@ export function WorldEventWinPredictor(p: OverlayElementProps["winPredictor"]) {
   );
 }
 
-function WorldEventProjectedCard({ state }: { state: LiveMatchState }) {
-  const est = winPredictorFromLive(state);
-  const rows = projectedTotals(state);
+function WorldEventProjectedCard({ state, bpo }: { state: LiveMatchState; bpo: number }) {
+  const est = winPredictorFromLive(state, { ballsPerOver: bpo });
+  const rows = projectedTotals(state, bpo);
   if (!rows.length || !est || est.kind !== "projection") return null;
   const { bat } = battingAndBowling(state);
   return (
@@ -407,7 +408,7 @@ function WorldEventProjectedCard({ state }: { state: LiveMatchState }) {
       aside={
         <span className="flex items-baseline gap-3">
           <span className="we-fig text-[52px] leading-none">{scoreText(state.total_runs, state.total_wickets)}</span>
-          <span className="we-figl we-muted text-[22px]">({oversText(state.total_balls)} ov)</span>
+          <span className="we-figl we-muted text-[22px]">({oversText(state.total_balls, bpo)} ov)</span>
         </span>
       }
       width={1400}
@@ -439,7 +440,8 @@ function WorldEventProjectedCard({ state }: { state: LiveMatchState }) {
 
 export function WorldEventProjectedScore(p: OverlayElementProps["projectedScore"]) {
   if (p.variant === "strap") return null;
-  const est = winPredictorFromLive(p.state);
+  const bpo = ballsPerOverOf(p.match);
+  const est = winPredictorFromLive(p.state, { ballsPerOver: bpo });
   if (est?.kind === "chase") return <WorldEventWinPredictor {...p} />;
-  return <WorldEventProjectedCard state={p.state} />;
+  return <WorldEventProjectedCard state={p.state} bpo={bpo} />;
 }

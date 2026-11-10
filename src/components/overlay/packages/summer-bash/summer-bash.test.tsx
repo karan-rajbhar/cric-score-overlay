@@ -140,6 +140,12 @@ describe("score bug", () => {
     expect(screen.getByLabelText("This over")).toBeInTheDocument();
   });
 
+  it("counts a DLS revision's overs in the chase", () => {
+    render(bug({ ...DEMO_MATCH_STATE, overs_per_innings: 20, dls_overs: 12 }));
+    expect(screen.getByTestId("score-bug")).toHaveTextContent("of 12");
+    expect(screen.getByTestId("score-bug")).not.toHaveTextContent("of 20");
+  });
+
   it("draws each phase its own way", () => {
     const { unmount } = render(bug(DEMO_PRE_STATE));
     expect(screen.getByTestId("score-bug")).toHaveAttribute("data-phase", "pre");

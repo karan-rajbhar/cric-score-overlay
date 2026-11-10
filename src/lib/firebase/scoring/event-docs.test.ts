@@ -337,6 +337,56 @@ describe("eventDocsAfter", () => {
     });
   });
 
+  it("leaves an event that completes the innings to the server", () => {
+    const base = matchWith(SETTINGS[0]!);
+    const log = [...deliveries(5)].slice(0, 3);
+    const doc = stored(base, log, null);
+    const over = oversOfBalls("m1", "i1", log as BallByBallRow[], NOW)[0]!;
+    const crease = (doc.batting ?? []).filter((b) => b.is_current_batsman);
+    const striker = crease.find((b) => b.is_striker)!.user_id;
+    const docsFor = (
+      match: Match,
+      innings: Innings,
+      fields: Partial<BallByBallRow>,
+    ) =>
+      eventDocsAfter({
+        match,
+        innings,
+        overDoc: over,
+        event: newEventBall(match, innings, fields, NOW, "ev"),
+        now: NOW,
+      });
+
+    // Penalty runs that reach the target: the chase is over.
+    const chasing = { ...doc, target_runs: (doc.total_runs ?? 0) + 5 };
+    expect(
+      docsFor(base, chasing, penaltyFields(chasing, 5, "penalty", null)),
+    ).toBeNull();
+    expect(
+      docsFor(base, chasing, penaltyFields(chasing, 4, "penalty", null)),
+    ).not.toBeNull();
+
+    // A retirement out that is the last wicket: all out.
+    const lastWicket = {
+      ...base,
+      wickets_per_innings: (doc.total_wickets ?? 0) + 1,
+    };
+    expect(
+      docsFor(
+        lastWicket,
+        doc,
+        retirementFields(doc, striker, "retired_out", null),
+      ),
+    ).toBeNull();
+    expect(
+      docsFor(
+        lastWicket,
+        doc,
+        retirementFields(doc, striker, "retired_hurt", null),
+      ),
+    ).not.toBeNull();
+  });
+
   it("leaves other events to the recompute", () => {
     const match = matchWith(SETTINGS[0]!);
     const log = [...deliveries(7)].slice(0, 4);

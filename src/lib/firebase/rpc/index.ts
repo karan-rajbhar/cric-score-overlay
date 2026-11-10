@@ -25,9 +25,10 @@ import {
 } from "./auth-helpers";
 import { inviteEmail, revokeInvitation } from "./access";
 import { inviteStreamerEmail } from "./streamers";
-import { deleteMatch } from "./delete-match";
+import { deleteMatch, deleteUnplayedFixtures } from "./delete-match";
 import {
   addTeamPlayer,
+  assertMayActForPlaceholder,
   checkUsernameAvailable,
   createTeamPlayer,
   ensureOwnProfile,
@@ -84,6 +85,11 @@ function optStr(args: Args, key: string): string | null {
   return typeof value === "string" && value ? value : null;
 }
 
+function optNum(args: Args, key: string): number | null {
+  const value = args[key];
+  return typeof value === "number" ? value : null;
+}
+
 /** Procedures that can answer with a {@link ScoringDelta}. */
 const WITH_DELTA = new Set([
   "record_ball",
@@ -131,7 +137,11 @@ export async function callRpc(
     case "update_ball":
       return updateBall(scoring, args as unknown as UpdateBallArgs);
     case "end_innings":
-      return endInnings(scoring, str(args, "p_match_id"));
+      return endInnings(
+        scoring,
+        str(args, "p_match_id"),
+        optNum(args, "p_innings_number"),
+      );
     case "start_super_over":
       return startSuperOver(scoring, str(args, "p_match_id"));
     case "recompute_innings":
@@ -277,6 +287,15 @@ export async function callRpc(
         typeof args.p_jersey_number === "number" ? args.p_jersey_number : null,
         optStr(args, "p_match_id"),
       );
+    case "assert_may_act_for_placeholder":
+      // Server-only: the placeholder rule of the team page's actions
+      // (add to a squad, invite to claim), one copy with the rpcs'.
+      if (!ctx.uid) throw new DbQueryError("Authentication required", "42501");
+      await assertMayActForPlaceholder(ctx.ds, ctx.uid, str(args, "p_user_id"), {
+        every: args.p_every === true,
+        known: str(args, "p_team_id"),
+      });
+      return null;
     case "add_team_player":
       return addTeamPlayer(
         ctx.ds,
@@ -290,6 +309,11 @@ export async function callRpc(
         { ds: ctx.ds, db: ctx.db, uid: ctx.uid },
         str(args, "p_match_id"),
         typeof args.p_confirm_title === "string" ? args.p_confirm_title : "",
+      );
+    case "delete_unplayed_fixtures":
+      return deleteUnplayedFixtures(
+        { ds: ctx.ds, db: ctx.db, uid: ctx.uid },
+        str(args, "p_tournament_id"),
       );
     case "can_delete_match":
       return canDeleteMatch(

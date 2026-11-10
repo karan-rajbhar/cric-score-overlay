@@ -195,12 +195,24 @@ export class FirestoreScoringTx extends ScoringTx {
     );
   }
 
+  /**
+   * Writes the staged changes. A patch replaces each top-level field it
+   * names whole (`mergeFields`), as {@link DataSourceScoringTx} does: a
+   * plain merge would merge a nested map key by key, keeping keys the new
+   * value leaves out (an old `last_ball`'s `penalty_team_id`). Undefined
+   * values are left out, as the Admin SDK is set to ignore them.
+   */
   flush(): void {
     for (const w of this.pendingWrites()) {
       const ref = this.db.collection(w.table).doc(w.id);
       if (w.kind === "delete") this.tx.delete(ref);
       else if (w.kind === "set") this.tx.set(ref, w.data);
-      else this.tx.set(ref, w.data, { merge: true });
+      else {
+        const fields = Object.keys(w.data).filter(
+          (k) => w.data[k] !== undefined,
+        );
+        this.tx.set(ref, w.data, { mergeFields: fields });
+      }
     }
   }
 }

@@ -27,11 +27,13 @@ export {
 export {
   ballsPerOverOf,
   overlayPhaseOf,
+  oversLimitOf,
   sidesOf,
   tossLineOf,
   type OverlayPhase,
   type Side,
 } from "../../score-bug";
+export { inningsBreakOf, summaryInningsOf } from "../../scorecard-cards";
 export { strapText, type StrapText } from "../../strap-views";
 
 // ---- balls and overs ----------------------------------------------------------
@@ -200,8 +202,11 @@ export function projectedTotals(
  * range in a first innings, each side's chance in a chase; null when no
  * innings is in play. Always shown as an estimate.
  */
-export function estimateOf(state: LiveMatchState): WinEstimate | null {
-  return winPredictorFromLive(state);
+export function estimateOf(
+  state: LiveMatchState,
+  ballsPerOver = 6,
+): WinEstimate | null {
+  return winPredictorFromLive(state, { ballsPerOver });
 }
 
 // ---- partnership ----------------------------------------------------------------
@@ -230,6 +235,11 @@ export function inningsNo(innings: readonly Innings[], n: number): Innings | und
   return innings.find((i) => i.innings_number === n);
 }
 
+/** Runs an over of `ballsPerOver`; null before a ball. */
+function perOver(runs: number, balls: number, ballsPerOver: number): number | null {
+  return balls > 0 ? (runs * ballsPerOver) / balls : null;
+}
+
 /**
  * The current stand: its runs and balls from the live row, each batter's
  * share from the innings' partnerships when the match carries them.
@@ -238,6 +248,7 @@ export function inningsNo(innings: readonly Innings[], n: number): Innings | und
 export function partnershipOf(
   state: LiveMatchState,
   innings: readonly Innings[] = [],
+  ballsPerOver = 6,
 ): Partnership | null {
   if (!state.striker_name || !state.non_striker_name) return null;
   const current = inningsNo(innings, state.innings_number ?? 0);
@@ -262,7 +273,7 @@ export function partnershipOf(
   return {
     runs,
     balls,
-    runRate: balls > 0 ? (runs * 6) / balls : null,
+    runRate: perOver(runs, balls, ballsPerOver),
     batters,
     split: batters.every((b) => b.runs !== null),
   };
@@ -395,7 +406,7 @@ export function bowlerNow(state: LiveMatchState, ballsPerOver = 6): BowlerNow | 
     balls,
     overs,
     maidens: state.bowler_maidens ?? null,
-    economy: balls > 0 ? ((runs * 6) / balls).toFixed(2) : null,
+    economy: balls > 0 ? ((runs * ballsPerOver) / balls).toFixed(2) : null,
     figures: bowlerFigures(wickets, runs),
     line: `${bowlerFigures(wickets, runs)} (${overs})`,
   };

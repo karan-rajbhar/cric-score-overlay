@@ -12,7 +12,24 @@
  * events without one: the "edits" scenario's hashes from its reassignment on
  * differ only by a bonus event's `bowler_id` (null, not the new bowler). And
  * again when the live row took the app's one spelling of a ball
- * (`deliveryLabel`): with `this_over_balls` masked no hash moved. Replaying
+ * (`deliveryLabel`): with `this_over_balls` masked no hash moved. And when
+ * an edit began to settle the innings and the match as a delivery does: in
+ * the "edits" scenario, the edit of the completed first innings moves the
+ * chase's target with it (steps 27 to 30 differ by innings 2's target and
+ * live_state's target, runs needed and required rate), and the edit that
+ * takes the winning chase below its target reopens the match (steps 42 and
+ * 43: live, no result, innings 2 open); the undo after them lands on the
+ * recorded state again. And when a crease change stopped taking off a
+ * batter the ball log names (`batter_has_batted`): in the batsman-credit
+ * scenario, the change of a1 and a2 for a5 and a6 (step 9) is refused, so
+ * no ball is recorded there and the next one (step 10) is a1 and a2's.
+ * And when an over ended by the cap on deliveries began to count as a
+ * complete over: in the max_balls_per_over scenario (cap 7), the seventh
+ * delivery (step 6) ends over 0 with 3 legal balls, which now counts as 1.0
+ * for the innings and its bowler; the dots after it (steps 7 to 9) are over
+ * 1, with one strike swap in all and the new bowler kept, where the old
+ * engine kept them in over 0, swapped strike and cleared the bowler on each.
+ * Replaying
  * the same steps on the current engine and hashing the legacy-shaped view of
  * its storage (innings arrays and over documents expanded back into rows by
  * `legacyRowsDataSource`) must give identical hashes: same scorecards, ball

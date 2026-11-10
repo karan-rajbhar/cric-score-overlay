@@ -7,6 +7,7 @@
  * read their innings, in batches) and writes only the rows that changed.
  */
 
+import { nrrFigures } from "~/lib/tournament-standings";
 import { chunk, IN_CHUNK_SIZE, type DataSource } from "../datasource";
 import { newId } from "../query-builder";
 import { sameRow } from "../scoring/rows";
@@ -47,12 +48,9 @@ export async function recalculateTournamentStandings(
     ]) as Promise<unknown> as Promise<TournamentStandingsRow[]>,
   ]);
 
-  const excluded = options.excludeMatchId
-    ? (allMatchDocs.find((m) => m.id === options.excludeMatchId) ?? null)
-    : null;
-  const matchDocs = excluded
-    ? allMatchDocs.filter((m) => m.id !== excluded.id)
-    : allMatchDocs;
+  const matchDocs = allMatchDocs.filter(
+    (m) => m.id !== options.excludeMatchId,
+  );
 
   const teamIds = new Set<string>();
   // Requests still waiting for the organisers (or turned down) stay out.
@@ -63,17 +61,13 @@ export async function recalculateTournamentStandings(
     if (m.team1_id) teamIds.add(m.team1_id);
     if (m.team2_id) teamIds.add(m.team2_id);
   }
-  // A team that was in the table only through the excluded match (not
-  // registered, no other match) leaves it, unless it carries a manual
-  // adjustment, so the table equals one built without that match.
-  if (excluded) {
-    for (const teamId of [excluded.team1_id, excluded.team2_id]) {
-      if (!teamId || teamIds.has(teamId)) continue;
-      const row = standingsDocs.find((s) => s.team_id === teamId);
-      if (!row) continue;
-      if (row.points_adjustment || row.adjustment_reason) teamIds.add(teamId);
-      else await ds.delete("tournament_standings", row.id);
-    }
+  // A team no longer in the table (rejected or withdrawn with no match
+  // played, or in it only through the excluded match) leaves it, unless it
+  // carries a manual adjustment, so the table equals one built afresh.
+  for (const row of standingsDocs) {
+    if (!row.team_id || teamIds.has(row.team_id)) continue;
+    if (row.points_adjustment || row.adjustment_reason) teamIds.add(row.team_id);
+    else await ds.delete("tournament_standings", row.id);
   }
   if (teamIds.size === 0) return;
 
@@ -133,21 +127,13 @@ export async function recalculateTournamentStandings(
     for (const m of matchDocs) {
       if (m.status !== "completed") continue;
       if (m.team1_id !== teamId && m.team2_id !== teamId) continue;
-      const bpo = m.balls_per_over ?? 6;
-      const wicketsCap = m.wickets_per_innings ?? 10;
-      const oversQuota = m.overs_per_innings ?? 20;
-      for (const inn of inningsByMatch.get(m.id) ?? []) {
-        const balls = inn.total_balls ?? 0;
-        const overs =
-          (inn.total_wickets ?? 0) >= wicketsCap
-            ? oversQuota
-            : Math.floor(balls / bpo) + (balls % bpo) / bpo;
-        if (inn.team_id === teamId) {
-          runsScored += inn.total_runs ?? 0;
-          oversFaced += overs;
+      for (const f of nrrFigures(m, inningsByMatch.get(m.id) ?? [])) {
+        if (f.teamId === teamId) {
+          runsScored += f.runs;
+          oversFaced += f.overs;
         } else {
-          runsConceded += inn.total_runs ?? 0;
-          oversBowled += overs;
+          runsConceded += f.runs;
+          oversBowled += f.overs;
         }
       }
     }
@@ -198,7 +184,7 @@ export async function maybeRecalculateStandings(
   after: Partial<MatchesRow> | null,
 ): Promise<void> {
   const tournamentId = after?.tournament_id ?? before?.tournament_id ?? null;
-  if (!tournamentId) return;
+  if (!tournamentId || leavesTournament(before, after)) return;
   const terminal = (s: string | null | undefined) =>
     s === "completed" || s === "abandoned";
   if (!(terminal(after?.status) || terminal(before?.status) || !after)) return;
@@ -217,6 +203,19 @@ export async function maybeRecalculateStandings(
   await recalculateTournamentStandings(ds, tournamentId);
 }
 
+/**
+ * Whether the write takes the match out of its tournament. That happens
+ * only when the tournament is deleted (the cascade unlinks its matches):
+ * its table goes with it, so recomputing it would only write rows back for
+ * a tournament that is gone.
+ */
+function leavesTournament(
+  before: Partial<MatchesRow> | null,
+  after: Partial<MatchesRow> | null,
+): boolean {
+  return !!before?.tournament_id && after?.tournament_id === null;
+}
+
 /** Match fields the points table depends on. */
 const STANDINGS_INPUTS = [
   "status",
@@ -228,5 +227,6 @@ const STANDINGS_INPUTS = [
   "balls_per_over",
   "wickets_per_innings",
   "overs_per_innings",
+  "dls_revision",
   "innings_summary",
 ] as const;

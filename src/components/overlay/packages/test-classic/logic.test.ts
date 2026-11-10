@@ -86,6 +86,7 @@ describe("figures in the long-form style", () => {
     expect(inningsTitle(2, "T20")).toBe("2nd innings");
     expect(oversLimitOf(DEMO_MATCH_STATE)).toBe(20);
     expect(oversLimitOf({ ...DEMO_MATCH_STATE, match_format: "Test" })).toBeNull();
+    expect(oversLimitOf({ ...DEMO_MATCH_STATE, dls_overs: 12 })).toBe(12);
   });
 });
 

@@ -73,6 +73,22 @@ describe("Create match: opponent scoping", () => {
     ).toContain("team-quick-opp");
   });
 
+  it("host side: a tournament match offers only the user's confirmed teams", () => {
+    const groups = teamGroups({
+      teams,
+      userId: "user-1",
+      playerTeamIds: ["team-club-1"],
+      clubAdminIds: new Set(),
+      tournamentId: "tourn-1",
+      clubId: "",
+      tournamentTeamIds: new Set(["team-my-2", "team-stranger"]),
+      isTournamentOrganizer: false,
+    });
+    expect(groups.team1.flatMap((g) => g.teams.map((t) => t.id))).toEqual([
+      "team-my-2",
+    ]);
+  });
+
   it("host side: organizers also see tournament and club teams", () => {
     const groups = teamGroups({
       teams,

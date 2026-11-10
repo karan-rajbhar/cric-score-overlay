@@ -20,11 +20,13 @@ import { getFirebaseDb } from "~/lib/firebase/client";
 import { watchDoc, type DocWatchStatus } from "~/lib/firebase/realtime";
 import {
   autoRulesIn,
+  CLEARABLE_LAYERS,
   CUE_REPLAY_MS,
   OVERLAY_STATE_COLLECTION,
   parseOverlayState,
   sceneOf,
   strapOnAir,
+  type OverlayCleared,
   type OverlayScene,
   type OverlayStateDoc,
   type SceneUrlParams,
@@ -93,6 +95,17 @@ export interface OverlayLayers {
 /** A replay the automatic rules ask for (`obs-bridge.ts` plays it). */
 export type ReplayRequest = Extract<AutoGraphic, { kind: "replay" }>;
 
+type Timer = ReturnType<typeof setTimeout>;
+
+/** What the automatic rules have on air, per layer, over the producer's. */
+interface AutoOnAir {
+  strap: ActiveLowerThirdStrap | null;
+  card: PresentationCardType | null;
+  view: BroadcastViewId | null;
+}
+type AutoLayer = keyof AutoOnAir;
+const NO_AUTO: AutoOnAir = { strap: null, card: null, view: null };
+
 export interface OverlayLayersOptions {
   doc: OverlayStateDoc | null;
   /** Whether `doc` is the stored state yet (false before the first read). */
@@ -108,6 +121,8 @@ export interface OverlayLayersOptions {
   serverNow?: number;
   /** Never play sounds (previews). */
   muted?: boolean;
+  /** The match's balls per over (`ballsPerOverOf`), for automatic straps. */
+  ballsPerOver?: number;
   /** Replays the automatic rules ask for (the OBS overlay only). */
   onReplay?: (item: ReplayRequest) => void;
 }
@@ -124,6 +139,7 @@ export function useOverlayLayers({
   state,
   serverNow,
   muted = false,
+  ballsPerOver = 6,
   onReplay,
 }: OverlayLayersOptions): OverlayLayersResult {
   const scene = sceneOf(params, doc?.scene);
@@ -171,51 +187,92 @@ export function useOverlayLayers({
   const rules = autoRulesIn(doc);
   const rulesRef = useRef(rules);
   const onReplayRef = useRef(onReplay);
+  const ballsPerOverRef = useRef(ballsPerOver);
+  const heldRef = useRef(scene.hold !== null);
   useEffect(() => {
     rulesRef.current = rules;
     onReplayRef.current = onReplay;
+    ballsPerOverRef.current = ballsPerOver;
+    heldRef.current = scene.hold !== null;
   });
-  const [autoStrap, setAutoStrap] = useState<ActiveLowerThirdStrap | null>(
-    null,
-  );
-  const [autoCard, setAutoCard] = useState<PresentationCardType | null>(null);
-  const [autoView, setAutoView] = useState<BroadcastViewId | null>(null);
+  const [auto, setAuto] = useState<AutoOnAir>(NO_AUTO);
   const prevRow = useRef<LiveMatchState | null>(null);
-  const pending = useRef<ReturnType<typeof setTimeout>[]>([]);
+  // Items not yet shown (a new moment replaces them) and, apart from them,
+  // the timer that takes each layer's graphic off (replaced only with it).
+  const queued = useRef<{ kind: AutoGraphic["kind"]; timer: Timer }[]>([]);
+  const hideTimers = useRef<Partial<Record<AutoLayer, Timer>>>({});
+  const putOnAir = useCallback(
+    <L extends AutoLayer>(layer: L, value: AutoOnAir[L], ms: number) => {
+      clearTimeout(hideTimers.current[layer]);
+      setAuto((a) => ({ ...a, [layer]: value }));
+      hideTimers.current[layer] = setTimeout(
+        () => setAuto((a) => ({ ...a, [layer]: null })),
+        ms,
+      );
+    },
+    [],
+  );
   useEffect(() => {
     if (!state) return;
     const prev = prevRow.current;
     prevRow.current = state;
-    const items = autoGraphics(prev, state, rulesRef.current);
+    // While the score is held for a correction, nothing plays by itself.
+    if (heldRef.current) return;
+    const items = autoGraphics(
+      prev,
+      state,
+      rulesRef.current,
+      ballsPerOverRef.current,
+    );
     if (!items.length) return;
-    // A new moment replaces whatever the last one still had queued.
-    for (const t of pending.current) clearTimeout(t);
-    pending.current = [];
-    const later = (ms: number, fn: () => void) =>
-      pending.current.push(setTimeout(fn, ms));
-    for (const item of items) {
-      later(item.at, () => {
+    for (const q of queued.current) clearTimeout(q.timer);
+    queued.current = items.map((item) => ({
+      kind: item.kind,
+      timer: setTimeout(() => {
         if (item.kind === "sting") show(item.sting);
         else if (item.kind === "replay") onReplayRef.current?.(item);
         else if (item.kind === "strap") {
-          setAutoStrap({ ...item.strap, durationMs: -1 });
-          later(item.durationMs, () => setAutoStrap(null));
+          putOnAir("strap", { ...item.strap, durationMs: -1 }, item.durationMs);
         } else if (item.kind === "card") {
-          setAutoCard(item.card);
-          later(item.durationMs, () => setAutoCard(null));
-        } else {
-          setAutoView(item.view);
-          later(item.durationMs, () => setAutoView(null));
-        }
-      });
-    }
-  }, [state, show]);
+          putOnAir("card", item.card, item.durationMs);
+        } else putOnAir("view", item.view, item.durationMs);
+      }, item.at),
+    }));
+  }, [state, show, putOnAir]);
   useEffect(
     () => () => {
-      for (const t of pending.current) clearTimeout(t);
+      for (const q of queued.current) clearTimeout(q.timer);
+      for (const t of Object.values(hideTimers.current)) clearTimeout(t);
     },
     [],
   );
+
+  // Clear, Take off and Back to score bug take off what the overlay put up
+  // by itself on that layer too, and what it still had queued there.
+  const cleared = doc?.cleared;
+  const seenCleared = useRef<OverlayCleared | null>(null);
+  useEffect(() => {
+    if (!loaded) return;
+    const before = seenCleared.current;
+    seenCleared.current = cleared ?? {};
+    if (!before) return;
+    const off = CLEARABLE_LAYERS.filter((l) => cleared?.[l] !== before[l]);
+    if (!off.length) return;
+    queued.current = queued.current.filter((q) => {
+      const drop = (off as readonly string[]).includes(q.kind);
+      if (drop) clearTimeout(q.timer);
+      return !drop;
+    });
+    const layers = off.filter((l): l is AutoLayer => l !== "sting");
+    for (const l of layers) clearTimeout(hideTimers.current[l]);
+    setAuto((a) => ({
+      ...a,
+      ...Object.fromEntries(layers.map((l) => [l, null])),
+    }));
+    if (off.includes("sting")) setSting(null);
+    // The stamps identify the change; `cleared` is a new object per read.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, cleared?.view, cleared?.card, cleared?.strap, cleared?.sting]);
 
   // The lower third: on air until its time is up or it is taken off here.
   const storedStrap = doc?.strap ?? null;
@@ -244,9 +301,9 @@ export function useOverlayLayers({
     sting,
     // The strap shown keeps its stored timing out of the component's way;
     // an automatic one goes over the producer's while it lasts.
-    strap: autoStrap ?? (strap ? { ...strap, durationMs: -1 } : null),
-    card: autoCard ?? scene.card,
-    view: autoView ?? scene.view,
+    strap: auto.strap ?? (strap ? { ...strap, durationMs: -1 } : null),
+    card: auto.card ?? scene.card,
+    view: auto.view ?? scene.view,
     snapshots: doc?.snapshots ?? null,
     hold: scene.hold,
     dismissSting: useCallback(() => setSting(null), []),

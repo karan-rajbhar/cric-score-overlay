@@ -1,6 +1,7 @@
 "use server";
 
 import type { Doc } from "~/lib/firebase/datasource";
+import type { ServerClient } from "~/lib/firebase/server-client";
 import { matchesSearch, searchKey } from "~/lib/firebase/derive.mjs";
 import { sortRows } from "~/lib/firebase/filters";
 import { prefixSearch } from "~/lib/firebase/search";
@@ -12,10 +13,15 @@ import {
   refreshLiveMatchesFor,
 } from "~/lib/firebase/live-sync";
 import { ensureUserProfile } from "~/lib/firebase/user-profile";
+import {
+  PLACEHOLDER_IN_OTHER_TEAMS,
+  PLACEHOLDER_OF_OTHER_TEAM,
+} from "~/lib/firebase/rpc/profiles";
 import { friendlyError } from "~/app/matches/errors";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { parseTeamColor } from "~/lib/team-colors";
+import { readImageUpload } from "~/lib/image-upload";
 import { maskEmail } from "~/lib/mask-email";
 import {
   isPlaceholderProfile,
@@ -186,6 +192,26 @@ export async function getTeam(id: string) {
   return { data, error: null };
 }
 
+/** Longest team name (what the team forms allow). */
+const TEAM_NAME_MAX = 60;
+/** Longest short name: what the scoreboard and overlay have room for. */
+const SHORT_NAME_MAX = 5;
+
+/** Why a new team's name or short name will not do, or null. */
+function newTeamNameError(
+  name: string,
+  shortName: string | null,
+): string | null {
+  if (!name) return "Team name is required";
+  if (name.length > TEAM_NAME_MAX) {
+    return `Keep the team name to ${TEAM_NAME_MAX} characters`;
+  }
+  if (shortName && shortName.length > SHORT_NAME_MAX) {
+    return `Short name: up to ${SHORT_NAME_MAX} letters`;
+  }
+  return null;
+}
+
 export async function createTeam(formData: FormData) {
   const db = await createServerClient();
   const name = (formData.get("name") as string)?.trim();
@@ -210,9 +236,8 @@ export async function createTeam(formData: FormData) {
 
   await ensureUserProfile(db, user);
 
-  if (!name) {
-    return { error: "Team name is required" };
-  }
+  const nameError = newTeamNameError(name ?? "", short_name);
+  if (nameError) return { error: nameError };
   if (!primary.ok) return { error: primary.error };
   if (!secondary.ok) return { error: secondary.error };
 
@@ -286,9 +311,6 @@ export async function createTeam(formData: FormData) {
   redirect(`/teams/${data.id}`);
 }
 
-/** Longest short name: what the scoreboard and overlay have room for. */
-const SHORT_NAME_MAX = 5;
-
 /**
  * Edits a team's name, short name and description. Allowed for those who
  * manage the team (`canManageTeam`: creator, captain, vice-captain, club
@@ -320,7 +342,9 @@ export async function updateTeam(
 
   const name = (input.name ?? "").trim();
   if (!name) return { error: "Team name is required" };
-  if (name.length > 60) return { error: "Keep the team name to 60 characters" };
+  if (name.length > TEAM_NAME_MAX) {
+    return { error: `Keep the team name to ${TEAM_NAME_MAX} characters` };
+  }
   const shortName = (input.shortName ?? "").trim().toUpperCase() || null;
   const colors: Record<string, string | null> = {};
   for (const [field, value] of [
@@ -374,6 +398,61 @@ export async function updateTeam(
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PLACEHOLDER_DOMAIN = PLACEHOLDER_EMAIL_DOMAIN;
 
+const OTHER_TEAMS_PLAYER =
+  "Only an admin of a team this player is in or has played for can add them to a squad. Ask one of them, or add a new player";
+
+/** A merge refusal in words: one of the player's teams is not the caller's. */
+function mergeError(message: string): string {
+  return message.includes(PLACEHOLDER_IN_OTHER_TEAMS)
+    ? "Only an admin of every team this player is in can merge them"
+    : friendlyError(message);
+}
+
+/**
+ * The placeholder rule (`assertMayActForPlaceholder`): a squad anyone can
+ * add a player to gives no say over them. `every`: the caller runs every
+ * team whose squad has them (to hand on their identity); else a team that
+ * has them or that they played for (to add them to `teamId`, which the
+ * caller runs). The rpc's error message when refused.
+ */
+async function placeholderRefusal(
+  db: ServerClient,
+  teamId: string,
+  playerId: string,
+  every: boolean,
+): Promise<string | null> {
+  const { error } = await db.rpc("assert_may_act_for_placeholder", {
+    p_team_id: teamId,
+    p_user_id: playerId,
+    p_every: every,
+  });
+  return error?.message ?? null;
+}
+
+/** Why the caller may not invite a squad player to claim their profile. */
+async function claimRefusal(
+  db: ServerClient,
+  callerId: string,
+  teamId: string,
+  playerId: string,
+): Promise<string | null> {
+  if (!(await canManageTeam(db, teamId, callerId))) {
+    return "Only the team's creator, captain, vice-captain or a club admin can invite its players";
+  }
+  const { data: entry } = await db
+    .from("team_players")
+    .select("id")
+    .eq("team_id", teamId)
+    .eq("user_id", playerId)
+    .maybeSingle();
+  if (!entry) return "That player is not in this team's squad";
+  const refused = await placeholderRefusal(db, teamId, playerId, true);
+  if (refused?.includes(PLACEHOLDER_IN_OTHER_TEAMS)) {
+    return "Only an admin of every team they play for can invite this player";
+  }
+  return refused;
+}
+
 /**
  * "Invite to claim": a team admin gives a squad player who has no account
  * (a placeholder profile) their real Google email, or removes it again
@@ -397,20 +476,8 @@ export async function setPlayerClaimEmail(
   } = await db.auth.getUser();
   if (!user) return { error: "You must be logged in" };
 
-  if (!(await canManageTeam(db, teamId, user.id))) {
-    return {
-      error:
-        "Only the team's creator, captain, vice-captain or a club admin can invite its players",
-    };
-  }
-
-  const { data: entry } = await db
-    .from("team_players")
-    .select("id")
-    .eq("team_id", teamId)
-    .eq("user_id", playerId)
-    .maybeSingle();
-  if (!entry) return { error: "That player is not in this team's squad" };
+  const refusal = await claimRefusal(db, user.id, teamId, playerId);
+  if (refusal) return { error: refusal };
 
   const [{ data: profile }, { data: priv }] = await Promise.all([
     db
@@ -511,15 +578,15 @@ export async function createTeamQuick(name: string, shortName?: string) {
   await ensureUserProfile(db, user);
 
   const trimmed = name.trim();
-  if (!trimmed) {
-    return { data: null, error: "Team name is required" };
-  }
+  const short = shortName?.trim() || null;
+  const nameError = newTeamNameError(trimmed, short);
+  if (nameError) return { data: null, error: nameError };
 
   const { data, error } = await db
     .from("teams")
     .insert({
       name: trimmed,
-      short_name: shortName?.trim() || null,
+      short_name: short,
       created_by: user.id,
       is_template: false,
       team_type: "club",
@@ -534,6 +601,21 @@ export async function createTeamQuick(name: string, shortName?: string) {
 
   revalidatePath("/teams");
   return { data, error: null };
+}
+
+/** The add-player rpcs' refusals in words, the first that applies. */
+const ADD_PLAYER_ERRORS: [string, string][] = [
+  [PLACEHOLDER_OF_OTHER_TEAM, OTHER_TEAMS_PLAYER],
+  [
+    "not_authorized",
+    "Only team captains, club admins or this match's scorers can add players",
+  ],
+  ["team_not_found", "Team no longer exists"],
+  ["player_not_found", "That player no longer exists"],
+];
+
+function addPlayerError(message: string): string {
+  return ADD_PLAYER_ERRORS.find(([key]) => message.includes(key))?.[1] ?? message;
 }
 
 /**
@@ -571,17 +653,7 @@ export async function createPlayerQuick(
 
     if (error) {
       console.error("Error creating player:", error);
-      if (error.message.includes("not_authorized")) {
-        return {
-          data: null,
-          error:
-            "Only team captains, club admins or this match's scorers can add players",
-        };
-      }
-      if (error.message.includes("team_not_found")) {
-        return { data: null, error: "Team no longer exists" };
-      }
-      return { data: null, error: error.message };
+      return { data: null, error: addPlayerError(error.message) };
     }
 
     // From the scoring screen a revalidation only re-renders that screen for
@@ -626,20 +698,7 @@ export async function addExistingPlayerQuick(
     });
     if (error) {
       console.error("Error adding player:", error);
-      if (error.message.includes("not_authorized")) {
-        return {
-          data: null,
-          error:
-            "Only team captains, club admins or this match's scorers can add players",
-        };
-      }
-      if (error.message.includes("team_not_found")) {
-        return { data: null, error: "Team no longer exists" };
-      }
-      if (error.message.includes("player_not_found")) {
-        return { data: null, error: "That player no longer exists" };
-      }
-      return { data: null, error: error.message };
+      return { data: null, error: addPlayerError(error.message) };
     }
 
     // From the scoring screen a revalidation only re-renders that screen for
@@ -656,6 +715,105 @@ export async function addExistingPlayerQuick(
       error: err instanceof Error ? err.message : "Failed to add player",
     };
   }
+}
+
+/** Roles a squad row holds (the squad's row menu offers each). */
+const SQUAD_ROLES = ["captain", "vice_captain", "wicket_keeper", "player"];
+const UNKNOWN_ROLE = "Choose captain, vice-captain, wicket-keeper or player";
+
+/** The team column naming the one holder of a role. */
+const LEAD_COLUMNS = {
+  captain: "captain_id",
+  vice_captain: "vice_captain_id",
+} as const;
+
+type LeadColumn = (typeof LEAD_COLUMNS)[keyof typeof LEAD_COLUMNS];
+
+/**
+ * What the team's captain / vice-captain columns become when `userId`
+ * takes `role` (null: leaves the squad): each names its role's holder, and
+ * nobody is both.
+ */
+function leadColumns(
+  team: Partial<Record<LeadColumn, string | null>>,
+  userId: string,
+  role: string | null,
+): Partial<Record<LeadColumn, string | null>> {
+  const patch: Partial<Record<LeadColumn, string | null>> = {};
+  for (const [lead, column] of Object.entries(LEAD_COLUMNS)) {
+    if (role === lead && team[column] !== userId) patch[column] = userId;
+    if (role !== lead && team[column] === userId) patch[column] = null;
+  }
+  return patch;
+}
+
+/**
+ * Gives a squad player a role, keeping `teams.captain_id` /
+ * `vice_captain_id` and the squad rows' `role_in_team` in step: the
+ * previous captain or vice-captain becomes a player. Why not, or null.
+ */
+async function setSquadRole(
+  db: ServerClient,
+  teamId: string,
+  userId: string,
+  role: string,
+): Promise<string | null> {
+  if (!SQUAD_ROLES.includes(role)) return UNKNOWN_ROLE;
+  const [{ data: team }, { data: entry }] = await Promise.all([
+    db
+      .from("teams")
+      .select("captain_id, vice_captain_id")
+      .eq("id", teamId)
+      .maybeSingle(),
+    db
+      .from("team_players")
+      .select("id")
+      .eq("team_id", teamId)
+      .eq("user_id", userId)
+      .maybeSingle(),
+  ]);
+  if (!team) return "Team no longer exists";
+  if (!entry) return "That player is not in this team's squad";
+
+  const patch = leadColumns(team, userId, role);
+  if (Object.keys(patch).length) {
+    const { error } = await db.from("teams").update(patch).eq("id", teamId);
+    if (error) return error.message;
+  }
+  if (role in LEAD_COLUMNS) {
+    // The previous holder steps down.
+    const { error } = await db
+      .from("team_players")
+      .update({ role_in_team: "player" })
+      .eq("team_id", teamId)
+      .eq("role_in_team", role);
+    if (error) return error.message;
+  }
+  const { error } = await db
+    .from("team_players")
+    .update({ role_in_team: role })
+    .eq("team_id", teamId)
+    .eq("user_id", userId);
+  return error?.message ?? null;
+}
+
+/** Why `userId` may not join the squad with `role`, or null. */
+async function addRefusal(
+  db: ServerClient,
+  teamId: string,
+  userId: string,
+  role: string,
+): Promise<string | null> {
+  if (!SQUAD_ROLES.includes(role)) return UNKNOWN_ROLE;
+  const { data: player } = await db
+    .from("users")
+    .select("id, is_placeholder")
+    .eq("id", userId)
+    .maybeSingle();
+  if (!player) return "That player no longer exists";
+  if (player.is_placeholder !== true) return null;
+  const refused = await placeholderRefusal(db, teamId, userId, false);
+  return refused ? addPlayerError(refused) : null;
 }
 
 export async function addPlayerToTeam(
@@ -681,10 +839,14 @@ export async function addPlayerToTeam(
     };
   }
 
+  const refused = await addRefusal(db, teamId, userId, role);
+  if (refused) return { error: refused };
+
+  const lead = role in LEAD_COLUMNS;
   const { error } = await db.from("team_players").insert({
     team_id: teamId,
     user_id: userId,
-    role_in_team: role,
+    role_in_team: lead ? "player" : role,
     added_by: user.id,
   });
 
@@ -696,6 +858,11 @@ export async function addPlayerToTeam(
     console.error("Error adding player:", error);
     return { error: error.message };
   }
+  // A captain or vice-captain through the routine that keeps them in step.
+  const roleError = lead
+    ? await setSquadRole(db, teamId, userId, role)
+    : null;
+  if (roleError) return { error: roleError };
 
   revalidatePath(`/teams/${teamId}`);
   await notifySquadChanged(db, { teamId });
@@ -725,6 +892,11 @@ export async function removePlayerFromTeam(
     }
   }
 
+  const { data: team } = await db
+    .from("teams")
+    .select("captain_id, vice_captain_id")
+    .eq("id", teamId)
+    .maybeSingle();
   const { error } = await db
     .from("team_players")
     .delete()
@@ -734,6 +906,11 @@ export async function removePlayerFromTeam(
   if (error) {
     console.error("Error removing player:", error);
     return { error: error.message };
+  }
+  // No captain or vice-captain outside the squad.
+  const leads = team ? leadColumns(team, userInputId, null) : {};
+  if (Object.keys(leads).length) {
+    await db.from("teams").update(leads).eq("id", teamId);
   }
 
   revalidatePath(`/teams/${teamId}`);
@@ -762,31 +939,8 @@ export async function updatePlayerRole(
     };
   }
 
-  // Start a transaction-like update if we're setting captain
-  if (role === "captain") {
-    // Update team captain_id
-    await db
-      .from("teams")
-      .update({ captain_id: userId })
-      .eq("id", teamId);
-  } else if (role === "vice_captain") {
-    // Update team vice_captain_id
-    await db
-      .from("teams")
-      .update({ vice_captain_id: userId })
-      .eq("id", teamId);
-  }
-
-  const { error } = await db
-    .from("team_players")
-    .update({ role_in_team: role })
-    .eq("team_id", teamId)
-    .eq("user_id", userId);
-
-  if (error) {
-    console.error("Error updating player role:", error);
-    return { error: error.message };
-  }
+  const refused = await setSquadRole(db, teamId, userId, role);
+  if (refused) return { error: refused };
 
   revalidatePath(`/teams/${teamId}`);
   // Captain / vice-captain markers show on a live match's squads.
@@ -806,13 +960,13 @@ export async function previewMergePlayer(
       "preview_player_merge",
       { p_team_id: teamId, p_from_id: fromId, p_to_id: toId },
     );
-    if (error) return { data: null, error: friendlyError(error.message) };
+    if (error) return { data: null, error: mergeError(error.message) };
     return { data, error: null };
   } catch (err) {
     console.error("Unexpected error in previewMergePlayer:", err);
     return {
       data: null,
-      error: friendlyError(
+      error: mergeError(
         err instanceof Error ? err.message : "Could not compare the players",
       ),
     };
@@ -839,7 +993,7 @@ export async function mergePlayerInto(
       p_from_id: fromId,
       p_to_id: toId,
     });
-    if (error) return { data: null, error: friendlyError(error.message) };
+    if (error) return { data: null, error: mergeError(error.message) };
     if (data?.done) {
       revalidatePath(`/teams/${teamId}`);
       revalidatePath(`/players/${toId}`);
@@ -850,25 +1004,25 @@ export async function mergePlayerInto(
     console.error("Unexpected error in mergePlayerInto:", err);
     return {
       data: null,
-      error: friendlyError(
+      error: mergeError(
         err instanceof Error ? err.message : "Could not merge the players",
       ),
     };
   }
 }
 
-const MAX_LOGO_BYTES = 2 * 1024 * 1024; // 2 MB
-const ALLOWED_LOGO_TYPES = [
-  "image/png",
-  "image/jpeg",
-  "image/webp",
-  "image/svg+xml",
-];
+const LOGO_RULES = {
+  maxBytes: 2 * 1024 * 1024, // 2 MB
+  tooLarge: "Logo must be under 2 MB",
+  svg: true,
+};
 
 /**
  * Upload a crest for a team and store its public URL on the team row.
  * Only the team captain or creator may do this (enforced again by storage
- * RLS via the team-logos/<team_id>/ folder convention).
+ * RLS via the team-logos/<team_id>/ folder convention). The file's type
+ * comes from its bytes (`readImageUpload`), never from what the browser
+ * declares.
  */
 export async function updateTeamLogo(teamId: string, file: File) {
   const db = await createServerClient();
@@ -886,23 +1040,14 @@ export async function updateTeamLogo(teamId: string, file: File) {
     };
   }
 
-  if (file.size > MAX_LOGO_BYTES) {
-    return { data: null, error: "Logo must be under 2 MB" };
-  }
-  if (!ALLOWED_LOGO_TYPES.includes(file.type)) {
-    return { data: null, error: "Use PNG, JPG, WebP, or SVG" };
-  }
-
-  const ext =
-    file.type === "image/svg+xml"
-      ? "svg"
-      : (file.type.split("/")[1] ?? "png").replace("jpeg", "jpg");
-  const path = `${teamId}/logo-${Date.now()}.${ext}`;
+  const { bytes, image } = await readImageUpload(file, LOGO_RULES);
+  if (!image.ok) return { data: null, error: image.error };
+  const path = `${teamId}/logo-${Date.now()}.${image.ext}`;
 
   const { error: uploadError } = await db.storage
     .from("team-logos")
-    .upload(path, file, {
-      contentType: file.type,
+    .upload(path, bytes, {
+      contentType: image.contentType,
       upsert: true,
       // A new path per upload: the file at it never changes.
       immutable: true,

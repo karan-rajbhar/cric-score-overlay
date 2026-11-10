@@ -212,8 +212,8 @@ describe("Cricsheet Exporter", () => {
     ]);
     expect(json.info.officials?.tv_umpires).toEqual(["Marais Erasmus"]);
     expect(json.info.teams).toEqual(["Warriors CC", "Titans CC"]);
-    expect(json.info.toss.winner).toBe("Warriors CC");
-    expect(json.info.toss.decision).toBe("bat");
+    expect(json.info.toss?.winner).toBe("Warriors CC");
+    expect(json.info.toss?.decision).toBe("bat");
     expect(json.info.outcome?.winner).toBe("Warriors CC");
     expect(json.info.outcome?.by?.runs).toBe(25);
   });
@@ -349,5 +349,269 @@ describe("Cricsheet Exporter", () => {
     const json = buildCricsheetJson(superOverMatch);
     expect(json.innings[0]!.super_over).toBeUndefined();
     expect(json.innings[1]!.super_over).toBe(true);
+  });
+});
+
+// A match whose log has every kind of event (see `first` and `second`).
+const fx = (() => {
+  const people = {
+    a: { id: "a", full_name: "Asha" },
+    b: { id: "b", full_name: "Bela" },
+    x: { id: "x", full_name: "Xavi" },
+    y: { id: "y", full_name: "Yuri" },
+    z: { id: "z", full_name: "Zed" },
+  };
+  let seq = 0;
+  const entry = (
+    inningsId: string,
+    over: number,
+    fields: Partial<BallEvent> & { penalty_team_id?: string },
+  ): BallEvent => {
+    seq += 1;
+    return {
+      id: `e${seq}`,
+      match_id: "m",
+      innings_id: inningsId,
+      over_number: over,
+      ball_number: seq,
+      seq,
+      batsman_id: "a",
+      non_striker_id: "b",
+      bowler_id: "x",
+      runs_scored: 0,
+      extras: 0,
+      extra_type: null,
+      is_wicket: false,
+      ...fields,
+    } as BallEvent;
+  };
+  const innings = (
+    id: string,
+    team: string,
+    n: number,
+    runs: number,
+    balls: BallEvent[],
+    extra: Record<string, unknown> = {},
+  ) => ({
+    id,
+    match_id: "m",
+    team_id: team,
+    innings_number: n,
+    total_runs: runs,
+    total_wickets: 0,
+    total_balls: 2,
+    total_overs: 0.2,
+    extras_total: 0,
+    extras_byes: 0,
+    extras_leg_byes: 0,
+    extras_wides: 0,
+    extras_no_balls: 0,
+    extras_penalties: 0,
+    is_completed: true,
+    ball_by_ball: balls,
+    ...extra,
+  });
+  const base: Match = {
+    id: "m",
+    title: "The Nineties XI vs Rovers",
+    match_format: "custom",
+    overs_per_innings: 10,
+    status: "completed",
+    current_innings: 2,
+    current_over: 0,
+    current_ball: 0,
+    team1_id: "t1",
+    team2_id: "t2",
+    team1: { id: "t1", name: "The Nineties XI", short_name: "NIN" },
+    team2: { id: "t2", name: "Rovers", short_name: "ROV" },
+    toss_winner_team_id: "t2",
+    toss_decision: "bowl",
+    result_type: "win",
+    winning_team_id: "t1",
+    win_margin_type: "runs",
+    win_margin: 12,
+    result_description: "The Nineties XI won by 12 runs",
+    scheduled_at: "2026-11-09T19:00:00.000Z",
+  };
+
+  // Innings 1 (t1): a single, Asha retires hurt, 5 penalty runs to t1,
+  // 5 to t2 (who have not batted: carried into their innings), 2 bonus
+  // runs, a dot. 2 balls, 8 runs.
+  const first = [
+    entry("i1", 0, { runs_scored: 1, batsman: people.a, bowler: people.x }),
+    entry("i1", 0, {
+      bowler_id: null,
+      non_striker_id: "b",
+      is_wicket: true,
+      dismissal_type: "retired_hurt",
+      dismissed_player_id: "a",
+      dismissed_player: people.a,
+    }),
+    entry("i1", 0, { extras: 5, extra_type: "penalty" }),
+    entry("i1", 0, {
+      bowler_id: null,
+      batsman_id: undefined as never,
+      non_striker_id: null,
+      extras: 5,
+      extra_type: "penalty",
+      penalty_team_id: "t2",
+    }),
+    entry("i1", 0, { extras: 2, extra_type: "bonus" }),
+    entry("i1", 0, { batsman_id: "b", non_striker_id: "a" }),
+  ];
+  // Innings 2 (t2): the carried 5 first, then a three. 8 runs.
+  const second = [
+    entry("i2", 0, {
+      bowler_id: null,
+      batsman_id: undefined as never,
+      non_striker_id: null,
+      extras: 5,
+      extra_type: "penalty",
+      penalty_team_id: "t2",
+    }),
+    entry("i2", 0, {
+      batsman_id: "y",
+      non_striker_id: "z",
+      bowler_id: "a",
+      runs_scored: 3,
+    }),
+  ];
+  const match: Match = {
+    ...base,
+    innings: [
+      innings("i1", "t1", 1, 8, first, { extras_penalties: 5, extras_bonuses: 2 }),
+      innings("i2", "t2", 2, 8, second, { extras_penalties: 5, target_runs: 9 }),
+    ],
+  };
+
+  return { innings, match };
+})();
+const { match } = fx;
+
+const deliveriesOf = (inn: { overs: { deliveries: unknown[] }[] }) =>
+  inn.overs.flatMap((o) => o.deliveries) as Array<{
+    runs: { total: number };
+    extras?: { penalty?: number };
+    wickets?: Array<{ player_out: string; kind: string }>;
+  }>;
+
+describe("Cricsheet export of events", () => {
+  it("exports deliveries only, with penalties once and retirements on a ball", () => {
+    const json = buildCricsheetJson(match);
+    const [one, two] = json.innings;
+    const d1 = deliveriesOf(one!);
+    // Legal balls plus wides and no-balls.
+    expect(d1).toHaveLength(2);
+    expect(d1.some((d) => JSON.stringify(d).includes("Unknown"))).toBe(false);
+    expect(d1[0]!.wickets).toEqual([
+      { player_out: "Asha", kind: "retired hurt" },
+    ]);
+    expect(d1[0]!.extras?.penalty).toBe(7);
+    const sum = (inn: typeof one) =>
+      deliveriesOf(inn!).reduce((s, d) => s + d.runs.total, 0) +
+      (inn!.penalty_runs?.pre ?? 0) +
+      (inn!.penalty_runs?.post ?? 0);
+    expect(sum(one)).toBe(8);
+    expect(one!.penalty_runs).toBeUndefined();
+    expect(deliveriesOf(two!)).toHaveLength(1);
+    expect(two!.penalty_runs).toEqual({ pre: 5 });
+    expect(sum(two)).toBe(8);
+  });
+});
+
+describe("Cricsheet match info", () => {
+  const { innings } = fx;
+
+  it("takes the outcome from the result, not its wording", () => {
+    expect(buildCricsheetJson(match).info.outcome).toEqual({
+      winner: "The Nineties XI",
+      by: { runs: 12 },
+    });
+    const tie = buildCricsheetJson({
+      ...match,
+      result_type: "tie",
+      winning_team_id: null,
+      win_margin: null,
+      win_margin_type: null,
+    });
+    expect(tie.info.outcome).toEqual({ result: "tie" });
+  });
+
+  it("names a super over's winner as the eliminator of a tie", () => {
+    const json = buildCricsheetJson({
+      ...match,
+      winning_team_id: "t2",
+      win_margin_type: "wickets",
+      win_margin: 2,
+      result_description: "Rovers won by 2 wickets (Super Over)",
+      innings: [
+        ...match.innings!,
+        innings("i3", "t1", 3, 7, []),
+        innings("i4", "t2", 4, 8, [], { target_runs: 8 }),
+      ],
+    });
+    expect(json.info.outcome).toEqual({ result: "tie", eliminator: "Rovers" });
+    expect(json.innings[3]!.target).toEqual({ runs: 8, overs: 1 });
+  });
+
+  it("names the method and the overs of a DLS revision", () => {
+    const json = buildCricsheetJson({
+      ...match,
+      dls_revision: { innings_number: 2, target_runs: 9, overs: 6 },
+      result_description: "The Nineties XI won by 12 runs (revised target)",
+    });
+    expect(json.info.outcome).toMatchObject({ method: "D/L" });
+    expect(json.innings[1]!.target).toEqual({ runs: 9, overs: 6 });
+  });
+
+  it("names no method for a target and overs set by hand", () => {
+    const json = buildCricsheetJson({
+      ...match,
+      dls_revision: { innings_number: 2, target_runs: 9, overs: 6, by_hand: true },
+      result_description: "The Nineties XI won by 12 runs (revised target)",
+    });
+    expect(json.info.outcome).not.toHaveProperty("method");
+    expect(json.innings[1]!.target).toEqual({ runs: 9, overs: 6 });
+  });
+
+});
+
+describe("Cricsheet match info: abandoned, date and toss", () => {
+  it("gives an abandoned match awarded to a side as won by award", () => {
+    const json = buildCricsheetJson({
+      ...match,
+      status: "abandoned",
+      result_type: "win",
+      winning_team_id: "t2",
+      win_margin: null,
+      win_margin_type: null,
+    });
+    expect(json.info.outcome).toEqual({ winner: "Rovers", method: "Awarded" });
+    expect(
+      buildCricsheetJson({
+        ...match,
+        status: "abandoned",
+        result_type: "abandoned",
+        winning_team_id: null,
+      }).info.outcome,
+    ).toEqual({ result: "no result" });
+  });
+
+  it("takes the balls per over, the local date and the toss from the match", () => {
+    const json = buildCricsheetJson(
+      { ...match, balls_per_over: 8 },
+      undefined,
+      { timeZone: "Asia/Kolkata" },
+    );
+    expect(json.info.balls_per_over).toBe(8);
+    // 00:30 on 10 November in India is 19:00 UTC on the 9th.
+    expect(json.info.dates).toEqual(["2026-11-10"]);
+    expect(json.info.toss).toEqual({ winner: "Rovers", decision: "field" });
+    const noToss = buildCricsheetJson({
+      ...match,
+      toss_winner_team_id: null,
+      toss_decision: null,
+    });
+    expect(noToss.info.toss).toBeUndefined();
   });
 });

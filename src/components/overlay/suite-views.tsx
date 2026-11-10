@@ -10,6 +10,7 @@
 import type { Innings, Match } from "~/lib/match-types";
 import { cn } from "~/lib/utils";
 import {
+  ballsPerOverOf,
   CardShell,
   eyebrowOf,
   OV,
@@ -18,7 +19,7 @@ import {
   teamCode,
 } from "./overlay-kit";
 import { playingXi, tossWinnerName } from "./presentation-card-views";
-import { inningsTeamName, scoreOf } from "./scorecard-cards";
+import { inningsTeamName, scoreOf, summaryInningsOf } from "./scorecard-cards";
 import type { LiveMatchState } from "./types";
 
 function inningsNo(innings: Innings[], n: number): Innings | undefined {
@@ -65,7 +66,13 @@ export function TeamListCard({
 }
 
 /** Best batters and bowlers of an innings, for summaries. */
-export function Leaders({ innings }: { innings: Innings }) {
+export function Leaders({
+  innings,
+  ballsPerOver = 6,
+}: {
+  innings: Innings;
+  ballsPerOver?: number;
+}) {
   const bat = [...(innings.batting_performances ?? [])]
     .filter((b) => b.balls_faced > 0)
     .sort((a, b) => b.runs_scored - a.runs_scored)
@@ -96,7 +103,7 @@ export function Leaders({ innings }: { innings: Innings }) {
               <span className="font-bold">
                 {b.wickets_taken}-{b.runs_conceded}
               </span>{" "}
-              <span className={OV.cardMuted}>({oversText(b.balls_bowled)})</span>
+              <span className={OV.cardMuted}>({oversText(b.balls_bowled, ballsPerOver)})</span>
             </span>
           </li>
         ))}
@@ -123,11 +130,11 @@ function InningsSummaryRow({
         <span className="text-[1.75rem] font-bold tabular-nums">
           {scoreOf(innings)}
           <span className={cn("ml-2 text-lg font-normal", OV.cardMuted)}>
-            ({oversText(innings.total_balls)} ov)
+            ({oversText(innings.total_balls, ballsPerOverOf(match))} ov)
           </span>
         </span>
       </div>
-      <Leaders innings={innings} />
+      <Leaders innings={innings} ballsPerOver={ballsPerOverOf(match)} />
     </div>
   );
 }
@@ -143,13 +150,12 @@ export function SummaryCard({
   innings: Innings[];
   breakCard?: boolean;
 }) {
-  const shown = innings.filter((i) => i.innings_number <= (breakCard ? 1 : 2));
+  const { shown, target } = summaryInningsOf(state, innings, breakCard);
   if (!shown.length) return null;
-  const first = inningsNo(innings, 1);
   const aside = breakCard
-    ? first && (
+    ? target !== null && (
         <span className={cn("text-[1.5rem] font-semibold", OV.accentText)}>
-          Target {first.total_runs + 1}
+          Target {target}
         </span>
       )
     : state.result_description
@@ -167,7 +173,7 @@ export function SummaryCard({
       eyebrow={eyebrowOf(state, breakCard ? "Innings break" : "Match summary")}
       title={
         breakCard
-          ? `${inningsTeamName(state, first ?? shown[0]!, match?.team1_id)} ${scoreOf(first ?? shown[0]!)}`
+          ? `${inningsTeamName(state, shown[0]!, match?.team1_id)} ${scoreOf(shown[0]!)}`
           : (state.result_description ?? `${state.team1_name} v ${state.team2_name}`)
       }
       aside={aside}
@@ -324,7 +330,7 @@ export function PlayerOfTheMatch({
   const bowl = innings.flatMap((i) => i.bowling_performances ?? []).find((b) => b.user_id === potm.id);
   const figures = [
     bat && bat.balls_faced > 0 && `${bat.runs_scored}${bat.is_out ? "" : "*"} (${bat.balls_faced})`,
-    bowl && bowl.balls_bowled > 0 && `${bowl.wickets_taken}-${bowl.runs_conceded} (${oversText(bowl.balls_bowled)})`,
+    bowl && bowl.balls_bowled > 0 && `${bowl.wickets_taken}-${bowl.runs_conceded} (${oversText(bowl.balls_bowled, ballsPerOverOf(match))})`,
   ].filter(Boolean);
   return (
     <div className={cn("flex w-full max-w-[64rem] overflow-hidden rounded-lg", OV.shadow)}>

@@ -304,6 +304,7 @@ function strapFor(
   e: LiveEvent,
   state: LiveMatchState,
   id: string,
+  ballsPerOver: number,
 ): { rule: AutoRuleId; strap: Omit<ActiveLowerThirdStrap, "durationMs"> } | null {
   switch (e.type) {
     case "new_batter":
@@ -328,7 +329,7 @@ function strapFor(
           title: e.name ?? "Bowler",
           subtitle:
             balls > 0
-              ? `${e.wickets ?? 0}-${e.runs ?? 0} off ${Math.floor(balls / 6)}.${balls % 6} overs`
+              ? `${e.wickets ?? 0}-${e.runs ?? 0} off ${Math.floor(balls / ballsPerOver)}.${balls % ballsPerOver} overs`
               : "Into the attack",
         },
       };
@@ -373,12 +374,14 @@ const REPLAY_RULE: Partial<Record<LiveEvent["type"], AutoRuleId>> = {
  * The graphics a new live row calls for under `rules`, in show order:
  * stings one after another, then straps, then a full card (innings break,
  * result, toss). Replays start at once (the replay buffer is saved while
- * the moment is still in it).
+ * the moment is still in it). Overs are counted in the match's
+ * `ballsPerOver` (the live row does not carry it).
  */
 export function autoGraphics(
   prev: LiveMatchState | null,
   next: LiveMatchState,
   rules?: Partial<Record<string, Partial<AutoRule>>> | null,
+  ballsPerOver = 6,
 ): AutoGraphic[] {
   // The first row after (re)loading is history, not news.
   if (!prev || prev === next || sameMoment(prev, next)) return [];
@@ -423,7 +426,7 @@ export function autoGraphics(
 
   for (const [i, e] of events.entries()) {
     if (skip(e)) continue;
-    const s = strapFor(e, next, `auto-${e.type}-${tag}-${i}`);
+    const s = strapFor(e, next, `auto-${e.type}-${tag}-${i}`, ballsPerOver);
     if (!s || !r[s.rule].on) continue;
     const durationMs = r[s.rule].seconds * 1000;
     out.push({

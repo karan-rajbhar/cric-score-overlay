@@ -50,7 +50,7 @@ export function MatchDetails({ match }: { match: Match }) {
     format && ["Format", format],
     ["Overs", `${match.overs_per_innings} overs per innings`],
     match.dls_revision && [
-      "Revised target (DLS)",
+      match.dls_revision.by_hand ? "Revised target" : "Revised target (DLS)",
       `${match.dls_revision.target_runs} runs in ${match.dls_revision.overs} overs`,
     ],
     match.ball_type && [

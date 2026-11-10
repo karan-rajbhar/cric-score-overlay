@@ -94,3 +94,37 @@ describe("search trigrams migration", () => {
     ).toBe(0);
   });
 });
+
+describe("search keys for every script (migrate-search-keys-scripts)", () => {
+  it("fills the empty keys of names not written in Latin letters, and only those", () => {
+    const jose = {
+      id: "u1",
+      full_name: "José Núñez",
+      username: "jose",
+      ...searchFieldsOf("users", { full_name: "José Núñez", username: "jose" }),
+    };
+    // As the Latin-only normalization wrote them: the username's keys alone.
+    const rahul = {
+      id: "u2",
+      full_name: "राहुल शर्मा",
+      username: "rahul_s",
+      name_lower: "",
+      search_prefixes: searchFieldsOf("users", { username: "rahul_s" })!
+        .search_prefixes,
+    };
+    const data = {
+      users: [jose, rahul],
+      teams: [],
+      clubs: [],
+      tournaments: [],
+      matches: [],
+    };
+    const patches = planSearchKeys(data);
+    expect(patches.map((p) => p.id)).toEqual(["u2"]);
+    expect(patches[0]!.data.name_lower).toBe("राहुल शर्मा");
+    expect(patches[0]!.data.search_prefixes).toEqual(
+      expect.arrayContaining(["रा", "राहु", "शर्मा", "rahul_s"]),
+    );
+    expect(planSearchKeys(applySearchKeys(data, patches))).toEqual([]);
+  });
+});

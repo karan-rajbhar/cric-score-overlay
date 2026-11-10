@@ -225,7 +225,10 @@ export function MatchLivePanel({ match }: { match: Match }) {
           <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">{figures}</dl>
           {dls && (
             <p className="mt-3 border-t border-border pt-3 text-xs text-muted-foreground">
-              Target revised by the DLS method: {dls.target_runs}{" "}
+              {dls.by_hand
+                ? "Target revised:"
+                : "Target revised by the DLS method:"}{" "}
+              {dls.target_runs}{" "}
               {dls.target_runs === 1 ? "run" : "runs"} in {dls.overs} overs.
             </p>
           )}

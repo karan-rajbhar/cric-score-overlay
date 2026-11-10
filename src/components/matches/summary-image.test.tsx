@@ -2,7 +2,6 @@ import { describe, it, expect, vi } from "vitest";
 
 import { drawSummary } from "./summary-image";
 import type { MatchExportSummary } from "~/lib/match-report";
-import type { Match } from "~/lib/match-types";
 
 describe("drawSummary", () => {
   const mockSummary: MatchExportSummary = {
@@ -40,22 +39,6 @@ describe("drawSummary", () => {
       bowlingSide: "Royal Tigers",
     },
   };
-
-  const mockMatch = {
-    id: "match-124",
-    title: "T20 Championship Final",
-    match_format: "T20",
-    overs_per_innings: 20,
-    status: "completed",
-    venue: "Melbourne Cricket Ground",
-    scheduled_at: "2026-10-18T19:30:00Z",
-    result_description: "Royal Tigers won by 18 runs",
-    team1_id: "team-1",
-    team2_id: "team-2",
-    team1: { id: "team-1", name: "Royal Tigers", short_name: "RTG" },
-    team2: { id: "team-2", name: "Coastal Kings", short_name: "CKS" },
-    innings: [],
-  } as unknown as Match;
 
   it("drawSummary renders broadcast elements onto the canvas context", () => {
     const fillTextCalls: string[] = [];

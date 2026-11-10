@@ -23,8 +23,8 @@ import {
   teamCode,
 } from "../../overlay-kit";
 import { playingXi, tossWinnerName } from "../../presentation-card-views";
-import { ballsPerOverOf } from "../../score-bug";
-import { inningsLabel, inningsTeamName, scoreOf } from "../../scorecard-cards";
+import { ballsPerOverOf, oversLimitOf } from "../../score-bug";
+import { inningsLabel, inningsTeamName, scoreOf, summaryInningsOf } from "../../scorecard-cards";
 import type {
   FixtureSnapshot,
   LeaderboardSnapshot,
@@ -174,7 +174,7 @@ function BattingRows({ innings, side }: { innings: Innings; side: SideKey }) {
 
 const BOWL_COLS = "minmax(0,1fr) 3.5rem 2.5rem 3.5rem 2.5rem 4.75rem";
 
-function BowlingRows({ innings, side }: { innings: Innings; side: SideKey }) {
+function BowlingRows({ innings, side, bpo }: { innings: Innings; side: SideKey; bpo: number }) {
   const rows = (innings.bowling_performances ?? []).filter(
     (b) => b.balls_bowled > 0 || b.is_current_bowler,
   );
@@ -195,7 +195,7 @@ function BowlingRows({ innings, side }: { innings: Innings; side: SideKey }) {
         {rows.map((b, i) => (
           <Row key={b.id} cols={BOWL_COLS} index={i} current={!!b.is_current_bowler} side={side}>
             <Name>{b.user?.full_name ?? ""}</Name>
-            <span className={num()}>{oversText(b.balls_bowled)}</span>
+            <span className={num()}>{oversText(b.balls_bowled, bpo)}</span>
             <span className={num("text-[color:var(--sb-mist)]")}>{b.maidens}</span>
             <span className={num()}>{b.runs_conceded}</span>
             <span
@@ -205,7 +205,7 @@ function BowlingRows({ innings, side }: { innings: Innings; side: SideKey }) {
               {b.wickets_taken}
             </span>
             <span className={num("text-[color:var(--sb-mist)]")}>
-              {economyText(b.runs_conceded, b.balls_bowled) ?? "–"}
+              {economyText(b.runs_conceded, b.balls_bowled, bpo) ?? "–"}
             </span>
           </Row>
         ))}
@@ -243,6 +243,7 @@ function FowLine({ innings }: { innings: Innings }) {
 
 function ScorecardCard(p: OverlayElementProps["scorecard"]) {
   const { state, innings, teamName, full } = p;
+  const bpo = ballsPerOverOf(p.match);
   const side = sideOfName(state, teamName) ?? "t1";
   return (
     <CardPlace state={state}>
@@ -251,7 +252,7 @@ function ScorecardCard(p: OverlayElementProps["scorecard"]) {
         width={full ? 1640 : 1120}
         eyebrow={eyebrowOf(state, inningsLabel(innings.innings_number))}
         title={`${teamName} batting`}
-        aside={<AsideScore score={scoreOf(innings)} detail={`${oversText(innings.total_balls)} overs`} />}
+        aside={<AsideScore score={scoreOf(innings)} detail={`${oversText(innings.total_balls, bpo)} overs`} />}
       >
         {full ? (
           <div className="grid grid-cols-[1.35fr_1fr] gap-10">
@@ -260,7 +261,7 @@ function ScorecardCard(p: OverlayElementProps["scorecard"]) {
               <Extras innings={innings} />
             </div>
             <div className="min-w-0">
-              <BowlingRows innings={innings} side={otherSide(side)} />
+              <BowlingRows innings={innings} side={otherSide(side)} bpo={bpo} />
             </div>
             <div className="col-span-2 border-t border-white/10 pt-3">
               <FowLine innings={innings} />
@@ -280,6 +281,7 @@ function ScorecardCard(p: OverlayElementProps["scorecard"]) {
 
 function BowlingCard(p: OverlayElementProps["bowlingCard"]) {
   const { state, innings, teamName } = p;
+  const bpo = ballsPerOverOf(p.match);
   const side = sideOfName(state, teamName) ?? "t2";
   return (
     <CardPlace state={state}>
@@ -288,9 +290,9 @@ function BowlingCard(p: OverlayElementProps["bowlingCard"]) {
         width={1040}
         eyebrow={eyebrowOf(state, inningsLabel(innings.innings_number))}
         title={`${teamName} bowling`}
-        aside={<AsideScore score={scoreOf(innings)} detail={`${oversText(innings.total_balls)} overs`} />}
+        aside={<AsideScore score={scoreOf(innings)} detail={`${oversText(innings.total_balls, bpo)} overs`} />}
       >
-        <BowlingRows innings={innings} side={side} />
+        <BowlingRows innings={innings} side={side} bpo={bpo} />
       </Card>
     </CardPlace>
   );
@@ -301,7 +303,7 @@ function FallOfWicketsCard(p: OverlayElementProps["fallOfWickets"]) {
   const fow = [...(innings.fall_of_wickets ?? [])].sort((a, b) => a.wicket_number - b.wicket_number);
   if (!fow.length) return null;
   const side = sideOfName(state, teamName) ?? "t1";
-  const bpo = 6;
+  const bpo = ballsPerOverOf(p.match);
   const limit = Math.max(
     state.overs_per_innings ?? 20,
     Math.ceil((innings.total_balls ?? 0) / bpo),
@@ -318,7 +320,7 @@ function FallOfWicketsCard(p: OverlayElementProps["fallOfWickets"]) {
         width={1180}
         eyebrow={eyebrowOf(state, inningsLabel(innings.innings_number))}
         title={`${teamName} fall of wickets`}
-        aside={<AsideScore score={scoreOf(innings)} detail={`${oversText(innings.total_balls)} overs`} />}
+        aside={<AsideScore score={scoreOf(innings)} detail={`${oversText(innings.total_balls, bpo)} overs`} />}
       >
         {/* The wickets along the innings, over by over. */}
         <div className="relative mb-6 mt-14 h-3 rounded-full bg-white/10">
@@ -735,7 +737,7 @@ function LeaderboardCard({ state, board }: { state: LiveMatchState; board: Leade
 // ---- results and summaries -------------------------------------------------------
 
 /** Best batters and bowlers of an innings. */
-function Leaders({ innings, side }: { innings: Innings; side: SideKey }) {
+function Leaders({ innings, side, bpo }: { innings: Innings; side: SideKey; bpo: number }) {
   const bat = [...(innings.batting_performances ?? [])]
     .filter((b) => b.balls_faced > 0)
     .sort((a, b) => b.runs_scored - a.runs_scored)
@@ -762,7 +764,7 @@ function Leaders({ innings, side }: { innings: Innings; side: SideKey }) {
       </ul>
       <ul style={sideStyle(otherSide(side))}>
         {bowl.map((b, i) =>
-          line(b.user?.full_name ?? "", `${b.wickets_taken}-${b.runs_conceded}`, `(${oversText(b.balls_bowled)})`, i + 3),
+          line(b.user?.full_name ?? "", `${b.wickets_taken}-${b.runs_conceded}`, `(${oversText(b.balls_bowled, bpo)})`, i + 3),
         )}
       </ul>
     </div>
@@ -783,6 +785,7 @@ function InningsBlock({
   const { name, side } = inningsSide(state, innings, match);
   const short = side === "t2" ? state.team2_short_name : state.team1_short_name;
   const logo = side === "t2" ? state.team2_logo_url : state.team1_logo_url;
+  const bpo = ballsPerOverOf(match);
   return (
     <div className={cn(s.rise, "border-b border-white/10 py-4 last:border-0")} style={delay(200 + index * 140)}>
       <div className="mb-3 flex items-center gap-5" style={sideStyle(side)}>
@@ -791,9 +794,9 @@ function InningsBlock({
         <span className={cn(s.figures, "text-[2.5rem] leading-none")} style={{ fontWeight: 800, textShadow: "0 0 18px var(--haze)" }}>
           {scoreOf(innings)}
         </span>
-        <span className={cn(s.label, "w-28 text-[1rem] text-[color:var(--sb-mist)]")}>{oversText(innings.total_balls)} ov</span>
+        <span className={cn(s.label, "w-28 text-[1rem] text-[color:var(--sb-mist)]")}>{oversText(innings.total_balls, bpo)} ov</span>
       </div>
-      <Leaders innings={innings} side={side} />
+      <Leaders innings={innings} side={side} bpo={bpo} />
     </div>
   );
 }
@@ -831,7 +834,7 @@ function ResultCard(p: OverlayElementProps["result"]) {
                     {scoreOf(inn)}
                   </span>
                   <span className={cn(s.figures, "relative z-10 text-[1.125rem] opacity-85")} style={{ fontWeight: 500 }}>
-                    ({oversText(inn.total_balls)})
+                    ({oversText(inn.total_balls, ballsPerOverOf(match))})
                   </span>
                 </div>
               );
@@ -860,17 +863,17 @@ function SummaryCard({
   innings: Innings[];
   breakCard: boolean;
 }) {
-  const shown = innings.filter((i) => i.innings_number <= (breakCard ? 1 : 2));
+  const { shown, target } = summaryInningsOf(state, innings, breakCard);
   if (!shown.length) return null;
-  const first = innings.find((i) => i.innings_number === 1);
+  const first = breakCard ? shown[0] : undefined;
   const chase =
     !breakCard && !state.result_description && state.runs_needed !== null && state.balls_remaining !== null;
   const aside = breakCard ? (
-    first ? (
+    target !== null ? (
       <span style={neonStyle("yellow")} className="text-right">
         <span className={cn(s.label, "block text-[1rem] text-[color:var(--sb-yellow)]")}>Target</span>
         <span className={cn(s.figures, "block text-[3.5rem] leading-none text-[color:var(--sb-yellow)]")} style={{ fontWeight: 800, textShadow: "0 0 20px var(--sb-yellow-haze)" }}>
-          {first.total_runs + 1}
+          {target}
         </span>
       </span>
     ) : null
@@ -885,7 +888,7 @@ function SummaryCard({
       <Card
         side={breakCard ? (firstSide?.side ?? null) : sideOfName(state, state.winning_team_name)}
         width={1400}
-        eyebrow={eyebrowOf(state, breakCard ? "1st innings" : "Match summary")}
+        eyebrow={eyebrowOf(state, breakCard ? inningsLabel(first?.innings_number ?? 1) : "Match summary")}
         title={
           breakCard
             ? "Innings break"
@@ -896,17 +899,17 @@ function SummaryCard({
         {shown.map((inn, i) => (
           <InningsBlock key={inn.id} state={state} match={match} innings={inn} index={i} />
         ))}
-        {breakCard && first && (
+        {breakCard && first && target !== null && (
           <p className={cn(s.rise, s.semi, "mt-2 text-[1.375rem] font-bold text-[color:var(--sb-mist)]")} style={delay(600)}>
             {(() => {
-              const chasing = innings.find((i) => i.innings_number === 2);
+              const chasing = innings.find((i) => i.innings_number === first.innings_number + 1);
               const name = chasing
                 ? inningsSide(state, chasing, match).name
                 : firstSide?.name === state.team1_name
                   ? state.team2_name
                   : state.team1_name;
-              const overs = state.dls_overs ?? state.overs_per_innings;
-              return `${name ?? "The chase"} need ${first.total_runs + 1} to win${overs ? ` from ${overs} overs` : ""}`;
+              const overs = oversLimitOf(state);
+              return `${name ?? "The chase"} need ${target} to win${overs ? ` from ${overs} ${overs === 1 ? "over" : "overs"}` : ""}`;
             })()}
           </p>
         )}
@@ -991,8 +994,8 @@ function ThisOverCard({ state, match }: { state: LiveMatchState; match: Match | 
   const tokens = overTokens(state);
   if (!tokens.length) return null;
   const over = (state.current_over ?? 0) + 1;
-  const econ = economyText(state.bowler_runs, state.bowler_balls);
   const bpo = ballsPerOverOf(match);
+  const econ = economyText(state.bowler_runs, state.bowler_balls, bpo);
   return (
     <CardPlace state={state}>
       <Card
@@ -1013,7 +1016,7 @@ function ThisOverCard({ state, match }: { state: LiveMatchState; match: Match | 
               {state.bowler_wickets ?? 0}-{state.bowler_runs ?? 0}
             </span>
             <span className={cn(s.figures, "text-[1.25rem] text-[color:var(--sb-mist)]")} style={{ fontWeight: 500 }}>
-              {oversText(state.bowler_balls)} ov{econ ? ` · Econ ${econ}` : ""}
+              {oversText(state.bowler_balls, bpo)} ov{econ ? ` · Econ ${econ}` : ""}
             </span>
           </div>
         )}
@@ -1022,8 +1025,8 @@ function ThisOverCard({ state, match }: { state: LiveMatchState; match: Match | 
   );
 }
 
-function EstimateCard({ state }: { state: LiveMatchState }) {
-  const est = winPredictorFromLive(state);
+function EstimateCard({ state, bpo = 6 }: { state: LiveMatchState; bpo?: number }) {
+  const est = winPredictorFromLive(state, { ballsPerOver: bpo });
   if (!est) return null;
   const bat = sideOfName(state, state.batting_team_name) ?? "t1";
   const bowl = sideOfName(state, state.bowling_team_name) ?? "t2";

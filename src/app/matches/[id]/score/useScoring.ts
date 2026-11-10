@@ -24,7 +24,6 @@ import {
   type FlushResult,
   type QueuedAction,
   type ReplaceBatterPayload,
-  type ReplayTransport,
   type RetireBatterPayload,
 } from "~/lib/offline-queue";
 import {
@@ -48,9 +47,13 @@ import {
 import {
   processDeliveryLocally,
   buildContextFromMatch,
+  deliveriesIn,
   deliveryResultToScoringState,
 } from "~/lib/offline-scoring-engine";
-import type { LocalScoringContext } from "~/lib/offline-scoring-engine";
+import type {
+  DeliveryResult,
+  LocalScoringContext,
+} from "~/lib/offline-scoring-engine";
 import {
   cacheConfirmedState,
   cacheMatchData,
@@ -205,6 +208,279 @@ function penaltyLocally(
     : ctx;
 }
 
+/**
+ * An innings ended on the local context (offline): the next one opens,
+ * chasing this total plus one. The end of a chase decides the match, so
+ * nothing opens after it.
+ */
+function endInningsLocally(ctx: LocalScoringContext): LocalScoringContext {
+  if (isChaseInnings(ctx.currentInnings)) return ctx;
+  return {
+    ...ctx,
+    currentInnings: (ctx.currentInnings ?? 1) + 1,
+    currentOver: 0,
+    currentBall: 0,
+    totalRuns: 0,
+    totalWickets: 0,
+    totalBalls: 0,
+    strikerId: null,
+    nonStrikerId: null,
+    bowlerId: null,
+    strikerRuns: 0,
+    strikerBalls: 0,
+    nonStrikerRuns: 0,
+    nonStrikerBalls: 0,
+    bowlerRunsConceded: 0,
+    bowlerBallsBowled: 0,
+    bowlerWickets: 0,
+    targetRuns: (ctx.totalRuns ?? 0) + 1,
+    deliveriesInOver: 0,
+  };
+}
+
+/** Deliveries of over `over` among the shown balls (`max_balls_per_over`). */
+function deliveriesThisOver(
+  balls: readonly DeliveryToEdit[],
+  over: number | null | undefined,
+): number {
+  return deliveriesIn(balls.filter((d) => d.over_number === (over ?? 0)));
+}
+
+/**
+ * The match once its current innings has ended on this device (offline):
+ * the next one opens, chasing this total plus one. The end of a chase
+ * decides the match, so nothing opens after it.
+ */
+function matchWithInningsEnded(prev: Match): Match {
+  const innings = (prev.innings ?? []).map((i) =>
+    i.innings_number === prev.current_innings ? { ...i, is_completed: true } : i,
+  );
+  if (isChaseInnings(prev.current_innings)) return { ...prev, innings };
+  const currentInn = prev.innings?.find(
+    (i) => i.innings_number === prev.current_innings,
+  );
+  const newInningsNum = (prev.current_innings ?? 1) + 1;
+  return {
+    ...prev,
+    current_innings: newInningsNum,
+    current_over: 0,
+    current_ball: 0,
+    innings: [
+      ...innings,
+      {
+        id: `local-inn-${newInningsNum}`,
+        match_id: prev.id,
+        innings_number: newInningsNum,
+        team_id:
+          currentInn?.team_id === prev.team1_id ? prev.team2_id : prev.team1_id,
+        total_runs: 0,
+        total_wickets: 0,
+        total_balls: 0,
+        total_overs: 0,
+        is_completed: false,
+        target_runs: currentInn ? (currentInn.total_runs ?? 0) + 1 : null,
+        extras_total: 0,
+        extras_byes: 0,
+        extras_leg_byes: 0,
+        extras_wides: 0,
+        extras_no_balls: 0,
+        extras_penalties: 0,
+      },
+    ],
+  };
+}
+
+/** Queued actions that add an entry to the ball log (what an undo removes). */
+const LOG_ENTRY_TYPES: ReadonlySet<QueuedAction["type"]> = new Set([
+  "recordBall",
+  "retireBatter",
+  "awardPenalty",
+]);
+
+/**
+ * The queued actions as the device replays them: a queued undo takes back
+ * the queued ball-log entry before it, and what came after that entry (the
+ * server's undo restores the crease and bowler it was recorded with). An
+ * undo of an entry the server already has stays (the device cannot replay
+ * it).
+ */
+function withoutUndone(actions: readonly QueuedAction[]): QueuedAction[] {
+  const out: QueuedAction[] = [];
+  for (const a of actions) {
+    let at = out.length - 1;
+    if (a.type === "undoLastBall") {
+      while (at >= 0 && !LOG_ENTRY_TYPES.has(out[at]!.type)) at -= 1;
+    }
+    if (a.type === "undoLastBall" && at >= 0) out.length = at;
+    else out.push(a);
+  }
+  return out;
+}
+
+/** A local context with what its last delivery left to do (over, crease, innings). */
+type ReplayedContext = LocalScoringContext & Partial<DeliveryResult>;
+
+/** What a delivery left to do, settled by what came after it. */
+const SETTLED: Partial<DeliveryResult> = {
+  overCompleted: false,
+  needsBatsman: false,
+  needsBowler: false,
+  inningsCompleted: false,
+  matchCompleted: false,
+  resultDescription: null,
+};
+
+type ReplayStep<A extends QueuedAction = QueuedAction> = (
+  ctx: ReplayedContext,
+  action: A,
+  match: Pick<Match, "innings"> | null,
+) => ReplayedContext;
+
+/** Each queued action on the local context, as the offline engine shows it. */
+const REPLAY_STEPS: {
+  [T in QueuedAction["type"]]?: ReplayStep<Extract<QueuedAction, { type: T }>>;
+} = {
+  recordBall: (ctx, { payload: p }) =>
+    processDeliveryLocally(
+      {
+        ...ctx,
+        strikerId: p.batsmanId || ctx.strikerId,
+        nonStrikerId: p.nonStrikerId || ctx.nonStrikerId,
+        bowlerId: p.bowlerId || ctx.bowlerId,
+      },
+      p.event,
+    ),
+  setBatsmen: (ctx, { payload: p }) => ({
+    ...ctx,
+    strikerId: p.strikerId,
+    nonStrikerId: p.nonStrikerId,
+    needsBatsman: false,
+  }),
+  setBowler: (ctx, { payload: p }) => ({
+    ...ctx,
+    bowlerId: p.bowlerId,
+    needsBowler: false,
+  }),
+  reassignOverBowler: (ctx, { payload: p }) => ({ ...ctx, bowlerId: p.bowlerId }),
+  replaceBatter: (ctx, { payload: p }) => {
+    const swap = (x: string | null) => (x === p.fromId ? p.toId : x);
+    return {
+      ...ctx,
+      strikerId: swap(ctx.strikerId),
+      nonStrikerId: swap(ctx.nonStrikerId),
+    };
+  },
+  retireBatter: (ctx, { payload }) => retireLocally(ctx, payload),
+  awardPenalty: (ctx, { payload }, match) => penaltyLocally(ctx, payload, match),
+  endInnings: (ctx) => ({ ...endInningsLocally(ctx), ...SETTLED }),
+  startSuperOver: (ctx) => ({
+    ...ctx,
+    ...SETTLED,
+    currentInnings: (ctx.currentInnings ?? 2) + 1,
+    currentOver: 0,
+    currentBall: 0,
+    totalRuns: 0,
+    totalWickets: 0,
+    totalBalls: 0,
+    strikerId: null,
+    nonStrikerId: null,
+    bowlerId: null,
+    targetRuns: null,
+    oversPerInnings: 1,
+    wicketsPerInnings: 2,
+    deliveriesInOver: 0,
+  }),
+};
+
+/**
+ * The local context after the queued `actions`, replayed by the offline
+ * engine from `start`, the state the server last confirmed (never the
+ * screen's copy, which already holds them). `match` names the batting side
+ * of each innings, the device's own included.
+ */
+function replayOnDevice(
+  start: LocalScoringContext,
+  actions: readonly QueuedAction[],
+  match: Pick<Match, "innings"> | null,
+): ReplayedContext {
+  let ctx: ReplayedContext = start;
+  for (const action of withoutUndone(actions)) {
+    const step = REPLAY_STEPS[action.type] as ReplayStep | undefined;
+    if (step) ctx = step(ctx, action, match);
+  }
+  return ctx;
+}
+
+/** The queued action an undo took back on this device, for the keypad's note. */
+function undoneOnDevice(
+  action: QueuedAction,
+  at: LocalScoringContext,
+): UndoneBall | null {
+  const where = { seq: -1, over: at.currentOver, ball: at.currentBall + 1 };
+  const none = { bowlerId: null, nonStrikerId: null, isEvent: true };
+  switch (action.type) {
+    case "recordBall":
+      return {
+        ...where,
+        bowlerId: action.payload.bowlerId,
+        batsmanId: action.payload.batsmanId,
+        nonStrikerId: action.payload.nonStrikerId,
+        event: action.payload.event,
+        isEvent: false,
+      };
+    case "retireBatter":
+      return {
+        ...where,
+        ...none,
+        batsmanId: action.payload.playerId,
+        event: {
+          isWicket: true,
+          dismissalType: action.payload.type,
+          dismissedPlayerId: action.payload.playerId,
+        },
+      };
+    case "awardPenalty":
+      return {
+        ...where,
+        ...none,
+        batsmanId: null,
+        event: { extraType: action.payload.type, extras: action.payload.runs },
+      };
+    default:
+      return null;
+  }
+}
+
+/**
+ * The match with an innings the device ended open again (its End innings
+ * was undone before it was sent): the innings the device opened after it
+ * goes.
+ */
+function matchWithInningsReopened(prev: Match, inningsNumber: number): Match {
+  return {
+    ...prev,
+    current_innings: inningsNumber,
+    innings: (prev.innings ?? [])
+      .filter((i) => i.innings_number <= inningsNumber)
+      .map((i) =>
+        i.innings_number === inningsNumber ? { ...i, is_completed: false } : i,
+      ),
+  };
+}
+
+/** What the screen waits for after showing what is queued (`foldPending`). */
+function awaitingOf(folded: {
+  waiting: boolean;
+  endsInnings: boolean;
+}): "action" | "innings_end" | null {
+  if (!folded.waiting) return null;
+  return folded.endsInnings ? "innings_end" : "action";
+}
+
+/** An End innings sent with no reply: queued, and said so. */
+const END_NOT_CONFIRMED =
+  "No connection: the end of the innings is not confirmed yet. It is sent again.";
+
 /** What the over strip shows after an undo (see `scoring-undo`). */
 export interface UndoNotice {
   /**
@@ -331,34 +607,22 @@ export function useScoring(
         (bowlingResult.data as Player[]) || []
       ).filter((p) => p && p.team_id === bowlingTeamId);
 
+      // The squads as the server has them now: a player removed in the
+      // Squads dialog leaves the lists (nothing held here is merged back).
       const battingUserIds = new Set(fetchedBatting.map((p) => p.user_id));
-
-      const battingMap = new Map(fetchedBatting.map((p) => [p.user_id, p]));
-      for (const p of playersRef.current.batting) {
-        if (p.user_id && p.team_id === battingTeamId && !battingMap.has(p.user_id)) {
-          battingMap.set(p.user_id, p);
-        }
-      }
-      const updatedBatting = Array.from(battingMap.values());
+      const updatedBatting = Array.from(
+        new Map(fetchedBatting.map((p) => [p.user_id, p])).values(),
+      );
       playersRef.current.batting = updatedBatting;
       setBattingTeamPlayers(updatedBatting);
 
-      const bowlingMap = new Map(
-        fetchedBowling
-          .filter((p) => !battingUserIds.has(p.user_id))
-          .map((p) => [p.user_id, p]),
+      const updatedBowling = Array.from(
+        new Map(
+          fetchedBowling
+            .filter((p) => !battingUserIds.has(p.user_id))
+            .map((p) => [p.user_id, p]),
+        ).values(),
       );
-      for (const p of playersRef.current.bowling) {
-        if (
-          p.user_id &&
-          p.team_id === bowlingTeamId &&
-          !battingUserIds.has(p.user_id) &&
-          !bowlingMap.has(p.user_id)
-        ) {
-          bowlingMap.set(p.user_id, p);
-        }
-      }
-      const updatedBowling = Array.from(bowlingMap.values());
       playersRef.current.bowling = updatedBowling;
       setBowlingTeamPlayers(updatedBowling);
 
@@ -377,8 +641,15 @@ export function useScoring(
    */
   const snapshotRef = useRef<Snapshot | null>(null);
   const baseRef = useRef<PredictionBase | null>(null);
-  /** The queued actions cannot be shown yet: the screen waits for the server. */
-  const [awaitingServer, setAwaitingServer] = useState(false);
+  /**
+   * The queued actions cannot be shown yet: the screen waits for the server
+   * ("innings_end": a delivery that ended the innings, after which the next
+   * innings or the result is the server's to decide).
+   */
+  const [awaiting, setAwaiting] = useState<"action" | "innings_end" | null>(
+    null,
+  );
+  const awaitingServer = awaiting !== null;
   /**
    * Instant undo (`~/lib/scoring-undo`): for the recent balls the screen
    * saw happen, the state just before each (what the server's undo
@@ -510,7 +781,13 @@ export function useScoring(
       bowlerId: b,
       lastOverBowlerId: lob ?? null,
     });
-    localCtxRef.current = buildContextFromMatch(m, s, ns, b);
+    localCtxRef.current = buildContextFromMatch(
+      m,
+      s,
+      ns,
+      b,
+      deliveriesThisOver(thisOverDeliveries, m.current_over),
+    );
     setPendingCount(getPendingCount(matchId));
   }, [matchId, loadPlayers, resolveSquadTeamIds]);
 
@@ -591,7 +868,7 @@ export function useScoring(
       pending.length === 0 ||
       pending.some((a) => !a.instant)
     ) {
-      setAwaitingServer(false);
+      setAwaiting(null);
       await renderSnapshot(confirmed);
       return confirmed;
     }
@@ -602,7 +879,7 @@ export function useScoring(
       undefined,
       undoTargetsRef.current,
     );
-    setAwaitingServer(folded.waiting);
+    setAwaiting(awaitingOf(folded));
     await renderSnapshot(folded.state.snapshot);
     return folded.state.snapshot;
   }, [matchId, renderSnapshot, squadNames]);
@@ -783,6 +1060,7 @@ export function useScoring(
         cached.strikerId,
         cached.nonStrikerId,
         cached.bowlerId,
+        cached.deliveriesInOver ?? 0,
       );
       setPendingCount(getPendingCount(matchId));
       loadedSquadTeamsRef.current = resolveSquadTeamIds(cached.match);
@@ -828,6 +1106,8 @@ export function useScoring(
       bowlerId: currentBowlerId,
       lastOverBowlerId,
       lastBalls,
+      // The local context follows every change this copy shows.
+      deliveriesInOver: localCtxRef.current?.deliveriesInOver ?? 0,
     });
   }, [
     matchId,
@@ -841,16 +1121,6 @@ export function useScoring(
     lastBalls,
   ]);
 
-  /** Ids of the queued actions in the request being sent right now. */
-  const inFlightRef = useRef<ReadonlySet<string>>(new Set());
-  const sendBatch = useCallback<ReplayTransport>(async (batch) => {
-    inFlightRef.current = new Set(batch.actions.map((a) => a.id));
-    try {
-      return await postReplayBatch(batch);
-    } finally {
-      inFlightRef.current = new Set();
-    }
-  }, []);
   /** Queued actions are being sent. */
   const [isSaving, setIsSaving] = useState(false);
   /** The last attempt left actions queued (no connection, or refused). */
@@ -940,7 +1210,7 @@ export function useScoring(
       // change with each deploy, and this queue may predate the current build.
       // Each action carries its queue id as the idempotency key, so a replay
       // after a lost response is not applied twice.
-      const res = await flushPendingActions(matchId, sendBatch);
+      const res = await flushPendingActions(matchId, postReplayBatch);
 
       refreshQueueState();
       const appliedIds = new Set(res.applied ?? []);
@@ -1012,7 +1282,12 @@ export function useScoring(
         if (!queued.has(id)) undoTargetsRef.current.delete(id);
       }
 
-      const stuck = getPendingCount(matchId) > 0 && res.synced === 0;
+      // Actions left queued by a pass that did not end cleanly (nothing
+      // saved, or one of them unanswered or refused) are retried: nothing
+      // else may come to send them (the keypad waits on a ball that ends
+      // the innings).
+      const stuck =
+        getPendingCount(matchId) > 0 && (res.synced === 0 || res.failed > 0);
       setSyncStuck(stuck);
       const retry = retryRef.current;
       if (retry.timer) clearTimeout(retry.timer);
@@ -1035,7 +1310,6 @@ export function useScoring(
     },
     [
       matchId,
-      sendBatch,
       syncFromDb,
       applySnapshot,
       squadNames,
@@ -1084,6 +1358,17 @@ export function useScoring(
   useEffect(() => {
     flushQueueRef.current = flushQueue;
   }, [flushQueue]);
+
+  // Opened online with actions still queued (a reload, the app reopened
+  // later): sent once the first state shows, not only on the next tap.
+  const sentOnOpenRef = useRef(false);
+  useEffect(() => {
+    if (loading || sentOnOpenRef.current) return;
+    sentOnOpenRef.current = true;
+    if (getPendingCount(matchId) > 0 && !isOfflineNow()) {
+      void flushQueueRef.current?.();
+    }
+  }, [loading, matchId]);
 
   /** The "Sync now" button. */
   const flushOfflineQueue = useCallback(
@@ -1546,7 +1831,7 @@ export function useScoring(
     setPendingCount(getPendingCount(matchId));
     // A delivery that ends the innings shows, then waits for the server:
     // the next innings or the result is its to decide.
-    setAwaitingServer(folded.waiting);
+    setAwaiting(awaitingOf(folded));
     const shown = folded.state.snapshot;
     void renderSnapshot(shown);
     if (type === "recordBall" && !folded.endsInnings) {
@@ -1586,6 +1871,8 @@ export function useScoring(
     nonStriker: string,
     event: BallEvent,
     actionId?: string,
+    /** Sent already, with no reply: the server may have it. */
+    sent = false,
   ) => {
     if (!bowlerId) {
       toast.error("Choose the bowler before scoring");
@@ -1601,7 +1888,13 @@ export function useScoring(
     const currentCtx =
       localCtxRef.current ??
       (match
-        ? buildContextFromMatch(match, batsmanId, nonStriker, bowlerId)
+        ? buildContextFromMatch(
+            match,
+            batsmanId,
+            nonStriker,
+            bowlerId,
+            deliveriesThisOver(rawDeliveries, match.current_over),
+          )
         : null);
 
     if (currentCtx) {
@@ -1642,6 +1935,7 @@ export function useScoring(
           event,
         },
         actionId,
+        { sent },
       );
 
       const result = processDeliveryLocally(ctxToProcess, event);
@@ -1731,8 +2025,9 @@ export function useScoring(
       actionId,
     );
     if (res.offline) {
-      // Same id: if the server did record it, the replay is a no-op.
-      return scoreOffline(bowlerId, batsmanId, nonStriker, event, actionId);
+      // Same id, marked sent: if the server did record it, the replay is a
+      // no-op, and an undo is queued behind it rather than dropping it.
+      return scoreOffline(bowlerId, batsmanId, nonStriker, event, actionId, true);
     }
     if (res.error) {
       toast.error(res.error);
@@ -1870,15 +2165,96 @@ export function useScoring(
     return true;
   };
 
+  /** An End innings undone on this device: its next innings goes again. */
+  const reopenOnDevice = (inningsNumber: number) => {
+    setMatch((prev) =>
+      prev ? matchWithInningsReopened(prev, inningsNumber) : prev,
+    );
+    // The sides swapped when it opened (not after a chase): back again.
+    if (isChaseInnings(inningsNumber)) return;
+    setBattingTeamPlayers(bowlingTeamPlayers);
+    setBowlingTeamPlayers(battingTeamPlayers);
+    playersRef.current = {
+      batting: bowlingTeamPlayers,
+      bowling: battingTeamPlayers,
+    };
+  };
+
+  /**
+   * The screen after `undone` was taken back on this device: rebuilt from
+   * the state the server last confirmed plus what is still queued.
+   */
+  const showUndoneOnDevice = (undone: QueuedAction, confirmed: Snapshot) => {
+    setPendingCount(getPendingCount(matchId));
+    const ctx = replayOnDevice(
+      buildContextFromMatch(
+        confirmed.match,
+        confirmed.strikerId,
+        confirmed.nonStrikerId,
+        confirmed.bowlerId,
+        deliveriesThisOver(
+          confirmed.thisOverDeliveries,
+          confirmed.match.current_over,
+        ),
+      ),
+      getPendingActions(matchId),
+      match,
+    );
+    localCtxRef.current = ctx;
+    if (undone.type === "recordBall") {
+      setRawDeliveries((prev) => prev.slice(0, -1));
+      setLastBalls((prev) => prev.slice(0, -1));
+    }
+    if (undone.type === "endInnings") reopenOnDevice(ctx.currentInnings);
+    const state = deliveryResultToScoringState(
+      ctx,
+      ctx.bowlerId,
+      battingTeamPlayers,
+      bowlingTeamPlayers,
+    );
+    // Nothing is decided on the device: no result, no innings break.
+    applyState({ ...state, match_completed: false, innings_break: false }, false);
+    const ball = undoneOnDevice(undone, ctx);
+    if (ball) noteUndone(ball);
+    else setUndoNotice(null);
+  };
+
+  /**
+   * Undo while actions are queued (offline, or the queue could not be
+   * sent): the last queued action is taken back on this device. A ball or
+   * logged event sent with no reply may be on the server, so it stays
+   * queued with an undo behind it.
+   */
+  const undoOnDevice = () => {
+    const queuedLast = getPendingActions(matchId).at(-1);
+    const confirmed =
+      snapshotRef.current ?? getConfirmedState<ShownState>(matchId)?.snapshot;
+    if (!queuedLast || !confirmed) {
+      // Nothing queued, or no saved server state to rebuild the score from.
+      toast.error(
+        queuedLast
+          ? "Undo needs a connection for this match. Try again when you have signal."
+          : "No offline deliveries in queue to undo",
+      );
+      setUndoNotice(null);
+      return;
+    }
+    if (queuedLast.sentAt && LOG_ENTRY_TYPES.has(queuedLast.type)) {
+      enqueueAction(matchId, "undoLastBall", {} as Record<string, never>);
+    } else {
+      popLastAction(matchId);
+    }
+    showUndoneOnDevice(queuedLast, confirmed);
+  };
+
   const handleUndo = async () => {
     const pending = getPendingActions(matchId);
     const last = pending.at(-1);
     if (INSTANT_SCORING && pending.every((a) => a.instant)) {
-      // A delivery the server has not seen yet: just take it back.
-      if (
-        last?.type === "recordBall" &&
-        !inFlightRef.current.has(last.queueId)
-      ) {
+      // A delivery the server has not seen yet: just take it back. One
+      // that was sent (on its way, or with no reply) may be on the server:
+      // it stays queued, with the undo behind it.
+      if (last?.type === "recordBall" && !last.sentAt) {
         const shown = shownNow(pending);
         const { entry, stack } = shown
           ? takeUndo(undoStackRef.current, shown)
@@ -1912,111 +2288,45 @@ export function useScoring(
     setUndoing(true);
     setIsProcessing(true);
 
-    // While actions are still queued, the last action is a queued one: undo
-    // it locally rather than undoing the server's last ball out of order.
-    if (isOfflineNow() || !(await drainQueue())) {
-      const lastAction = popLastAction(matchId);
-      if (lastAction) {
-        setPendingCount(getPendingCount(matchId));
-        if (lastAction.type === "recordBall") {
-          setRawDeliveries((prev) => prev.slice(0, -1));
-          setLastBalls((prev) => prev.slice(0, -1));
-        }
-
-        // Replay remaining pending actions on top of cached baseline
-        const cached = getCachedMatchData(matchId);
-        if (cached) {
-          let replayCtx = buildContextFromMatch(
-            cached.match,
-            cached.strikerId,
-            cached.nonStrikerId,
-            cached.bowlerId,
-          );
-          const remainingActions = getPendingActions(matchId);
-          for (const a of remainingActions) {
-            if (a.type === "recordBall") {
-              if (a.payload.batsmanId) replayCtx.strikerId = a.payload.batsmanId;
-              if (a.payload.nonStrikerId) replayCtx.nonStrikerId = a.payload.nonStrikerId;
-              if (a.payload.bowlerId) replayCtx.bowlerId = a.payload.bowlerId;
-              replayCtx = processDeliveryLocally(replayCtx, a.payload.event);
-            } else if (a.type === "setBatsmen") {
-              replayCtx.strikerId = a.payload.strikerId;
-              replayCtx.nonStrikerId = a.payload.nonStrikerId;
-            } else if (
-              a.type === "setBowler" ||
-              a.type === "reassignOverBowler"
-            ) {
-              replayCtx.bowlerId = a.payload.bowlerId;
-            } else if (a.type === "replaceBatter") {
-              const { fromId, toId } = a.payload;
-              if (replayCtx.strikerId === fromId) replayCtx.strikerId = toId;
-              if (replayCtx.nonStrikerId === fromId)
-                replayCtx.nonStrikerId = toId;
-            } else if (a.type === "retireBatter") {
-              replayCtx = retireLocally(replayCtx, a.payload);
-            } else if (a.type === "awardPenalty") {
-              replayCtx = penaltyLocally(replayCtx, a.payload, cached.match);
-            } else if (a.type === "startSuperOver") {
-              replayCtx.currentInnings = (replayCtx.currentInnings ?? 2) + 1;
-              replayCtx.currentOver = 0;
-              replayCtx.currentBall = 0;
-              replayCtx.totalRuns = 0;
-              replayCtx.totalWickets = 0;
-              replayCtx.totalBalls = 0;
-              replayCtx.strikerId = null;
-              replayCtx.nonStrikerId = null;
-              replayCtx.bowlerId = null;
-              replayCtx.oversPerInnings = 1;
-              replayCtx.wicketsPerInnings = 2;
-            } else if (a.type === "endInnings") {
-              replayCtx.currentInnings = (replayCtx.currentInnings ?? 1) + 1;
-              replayCtx.currentOver = 0;
-              replayCtx.currentBall = 0;
-              replayCtx.totalRuns = 0;
-              replayCtx.totalWickets = 0;
-              replayCtx.totalBalls = 0;
-              replayCtx.strikerId = null;
-              replayCtx.nonStrikerId = null;
-              replayCtx.bowlerId = null;
-            }
-          }
-          localCtxRef.current = replayCtx;
-          const computed = deliveryResultToScoringState(
-            replayCtx,
-            replayCtx.bowlerId,
-            battingTeamPlayers,
-            bowlingTeamPlayers,
-          );
-          applyState(computed);
-        }
-      } else {
-        toast.error("No offline deliveries in queue to undo");
+    try {
+      // While actions are still queued, the last action is a queued one:
+      // undo it on this device rather than undoing the server's last ball
+      // out of order.
+      if (isOfflineNow() || !(await drainQueue())) {
+        undoOnDevice();
+        return { data: null, error: null };
       }
-      setIsProcessing(false);
-      return { data: null, error: null };
-    }
 
-    const res = await sendNow("undoLastBall", {});
-    // The state after an undo is the server's to say (the crease and bowler
-    // the undone ball was bowled with): from the documents it committed, or
-    // a fresh read; not run through the after-a-ball handling (which would
-    // add a ball to the over strip and prompt for a bowler or batter).
-    if (res.offline) {
-      // Same id: if the server did undo it, the replay is a no-op.
-      enqueueAction(matchId, "undoLastBall", {} as Record<string, never>, res.queueId);
-      setPendingCount(getPendingCount(matchId));
-      noteUndone(undoneBall, true);
-    } else if (res.error) {
-      toast.error(res.error);
-      setUndoNotice(null);
-      await syncFromDb();
-    } else {
-      await confirmChange(res.delta);
-      noteUndone(undoneBall);
+      const res = await sendNow("undoLastBall", {});
+      // The state after an undo is the server's to say (the crease and
+      // bowler the undone ball was bowled with): from the documents it
+      // committed, or a fresh read; not run through the after-a-ball
+      // handling (which would add a ball to the over strip and prompt for a
+      // bowler or batter).
+      if (res.offline) {
+        // Same id: if the server did undo it, the replay is a no-op.
+        enqueueAction(
+          matchId,
+          "undoLastBall",
+          {} as Record<string, never>,
+          res.queueId,
+          { sent: true },
+        );
+        setPendingCount(getPendingCount(matchId));
+        noteUndone(undoneBall, true);
+      } else if (res.error) {
+        toast.error(res.error);
+        setUndoNotice(null);
+        await syncFromDb();
+      } else {
+        await confirmChange(res.delta);
+        noteUndone(undoneBall);
+      }
+      return { data: null, error: res.error };
+    } finally {
+      setUndoing(false);
+      setIsProcessing(false);
     }
-    setUndoing(false);
-    setIsProcessing(false);
-    return { data: null, error: res.error };
   };
 
   /** Record again the ball undone last (offered until the next action). */
@@ -2081,8 +2391,10 @@ export function useScoring(
       return { data: null, error: err };
     }
     setIsProcessing(true);
-    const queueIt = () => {
-      enqueueAction(matchId, "updateBall", params);
+    const queueIt = (sent?: { queueId: string }) => {
+      enqueueAction(matchId, "updateBall", params, sent?.queueId, {
+        sent: Boolean(sent),
+      });
       setPendingCount(getPendingCount(matchId));
       setRawDeliveries((prev) =>
         prev.map((d) =>
@@ -2111,7 +2423,7 @@ export function useScoring(
     if (isOfflineNow() || !(await drainQueue())) return queueIt();
     const res = await sendNow("updateBall", params);
     // update_ball sets the delivery's values, so a replay is harmless.
-    if (res.offline) return queueIt();
+    if (res.offline) return queueIt(res);
     if (res.error) toast.error(res.error);
     else await confirmChange(res.delta);
     setIsProcessing(false);
@@ -2129,20 +2441,21 @@ export function useScoring(
   const runOrQueue = async (
     type: QueuedAction["type"],
     payload: QueuedAction["payload"],
-    queue: (actionId: string) => void,
+    queue: (actionId: string, options: { sent: boolean }) => void,
   ): Promise<{ error: string | null; queued: boolean }> => {
     clearUndone();
     setIsProcessing(true);
     const actionId = newActionId();
-    const queueIt = () => {
-      queue(actionId);
+    const queueIt = (sent = false) => {
+      queue(actionId, { sent });
       setPendingCount(getPendingCount(matchId));
       setIsProcessing(false);
       return { error: null, queued: true };
     };
     if (isOfflineNow() || !(await drainQueue())) return queueIt();
     const res = await sendNow(type, payload, actionId);
-    if (res.offline) return queueIt();
+    // No reply: queued as sent (the server may have it).
+    if (res.offline) return queueIt(true);
     if (!res.error) await confirmChange(res.delta);
     setIsProcessing(false);
     return { error: res.error, queued: false };
@@ -2159,8 +2472,8 @@ export function useScoring(
     return runOrQueue(
       "retireBatter",
       payload,
-      (id) => {
-        enqueueAction(matchId, "retireBatter", payload, id);
+      (id, options) => {
+        enqueueAction(matchId, "retireBatter", payload, id, options);
         if (localCtxRef.current) {
           localCtxRef.current = retireLocally(localCtxRef.current, payload);
         }
@@ -2181,8 +2494,8 @@ export function useScoring(
     return runOrQueue(
       "awardPenalty",
       payload,
-      (id) => {
-        enqueueAction(matchId, "awardPenalty", payload, id);
+      (id, options) => {
+        enqueueAction(matchId, "awardPenalty", payload, id, options);
         if (localCtxRef.current) {
           localCtxRef.current = penaltyLocally(
             localCtxRef.current,
@@ -2198,8 +2511,8 @@ export function useScoring(
     runOrQueue(
       "reassignOverBowler",
       { bowlerId },
-      (id) => {
-        enqueueAction(matchId, "reassignOverBowler", { bowlerId }, id);
+      (id, options) => {
+        enqueueAction(matchId, "reassignOverBowler", { bowlerId }, id, options);
         if (localCtxRef.current) localCtxRef.current.bowlerId = bowlerId;
         setCurrentBowlerId(bowlerId);
       },
@@ -2207,8 +2520,8 @@ export function useScoring(
 
   /** The wrong player was recorded as batting: their innings goes to another. */
   const handleReplaceBatter = (payload: ReplaceBatterPayload) =>
-    runOrQueue("replaceBatter", payload, (id) => {
-      enqueueAction(matchId, "replaceBatter", payload, id);
+    runOrQueue("replaceBatter", payload, (id, options) => {
+      enqueueAction(matchId, "replaceBatter", payload, id, options);
       const swap = (x: string | null) =>
         x === payload.fromId ? payload.toId : x;
       if (localCtxRef.current) {
@@ -2321,6 +2634,7 @@ export function useScoring(
           targetRuns: null,
           oversPerInnings: 1,
           wicketsPerInnings: 2,
+          deliveriesInOver: 0,
         };
       }
 
@@ -2344,7 +2658,7 @@ export function useScoring(
     const res = await sendNow("startSuperOver", {});
     if (res.offline) {
       // Same id: if the server did start it, the replay is a no-op.
-      enqueueAction(matchId, "startSuperOver", {}, res.queueId);
+      enqueueAction(matchId, "startSuperOver", {}, res.queueId, { sent: true });
       setPendingCount(getPendingCount(matchId));
     } else if (res.error) {
       toast.error(res.error);
@@ -2472,6 +2786,7 @@ export function useScoring(
         "setBatsmen",
         { strikerId: sId, nonStrikerId: nsId },
         res.queueId,
+        { sent: true },
       );
       setPendingCount(getPendingCount(matchId));
     } else if (res.error) {
@@ -2609,7 +2924,9 @@ export function useScoring(
     if (res.offline) {
       // Same id: if the server did take it, the replay is a no-op.
       showLocally();
-      enqueueAction(matchId, "setBowler", { bowlerId }, res.queueId);
+      enqueueAction(matchId, "setBowler", { bowlerId }, res.queueId, {
+        sent: true,
+      });
       setPendingCount(getPendingCount(matchId));
     } else if (res.error) {
       toast.error(res.error);
@@ -2684,132 +3001,77 @@ export function useScoring(
     return result;
   };
 
-  const handleEndInnings = async () => {
-    clearUndone();
-    setIsProcessing(true);
+  /**
+   * An End innings queued (offline, or sent with no reply) shown on this
+   * device: the next innings opens here, as the server will open it.
+   * `unconfirmed`: it was sent and got no reply.
+   */
+  const endInningsOnDevice = (unconfirmed: boolean) => {
+    setPendingCount(getPendingCount(matchId));
+    // A delivery that ended the innings no longer waits for the server:
+    // what follows it is queued in offline mode.
+    setAwaiting(null);
+    const said = (text: string) =>
+      unconfirmed ? `${END_NOT_CONFIRMED} ${text}` : text;
 
-    if (isOfflineNow() || !(await drainQueue())) {
-      enqueueAction(matchId, "endInnings", {});
-      setPendingCount(getPendingCount(matchId));
-
-      // The end of a chase decides the match: no next innings to open here,
-      // the server settles the result once it gets the queue.
-      if (isChaseInnings(match?.current_innings)) {
-        setMatch((prev) =>
-          prev
-            ? {
-                ...prev,
-                innings: (prev.innings ?? []).map((i) =>
-                  i.innings_number === prev.current_innings
-                    ? { ...i, is_completed: true }
-                    : i,
-                ),
-              }
-            : prev,
-        );
-        setStrikerId(null);
-        setNonStrikerId(null);
-        setCurrentBowlerId(null);
-        toast.info(OFFLINE_MATCH_OVER);
-        setIsProcessing(false);
-        return { data: null, error: null };
-      }
-
-      setMatch((prev) => {
-        if (!prev) return prev;
-        const currentInn = prev.innings?.find(
-          (i) => i.innings_number === prev.current_innings,
-        );
-        const newInningsNum = (prev.current_innings ?? 1) + 1;
-        const targetRuns = currentInn ? (currentInn.total_runs ?? 0) + 1 : null;
-        return {
-          ...prev,
-          current_innings: newInningsNum,
-          current_over: 0,
-          current_ball: 0,
-          innings: [
-            ...(prev.innings ?? []).map((i) =>
-              i.innings_number === prev.current_innings
-                ? { ...i, is_completed: true }
-                : i,
-            ),
-            {
-              id: `local-inn-${newInningsNum}`,
-              match_id: prev.id,
-              innings_number: newInningsNum,
-              team_id:
-                currentInn?.team_id === prev.team1_id
-                  ? prev.team2_id
-                  : prev.team1_id,
-              total_runs: 0,
-              total_wickets: 0,
-              total_balls: 0,
-              total_overs: 0,
-              is_completed: false,
-              target_runs: targetRuns,
-              extras_total: 0,
-              extras_byes: 0,
-              extras_leg_byes: 0,
-              extras_wides: 0,
-              extras_no_balls: 0,
-              extras_penalties: 0,
-            },
-          ],
-        };
-      });
-
-      setStrikerId(null);
-      setNonStrikerId(null);
-      setCurrentBowlerId(null);
-      setLastBalls([]);
-      setRawDeliveries([]);
-
-      setBattingTeamPlayers(bowlingTeamPlayers);
-      setBowlingTeamPlayers(battingTeamPlayers);
-      playersRef.current = {
-        batting: bowlingTeamPlayers,
-        bowling: battingTeamPlayers,
-      };
-
-      if (localCtxRef.current) {
-        const newInn = (localCtxRef.current.currentInnings ?? 1) + 1;
-        const targetRuns = (localCtxRef.current.totalRuns ?? 0) + 1;
-        localCtxRef.current = {
-          ...localCtxRef.current,
-          currentInnings: newInn,
-          currentOver: 0,
-          currentBall: 0,
-          totalRuns: 0,
-          totalWickets: 0,
-          totalBalls: 0,
-          strikerId: null,
-          nonStrikerId: null,
-          bowlerId: null,
-          strikerRuns: 0,
-          strikerBalls: 0,
-          nonStrikerRuns: 0,
-          nonStrikerBalls: 0,
-          bowlerRunsConceded: 0,
-          bowlerBallsBowled: 0,
-          bowlerWickets: 0,
-          targetRuns,
-        };
-      }
-
-      toast.info(
-        "Innings break (offline): choose the openers and the bowler for the next innings.",
-      );
-      optionsRef.current?.onNeedsBatsman?.();
+    setMatch((prev) => (prev ? matchWithInningsEnded(prev) : prev));
+    setStrikerId(null);
+    setNonStrikerId(null);
+    setCurrentBowlerId(null);
+    // The end of a chase decides the match: no next innings to open here,
+    // the server settles the result once it gets the queue.
+    if (isChaseInnings(match?.current_innings)) {
+      toast.info(said(OFFLINE_MATCH_OVER));
       setIsProcessing(false);
       return { data: null, error: null };
     }
 
-    const res = await sendNow("endInnings", {});
+    setLastBalls([]);
+    setRawDeliveries([]);
+
+    setBattingTeamPlayers(bowlingTeamPlayers);
+    setBowlingTeamPlayers(battingTeamPlayers);
+    playersRef.current = {
+      batting: bowlingTeamPlayers,
+      bowling: battingTeamPlayers,
+    };
+
+    if (localCtxRef.current) {
+      localCtxRef.current = endInningsLocally(localCtxRef.current);
+    }
+
+    toast.info(
+      unconfirmed
+        ? said("Choose the openers and the bowler for the next innings.")
+        : "Innings break (offline): choose the openers and the bowler for the next innings.",
+    );
+    optionsRef.current?.onNeedsBatsman?.();
+    setIsProcessing(false);
+    return { data: null, error: null };
+  };
+
+  const handleEndInnings = async () => {
+    clearUndone();
+    setIsProcessing(true);
+    // The innings meant: once the server has ended it (the last ball did,
+    // before a queued End innings arrived), this End innings does nothing.
+    const inningsNumber = match?.current_innings;
+    const payload = inningsNumber ? { inningsNumber } : {};
+
+    if (isOfflineNow() || !(await drainQueue())) {
+      enqueueAction(matchId, "endInnings", payload);
+      return endInningsOnDevice(false);
+    }
+
+    const res = await sendNow("endInnings", payload);
     if (res.offline) {
-      setIsProcessing(false);
-      const err = "No connection: the innings was not ended. Try again.";
-      toast.error(err);
-      return { data: null, error: err };
+      // Same id, marked sent: if the server did end the innings, the
+      // retry is a duplicate (and names the innings, so it never ends the
+      // next one).
+      enqueueAction(matchId, "endInnings", payload, res.queueId, {
+        sent: true,
+      });
+      return endInningsOnDevice(true);
     }
     if (res.error) toast.error(res.error);
     else await confirmChange(res.delta);
@@ -2852,6 +3114,12 @@ export function useScoring(
     refreshQueueState();
   };
 
+  // Offline, a delivery that ended the innings cannot reach the server that
+  // would open the next one: the scorer ends the innings on this device
+  // (`handleEndInnings`, as in offline mode), so nothing waits for it.
+  const waitsForServer =
+    awaitingServer && !(awaiting === "innings_end" && isOffline);
+
   return {
     match,
     loading,
@@ -2865,7 +3133,7 @@ export function useScoring(
     lastBalls,
     rawDeliveries,
     // Waiting for the server (an action it must decide) blocks scoring too.
-    isProcessing: isProcessing || awaitingServer,
+    isProcessing: isProcessing || waitsForServer,
     /** Undo is unavailable (a blocking action or a server undo runs). */
     undoBusy: isProcessing || undoing,
     /** What the last undo took back, for the over strip (null: nothing). */
@@ -2883,7 +3151,7 @@ export function useScoring(
     /** The queue's head when the server refused it (it may be skipped). */
     refusedHead,
     /** A ball or action is waiting for the server's answer to show. */
-    awaitingServer,
+    awaitingServer: waitsForServer,
     flushOfflineQueue,
     handleSkipHeadAction,
     handleResendDeadLetters,

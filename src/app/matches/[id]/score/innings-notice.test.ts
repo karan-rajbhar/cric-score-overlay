@@ -29,6 +29,18 @@ describe("the innings-over banner", () => {
     ).toMatchObject({ title: "Match over", action: null });
   });
 
+  it("offline, offers End innings after a ball it could not save yet", () => {
+    // The server that would open the next innings cannot be reached: the
+    // scorer ends the innings on the device (the screen stops waiting).
+    expect(
+      inningsOverNotice({ isChase: false, isOffline: true, awaitingServer: true }),
+    ).toEqual({
+      title: "Innings over",
+      text: "End the innings to start the next one.",
+      action: "end",
+    });
+  });
+
   it("offline, ends a first innings but never invents a third", () => {
     expect(
       inningsOverNotice({ isChase: false, isOffline: true, awaitingServer: false }),

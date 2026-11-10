@@ -8,7 +8,7 @@
 
 import { buildOverTable, type OverPoint } from "~/lib/match-charts";
 import { phaseBoundaries } from "~/lib/match-report";
-import type { BallEvent } from "~/lib/match-types";
+import type { BallEvent, Innings } from "~/lib/match-types";
 import { SECTORS } from "~/lib/wagon-wheel-utils";
 
 export type { OverPoint };
@@ -18,9 +18,15 @@ export {
   SECTORS,
 } from "~/lib/wagon-wheel-utils";
 
-/** Per-over runs and wickets with running totals, from an innings' balls. */
-export function overTable(balls: readonly BallEvent[]): OverPoint[] {
-  return buildOverTable([...balls]);
+/**
+ * Per-over runs and wickets with running totals, from an innings' balls
+ * (a penalty carried to the other side left out when `innings` is given).
+ */
+export function overTable(
+  balls: readonly BallEvent[],
+  innings?: Pick<Innings, "team_id"> | null,
+): OverPoint[] {
+  return buildOverTable([...balls], innings);
 }
 
 export interface OverBar {
@@ -68,19 +74,24 @@ export interface PhaseRate {
   /** First and last over (1-based). */
   from: number;
   to: number;
-  /** Overs of it bowled so far. */
+  /** Overs of it bowled so far (a part-bowled one included). */
   overs: number;
   runs: number;
   wickets: number;
-  /** Runs an over; null before its first over. */
+  /** Runs an over of `ballsPerOver`, by the balls bowled; null before its first ball. */
   runRate: number | null;
 }
 
 /**
  * Run rates by phase (powerplay, middle, death; one phase for short
- * games), over the overs bowled so far.
+ * games), over the balls bowled so far: a part-bowled over counts its
+ * balls, not a whole over.
  */
-export function phaseRates(table: readonly OverPoint[], maxOvers: number): PhaseRate[] {
+export function phaseRates(
+  table: readonly OverPoint[],
+  maxOvers: number,
+  ballsPerOver = 6,
+): PhaseRate[] {
   const bounds = phaseBoundaries(maxOvers);
   const phases: Array<Pick<PhaseRate, "label" | "from" | "to">> = bounds
     ? [
@@ -93,12 +104,13 @@ export function phaseRates(table: readonly OverPoint[], maxOvers: number): Phase
     const overs = table.filter((o) => o.overNumber >= p.from && o.overNumber <= p.to);
     const runs = overs.reduce((n, o) => n + o.runs, 0);
     const wickets = overs.reduce((n, o) => n + o.wickets, 0);
+    const balls = overs.reduce((n, o) => n + o.balls, 0);
     return {
       ...p,
       overs: overs.length,
       runs,
       wickets,
-      runRate: overs.length ? runs / overs.length : null,
+      runRate: balls > 0 ? (runs * ballsPerOver) / balls : null,
     };
   });
 }

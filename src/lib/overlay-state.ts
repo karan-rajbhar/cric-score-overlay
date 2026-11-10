@@ -9,6 +9,9 @@
  *   `{ on, seconds }`);
  * - `strap`: the lower third on air, with when it went up (server ms);
  * - `cue`: the latest one-off event card (`{ id, kind, at }`);
+ * - `cleared`: when a layer was last taken off (Clear, Take off, Back to
+ *   score bug), so the overlay also takes off the graphic it put up there
+ *   by itself;
  * - `version`, `last_command_id`, `at`: every command bumps the version and
  *   names the control room's id for it (its confirmation that the command
  *   went on air), `at` being the server time of that write.
@@ -146,6 +149,13 @@ export interface OverlayCue {
 /** The lower third on air and when it went up (server ms). */
 export type StoredStrap = ActiveLowerThirdStrap & { at: number };
 
+/** The layers a producer takes off, automatic graphics included. */
+export const CLEARABLE_LAYERS = ["view", "card", "strap", "sting"] as const;
+export type ClearableLayer = (typeof CLEARABLE_LAYERS)[number];
+
+/** Server time (ms) each layer was last taken off. */
+export type OverlayCleared = Partial<Record<ClearableLayer, number>>;
+
 export interface OverlayStateDoc {
   match_id: string;
   version: number;
@@ -158,6 +168,7 @@ export interface OverlayStateDoc {
   cue: OverlayCue | null;
   /** Data for the standings / leaders / next-match / tournament cards. */
   snapshots?: OverlaySnapshots | null;
+  cleared?: OverlayCleared;
 }
 
 /** A command's change to the overlay state; absent fields stay as they are. */
@@ -167,6 +178,8 @@ export interface OverlayStatePatch {
   cue?: OverlayCue | null;
   auto?: AutoRules;
   snapshots?: OverlaySnapshots | null;
+  /** Layers taken off (merged one by one). */
+  cleared?: OverlayCleared;
   /** Show the next sponsor now (the server adds one to `sponsorIndex`). */
   nextSponsor?: true;
 }
@@ -292,6 +305,38 @@ function sponsorsOf(v: unknown): SponsorItem[] | undefined {
         ? { logoUrl: s.logoUrl.slice(0, 500) }
         : {}),
     }));
+}
+
+/**
+ * The corner sponsors from a list of names, one per line: a line naming a
+ * sponsor already on air (`onAir`, case aside) keeps that sponsor whole
+ * (id, logo, tagline), so editing the names never drops a logo; a new
+ * line gets a fresh id.
+ */
+export function sponsorsFromLines(
+  text: string,
+  onAir: readonly SponsorItem[],
+): SponsorItem[] {
+  const left = [...onAir];
+  const used = new Set<string>();
+  const out: SponsorItem[] = [];
+  for (const name of text.split("\n").map((l) => l.trim()).filter(Boolean)) {
+    const at = left.findIndex(
+      (s) => s.name.trim().toLowerCase() === name.toLowerCase(),
+    );
+    const kept = at >= 0 ? left.splice(at, 1)[0]! : null;
+    out.push(kept ?? { id: "", name });
+    if (kept) used.add(kept.id);
+  }
+  let n = 0;
+  for (const s of out) {
+    if (s.id) continue;
+    do n += 1;
+    while (used.has(`s${n}`));
+    s.id = `s${n}`;
+    used.add(s.id);
+  }
+  return out;
 }
 
 function colorsOf(v: unknown): CustomThemeColors | undefined {
@@ -545,6 +590,13 @@ export function overlayPatchOf(
     }
     case "HIDE_STRAP":
       patch.strap = null;
+      patch.cleared = { strap: now };
+      break;
+    case "HIDE_CARD":
+      patch.cleared = { card: now };
+      break;
+    case "SET_BROADCAST_VIEW":
+      if (patch.scene?.view === null) patch.cleared = { view: now };
       break;
     case "SET_AUTO": {
       const auto = autoRulesOf(cmd.auto);
@@ -564,6 +616,9 @@ export function overlayPatchOf(
     case "PANIC_CLEAR":
       patch.strap = null;
       patch.cue = null;
+      patch.cleared = Object.fromEntries(
+        CLEARABLE_LAYERS.map((layer) => [layer, now]),
+      );
       break;
   }
   return Object.keys(patch).length ? patch : null;
@@ -604,6 +659,9 @@ export function applyOverlayPatch(
     ...(patch.cue !== undefined ? { cue: patch.cue } : {}),
     ...(patch.auto !== undefined ? { auto: patch.auto } : {}),
     ...(patch.snapshots !== undefined ? { snapshots: patch.snapshots } : {}),
+    ...(patch.cleared
+      ? { cleared: { ...base.cleared, ...patch.cleared } }
+      : {}),
   };
 }
 
@@ -636,7 +694,19 @@ export function parseOverlayState(raw: unknown): OverlayStateDoc | null {
     ...(r.snapshots !== undefined
       ? { snapshots: snapshotsOf(r.snapshots) ?? null }
       : {}),
+    ...(r.cleared && typeof r.cleared === "object"
+      ? { cleared: clearedOf(r.cleared as Record<string, unknown>) }
+      : {}),
   };
+}
+
+function clearedOf(r: Record<string, unknown>): OverlayCleared {
+  const out: OverlayCleared = {};
+  for (const layer of CLEARABLE_LAYERS) {
+    const at = num(r[layer]);
+    if (at !== undefined) out[layer] = at;
+  }
+  return out;
 }
 
 function parseScene(raw: unknown): Partial<OverlayScene> {

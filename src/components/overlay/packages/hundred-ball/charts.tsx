@@ -271,7 +271,7 @@ export function HundredRunRates(p: OverlayElementProps["runRates"]) {
   const overs = Math.round(limit / bpo);
   // The shared phases are in overs; shown here in balls.
   const phases = series.map((s) =>
-    phaseRates(s.table, overs).map((ph) => {
+    phaseRates(s.table, overs, bpo).map((ph) => {
       const from = (ph.from - 1) * bpo + 1;
       const to = ph.to * bpo;
       return {

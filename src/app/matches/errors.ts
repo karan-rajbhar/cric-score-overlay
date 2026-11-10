@@ -12,6 +12,8 @@ export const ERROR_MESSAGES: Record<string, string> = {
   batsman_is_current_bowler: "This player is currently bowling and cannot bat.",
   player_already_out: "That batsman is already dismissed.",
   player_already_batted: "That player has already batted in this innings.",
+  batter_has_batted:
+    "This batter has already been at the crease for a ball, so they cannot be changed. If the wrong player was recorded, use Wrong player: replace. If they are leaving the field, retire them.",
   player_not_in_match:
     "That player has nothing recorded in this match, so there is nothing to replace.",
   player_already_in_match:
@@ -29,6 +31,8 @@ export const ERROR_MESSAGES: Record<string, string> = {
     "This batter has not faced a ball yet: change them instead of correcting.",
   too_many_batsmen: "All 11 batsmen have already batted.",
   match_not_live: "The match is not live.",
+  super_over_needs_tie:
+    "A super over starts only after a tied match. It may have started already: reload to see the latest score.",
   no_open_innings: "No open innings found.",
   nothing_to_undo: "Nothing to undo.",
   innings_not_migrated:

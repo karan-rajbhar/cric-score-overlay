@@ -98,9 +98,13 @@ export const fixed2 = (n: number | null | undefined): string | null =>
  * Where the chasing side finishes at its current rate (whole runs), from
  * the shared chase line; null before a ball.
  */
-export function finishAtCurrentRate(state: LiveMatchState, chase: ChaseLine | null): number | null {
+export function finishAtCurrentRate(
+  state: LiveMatchState,
+  chase: ChaseLine | null,
+  ballsPerOver = 6,
+): number | null {
   if (!chase || chase.currentRate === null || !state.total_balls) return null;
-  return Math.round((state.total_runs ?? 0) + (chase.currentRate * chase.ballsRemaining) / 6);
+  return Math.round((state.total_runs ?? 0) + (chase.currentRate * chase.ballsRemaining) / ballsPerOver);
 }
 
 /** 1 → "1st", 2 → "2nd", 11 → "11th". */

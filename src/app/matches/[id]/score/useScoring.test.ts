@@ -55,6 +55,8 @@ vi.mock("sonner", () => ({
   },
 }));
 
+import { toast } from "sonner";
+
 /**
  * Stands in for POST /api/scoring/replay: answers each action with
  * `answer(action)` in order, stopping at the first failure, and returns the
@@ -201,6 +203,35 @@ describe("useScoring", () => {
       expect(result.current.battingTeamPlayers.map((p) => p.user_id)).toEqual(["u3", "u4"]);
       expect(result.current.bowlingTeamPlayers.map((p) => p.user_id)).toEqual(["u1", "u2"]);
     });
+  });
+
+  it("drops a player removed from a squad when the squads are read again", async () => {
+    const squads: Record<string, unknown[]> = {
+      "team-1": [
+        { id: "tp1", team_id: "team-1", user_id: "u1", user: { id: "u1", full_name: "A" } },
+        { id: "tp2", team_id: "team-1", user_id: "u2", user: { id: "u2", full_name: "B" } },
+      ],
+      "team-2": [
+        { id: "tp3", team_id: "team-2", user_id: "u3", user: { id: "u3", full_name: "C" } },
+        { id: "tp4", team_id: "team-2", user_id: "u4", user: { id: "u4", full_name: "D" } },
+      ],
+    };
+    vi.mocked(getTeamPlayers).mockImplementation(async (teamId: string) => ({
+      data: (squads[teamId] ?? []) as never,
+      error: null,
+    }));
+    const { result } = renderHook(() => useScoring(matchId));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.battingTeamPlayers.map((p) => p.user_id)).toEqual(["u1", "u2"]);
+
+    // Removed in the Squads dialog, which then reads the squads again.
+    squads["team-1"] = squads["team-1"]!.slice(0, 1);
+    squads["team-2"] = squads["team-2"]!.slice(1);
+    await act(async () => {
+      await result.current.loadPlayers(result.current.match!);
+    });
+    expect(result.current.battingTeamPlayers.map((p) => p.user_id)).toEqual(["u1"]);
+    expect(result.current.bowlingTeamPlayers.map((p) => p.user_id)).toEqual(["u4"]);
   });
 
   it("handleConfirmBatsmen rejects selecting opposing team players or current bowler", async () => {
@@ -916,6 +947,92 @@ describe("useScoring", () => {
     expect(queued[0]!.queueId).toBe(sentId);
   });
 
+  it("undoes a ball whose reply was lost behind it, never dropping it from the queue", async () => {
+    const online = vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        // The server may have recorded it; the reply never arrives.
+        throw new TypeError("Failed to fetch");
+      }),
+    );
+    const { result } = renderHook(() => useScoring(matchId));
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+    await act(async () => {
+      await result.current.handleScore("u3", "p1", "p2", { runsScored: 4 });
+    });
+    const [ball] = getPendingActions(matchId);
+    expect(ball).toMatchObject({ type: "recordBall", sentAt: expect.any(Number) });
+
+    online.mockReturnValue(false);
+    await act(async () => {
+      await result.current.handleUndo();
+    });
+    expect(getPendingActions(matchId).map((a) => [a.type, a.queueId])).toEqual([
+      ["recordBall", ball!.queueId],
+      ["undoLastBall", expect.any(String)],
+    ]);
+
+    online.mockReturnValue(true);
+    const batches = mockReplayRoute(() => ({ status: "applied" }));
+    await act(async () => {
+      await result.current.flushOfflineQueue();
+    });
+    expect(batches[0]!.actions).toMatchObject([
+      { type: "recordBall", id: ball!.queueId, resent: true },
+      { type: "undoLastBall" },
+    ]);
+  });
+
+  it("queues an End innings whose reply was lost under its id, and resends it as such", async () => {
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
+    const sent: ReplayBatch[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        const batch = JSON.parse(String(init.body)) as ReplayBatch;
+        sent.push(batch);
+        // The server ends the innings; its reply never arrives.
+        if (sent.length === 1) throw new TypeError("Failed to fetch");
+        const results = batch.actions.map((a) => ({ id: a.id, status: "duplicate" }));
+        return new Response(JSON.stringify({ v: 1, results, delta: null }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }),
+    );
+    const { result } = renderHook(() => useScoring(matchId));
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    let res: { error: string | null } | undefined;
+    await act(async () => {
+      res = await result.current.handleEndInnings();
+    });
+    expect(res?.error).toBeNull();
+    const first = sent[0]!.actions[0]!;
+    expect(first).toMatchObject({ type: "endInnings", payload: { inningsNumber: 1 } });
+    expect(getPendingActions(matchId)).toMatchObject([
+      { type: "endInnings", queueId: first.id, payload: { inningsNumber: 1 } },
+    ]);
+    expect(toast.info).toHaveBeenCalledWith(
+      expect.stringMatching(/^No connection: the end of the innings is not confirmed yet/),
+    );
+    expect(toast.error).not.toHaveBeenCalled();
+
+    // Sent again under the same id, marked as a resend: the server knows it.
+    await act(async () => {
+      await result.current.flushOfflineQueue();
+    });
+    expect(sent[1]!.actions).toMatchObject([
+      { id: first.id, type: "endInnings", resent: true },
+    ]);
+    expect(getPendingActions(matchId)).toHaveLength(0);
+  });
+
   it("sends a new action only after the queued ones, and queues it behind them if they cannot be sent", async () => {
     vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
     const { result } = renderHook(() => useScoring(matchId));
@@ -1024,6 +1141,82 @@ describe("useScoring offline reload", () => {
       expect(second.result.current.match?.innings?.[0]?.total_runs).toBe(15),
     );
     expect(getPendingActions(matchId)).toHaveLength(2);
+  });
+
+  it("offline, undoes the last of three balls from the saved score, once", async () => {
+    const { result } = renderHook(() => useScoring(matchId));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    for (let i = 0; i < 3; i += 1) {
+      await act(async () => {
+        await result.current.handleScore("u3", "u1", "u2", { runsScored: 2 });
+      });
+    }
+    const inn = () => result.current.match!.innings![0]!;
+    expect([inn().total_runs, inn().total_balls]).toEqual([16, 3]);
+
+    await act(async () => {
+      await result.current.handleUndo();
+    });
+    expect(getPendingActions(matchId)).toHaveLength(2);
+    expect([inn().total_runs, inn().total_balls]).toEqual([14, 2]);
+    expect(result.current.undoBusy).toBe(false);
+    expect(result.current.undoNotice).toMatchObject({ label: "2", pending: false });
+
+    // The next ball builds on that.
+    await act(async () => {
+      await result.current.handleScore("u3", "u1", "u2", { runsScored: 1 });
+    });
+    expect([inn().total_runs, inn().total_balls]).toEqual([15, 3]);
+  });
+
+  it("offline, undoes a ball of the next innings after End innings", async () => {
+    const { result } = renderHook(() => useScoring(matchId));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    await act(async () => {
+      await result.current.handleEndInnings();
+    });
+    await act(async () => {
+      await result.current.handleConfirmBatsmen("u3", "u4");
+    });
+    await act(async () => {
+      await result.current.handleConfirmBowler("u1");
+    });
+    for (let i = 0; i < 2; i += 1) {
+      await act(async () => {
+        await result.current.handleScore("u1", "u3", "u4", { runsScored: 2 });
+      });
+    }
+    await act(async () => {
+      await result.current.handleUndo();
+    });
+    const m = result.current.match!;
+    expect(m.current_innings).toBe(2);
+    expect(m.innings!.find((i) => i.innings_number === 2)).toMatchObject({
+      total_runs: 2,
+      total_balls: 1,
+      target_runs: 11,
+    });
+    expect(getPendingActions(matchId).map((a) => a.type)).toEqual([
+      "endInnings",
+      "setBatsmen",
+      "setBowler",
+      "recordBall",
+    ]);
+    expect(result.current.undoBusy).toBe(false);
+  });
+
+  it("frees Undo when there is nothing on the device to undo offline", async () => {
+    const { result } = renderHook(() => useScoring(matchId));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    await act(async () => {
+      await result.current.handleUndo();
+    });
+    expect(toast.error).toHaveBeenCalledWith("No offline deliveries in queue to undo");
+    expect(result.current.undoBusy).toBe(false);
+    expect(result.current.undoNotice).toBeNull();
   });
 
   it("falls back to the device copy when the server cannot be reached", async () => {

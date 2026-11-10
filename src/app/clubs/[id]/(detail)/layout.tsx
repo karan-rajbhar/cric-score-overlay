@@ -22,7 +22,6 @@ import { ListCard, ListRow } from "~/components/ds/list";
 import { ProfileHeader } from "~/components/ds/player-header";
 import { EntityActions } from "~/components/follow/entity-actions";
 import { ClubContacts } from "~/components/clubs/club-contacts";
-import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { ActionsSheet } from "~/components/ds/actions-sheet";
 import { PinnedTitle } from "~/components/ds/pinned-title";
@@ -108,7 +107,7 @@ export default async function ClubLayout({
     db
       .from("tournaments")
       .select(
-        "id, name, description, status, tournament_format, match_format, start_date, end_date, venue, season_id, overs_per_innings",
+        "id, name, description, status, tournament_format, match_format, start_date, end_date, venue, season_id, overs_per_innings, wickets_per_innings",
       )
       .eq("club_id", id)
       .order("start_date", { ascending: false }),

@@ -20,7 +20,11 @@ import { acceptInvitations, canSignIn } from "~/lib/firebase/rpc/access";
 import { ensureOwnProfile } from "~/lib/firebase/rpc/profiles";
 import { serverClientFor } from "~/lib/firebase/server-client";
 import { searchScorers } from "~/app/matches/mutations";
-import { createPlayerQuick, setPlayerClaimEmail } from "./actions";
+import {
+  addPlayerToTeam,
+  createPlayerQuick,
+  setPlayerClaimEmail,
+} from "./actions";
 
 let ds: MemoryDataSource;
 
@@ -132,6 +136,43 @@ describe("invite to claim", () => {
     expect(
       (await setPlayerClaimEmail("t1", placeholder, "ravi@gmail.com")).error,
     ).toMatch(/can invite its players/);
+  });
+
+  it("refuses an outsider who puts another team's player in their own squad", async () => {
+    const placeholder = await addPlaceholder("Ravi Kumar");
+    await ds.update("teams", "t1", { captain_id: placeholder });
+    await ds.insert("teams", [{ id: "evil", name: "Evil XI", created_by: "asha" }]);
+    signIn("asha");
+
+    expect((await addPlayerToTeam("evil", placeholder)).error).toMatch(
+      /is in or has played for/,
+    );
+    // A squad row that got there anyway gives no say over the player.
+    await ds.insert("team_players", [
+      { id: "tp-evil", team_id: "evil", user_id: placeholder },
+    ]);
+    expect(
+      (await setPlayerClaimEmail("evil", placeholder, "asha.two@gmail.com"))
+        .error,
+    ).toMatch(/every team they play for/);
+
+    const priv = await ds.getById("users_private", placeholder);
+    expect(String(priv!.email)).toMatch(/@players\.local$/);
+    expect(
+      await canSignIn(ds, google("x", "asha.two@gmail.com", "A"), true),
+    ).toBe(false);
+    expect(await ds.getById("teams", "t1")).toMatchObject({
+      captain_id: placeholder,
+    });
+  });
+
+  it("lets an admin of every team the player is in invite them", async () => {
+    const placeholder = await addPlaceholder("Ravi Kumar");
+    await ds.insert("teams", [{ id: "t2", name: "Tigers", created_by: "cap" }]);
+    expect((await addPlayerToTeam("t2", placeholder)).error).toBeUndefined();
+    expect(
+      (await setPlayerClaimEmail("t2", placeholder, "ravi@gmail.com")).error,
+    ).toBeNull();
   });
 
   it("can change or remove the email before they sign in", async () => {

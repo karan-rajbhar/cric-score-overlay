@@ -19,6 +19,7 @@ import type { Match } from "~/lib/match-types";
 import { cn } from "~/lib/utils";
 import {
   BallTrack,
+  ballsPerOverOf,
   battingSide,
   economyText,
   OV,
@@ -112,15 +113,16 @@ export function sidesOf(state: LiveMatchState): {
 
 const codeOfSide = (side: Side) => teamCode(side.short, side.name);
 
-/** Overs per innings shown after the score (1 in a super over). */
-function oversLimitOf(state: LiveMatchState): number | null {
+/**
+ * Overs the innings may last, shown after the score: a DLS revision's
+ * while it is the current innings, 1 in a super over.
+ */
+export function oversLimitOf(state: LiveMatchState): number | null {
   if ((state.innings_number ?? 1) >= 3) return 1;
-  return state.overs_per_innings ?? null;
+  return state.dls_overs ?? state.overs_per_innings ?? null;
 }
 
-/** Legal deliveries per over (live_state does not carry it; the match does). */
-export const ballsPerOverOf = (match: Match | null | undefined) =>
-  match?.balls_per_over && match.balls_per_over > 0 ? match.balls_per_over : 6;
+export { ballsPerOverOf };
 
 /** "Riverside won the toss and chose to bat", when both are known. */
 export function tossLineOf(
@@ -373,7 +375,7 @@ function BottomBar({
   const { batting, bowling } = sidesOf(state);
   const logo =
     side === 1 ? state.team1_logo_url : side === 2 ? state.team2_logo_url : null;
-  const bowlerEcon = economyText(state.bowler_runs, state.bowler_balls);
+  const bowlerEcon = economyText(state.bowler_runs, state.bowler_balls, bpo);
   const inPlay = phase === "live";
   const context = inPlay || phase === "break" ? contextLine(state, phase) : [];
   if (phase === "done") {

@@ -143,6 +143,80 @@ describe("MatchSettingsDialog (Mid-Game Rules & Format Adjustment)", () => {
     );
   });
 
+  it("sends the target only when it was edited", () => {
+    const onSave = vi.fn();
+    render(
+      <MatchSettingsDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        match={dummyMatch}
+        onSave={onSave}
+        isProcessing={false}
+      />,
+    );
+    fireEvent.click(screen.getByLabelText(/golden ball/i));
+    fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(onSave.mock.calls[0]![0]).not.toHaveProperty("targetRuns");
+  });
+
+  it("shows the current chase's target, a super over's included", () => {
+    const onSave = vi.fn();
+    const inn = dummyMatch.innings![1]!;
+    render(
+      <MatchSettingsDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        match={{
+          ...dummyMatch,
+          current_innings: 4,
+          innings: [
+            ...dummyMatch.innings!,
+            { ...inn, id: "inn-3", innings_number: 3, target_runs: null },
+            { ...inn, id: "inn-4", innings_number: 4, target_runs: 11 },
+          ],
+        }}
+        onSave={onSave}
+        isProcessing={false}
+      />,
+    );
+    expect(screen.getByLabelText(/target runs/i)).toHaveValue(11);
+    fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(onSave.mock.calls[0]![0]).not.toHaveProperty("targetRuns");
+  });
+
+  it("saves a match with up to 15 wickets, as the match wizard allows", () => {
+    const onSave = vi.fn();
+    render(
+      <MatchSettingsDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        match={{ ...dummyMatch, wickets_per_innings: 12 }}
+        onSave={onSave}
+        isProcessing={false}
+      />,
+    );
+    const wickets = screen.getByLabelText(/wickets per innings/i);
+    expect(wickets).toHaveValue(12);
+    expect(wickets).toBeValid();
+    fireEvent.change(wickets, { target: { value: "15" } });
+    expect(wickets).toBeValid();
+    fireEvent.change(wickets, { target: { value: "16" } });
+    expect(wickets).toBeInvalid();
+  });
+
+  it("has no target to set before a chase", () => {
+    render(
+      <MatchSettingsDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        match={{ ...dummyMatch, current_innings: 1 }}
+        onSave={vi.fn()}
+        isProcessing={false}
+      />,
+    );
+    expect(screen.queryByLabelText(/target runs/i)).not.toBeInTheDocument();
+  });
+
   it("allows setting custom balls per over and max balls per over with extras", () => {
     const onSave = vi.fn();
     render(

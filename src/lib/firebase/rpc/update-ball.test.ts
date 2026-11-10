@@ -90,7 +90,7 @@ describe("update_ball", () => {
     await expect(edit("INN1_9~missing", 1)).rejects.toThrow("ball_not_found");
   });
 
-  it("editing a completed innings leaves the current innings' position and live state alone", async () => {
+  it("editing a completed innings moves the chase's target and leaves its position alone", async () => {
     const side = stage2Driver(syntheticTables({ overs_per_innings: 2 }), true);
     const replay = new GoldenReplay(side, "M", SYNTHETIC_ROSTERS);
     // Innings 1 (2 overs), then 0.2 of innings 2.
@@ -152,15 +152,177 @@ describe("update_ball", () => {
     await recomputeInningsRpc(side.ctx, "INN1");
 
     expect(await current()).toMatchObject({ current_over: 0, current_ball: 2 });
-    expect(await live()).toEqual(liveBefore);
-    expect(await inn2()).toEqual(inn2Before);
+    // The chase's target follows innings 1; nothing else of it changes.
+    const added = 6 - (inn1Ball.runs_scored ?? 0);
+    const target = (inn2Before.target_runs as number) + added;
+    expect(await live()).toEqual({
+      ...liveBefore,
+      target_runs: target,
+      runs_needed: (liveBefore.runs_needed as number) + added,
+      required_run_rate: 6.6, // 11 off 10 balls (was 6: 3.6)
+    });
+    expect(await inn2()).toEqual({ ...inn2Before, target_runs: target });
     // The edit itself landed in innings 1.
     const inn1 = side.ds.all("innings").find((i) => i.id === "INN1")!;
     expect(inn1.total_runs).toBe(totalBefore - (inn1Ball.runs_scored ?? 0) + 6);
     expect(inn1.is_completed).toBe(true);
-
     // Scoring carries on from 0.2 of innings 2.
     await replay.step({ kind: "ball", ball: { runs: 1 } });
     expect(await current()).toMatchObject({ current_over: 0, current_ball: 3 });
   });
 });
+
+/**
+ * A 1-over match: Alpha make 6 (six singles), Bravo chase 7 and score
+ * `runs`. An edit of the ball log settles the innings and the match as a
+ * delivery would.
+ */
+async function chase(incremental: boolean, runs: number[]) {
+  const side = stage2Driver(
+    syntheticTables({ overs_per_innings: 1 }),
+    incremental,
+  );
+  const replay = new GoldenReplay(side, "M", SYNTHETIC_ROSTERS);
+  for (let i = 0; i < 6; i += 1)
+    await replay.step({ kind: "ball", ball: { runs: 1 } });
+  for (const r of runs) await replay.step({ kind: "ball", ball: { runs: r } });
+  const match = () => side.ds.all("matches").find((m) => m.id === "M")!;
+  const innings = (n: number) =>
+    side.ds.all("innings").find((i) => i.innings_number === n);
+  const ballsOf = (n: number) =>
+    (side.ds.all("overs") as unknown as OversRow[])
+      .filter((o) => o.innings_id === innings(n)?.id)
+      .flatMap((o) => o.balls)
+      .sort((a, b) => a.seq - b.seq);
+  const edit = (n: number, index: number, runsScored: number) =>
+    updateBall(side.ctx, {
+      p_match_id: "M",
+      p_ball_id: ballsOf(n)[index]!.id,
+      p_runs_scored: runsScored,
+      p_extras: 0,
+      p_extra_type: null,
+      p_is_wicket: false,
+    });
+  return { side, replay, match, innings, edit };
+}
+
+describe.each([true, false])(
+  "update_ball on a finished match (incremental: %s)",
+  (incremental) => {
+    it("reopens a won chase the edit takes back below its target", async () => {
+      const { replay, match, innings, edit } = await chase(incremental, [4, 4]);
+      expect(match()).toMatchObject({
+        status: "completed",
+        winning_team_id: "TB",
+        win_margin: 10,
+        win_margin_type: "wickets",
+        result_description: "Bravo won by 10 wickets",
+      });
+      await edit(2, 0, 0);
+      expect(innings(2)).toMatchObject({
+        total_runs: 4,
+        target_runs: 7,
+        is_completed: false,
+      });
+      expect(match()).toMatchObject({
+        status: "live",
+        current_innings: 2,
+        result_type: null,
+        winning_team_id: null,
+        win_margin: null,
+        win_margin_type: null,
+        result_description: null,
+      });
+      // Scoring resumes, and wins it again.
+      await replay.step({ kind: "ball", ball: { runs: 4 } });
+      expect(match()).toMatchObject({
+        status: "completed",
+        winning_team_id: "TB",
+        result_description: "Bravo won by 10 wickets",
+      });
+    });
+
+    it("re-derives the result of a finished match the edit leaves finished", async () => {
+      // 5 off the over: Alpha won by 1 run.
+      const { match, innings, edit } = await chase(
+        incremental,
+        [1, 1, 1, 1, 1, 0],
+      );
+      expect(match()).toMatchObject({
+        status: "completed",
+        winning_team_id: "TA",
+        win_margin: 1,
+        win_margin_type: "runs",
+        result_description: "Alpha won by 1 run",
+      });
+      await edit(2, 5, 1);
+      expect(innings(2)).toMatchObject({ total_runs: 6, is_completed: true });
+      expect(match()).toMatchObject({
+        status: "completed",
+        result_type: "tie",
+        winning_team_id: null,
+        win_margin: null,
+        win_margin_type: null,
+        result_description: "Match tied",
+      });
+    });
+  },
+);
+
+describe.each([true, false])(
+  "update_ball on a live chase (incremental: %s)",
+  (incremental) => {
+    it("closes a live chase the edit takes to its target", async () => {
+      const { match, innings, edit } = await chase(incremental, [4, 0]);
+      expect(match()).toMatchObject({ status: "live" });
+      await edit(2, 1, 4);
+      expect(innings(2)).toMatchObject({ total_runs: 8, is_completed: true });
+      expect(match()).toMatchObject({
+        status: "completed",
+        result_type: "win",
+        winning_team_id: "TB",
+        win_margin: 10,
+        win_margin_type: "wickets",
+        result_description: "Bravo won by 10 wickets",
+      });
+    });
+
+    it("moves the chase's target with a completed first innings, unless revised", async () => {
+      const { side, match, innings, edit } = await chase(incremental, [1]);
+      await edit(1, 0, 4);
+      expect(innings(1)).toMatchObject({ total_runs: 9, is_completed: true });
+      expect(innings(2)).toMatchObject({
+        target_runs: 10,
+        is_completed: false,
+      });
+      expect(match()).toMatchObject({ status: "live", current_innings: 2 });
+
+      // A revised target (DLS) stays as set.
+      await side.ds.update("matches", "M", {
+        dls_revision: { innings_number: 2, target_runs: 5, overs: 1 },
+      });
+      await side.ds.update("innings", innings(2)!.id as string, {
+        target_runs: 5,
+      });
+      await edit(1, 1, 4);
+      expect(innings(1)!.total_runs).toBe(12);
+      expect(innings(2)!.target_runs).toBe(5);
+    });
+
+    it("finishes the match when the moved target is already reached", async () => {
+      const { match, innings, edit } = await chase(incremental, [4]);
+      // Alpha's 6 becomes 3: Bravo's 4 already beats the new target of 4.
+      for (const i of [0, 1, 2]) await edit(1, i, 0);
+      expect(innings(2)).toMatchObject({
+        target_runs: 4,
+        total_runs: 4,
+        is_completed: true,
+      });
+      expect(match()).toMatchObject({
+        status: "completed",
+        winning_team_id: "TB",
+        result_description: "Bravo won by 10 wickets",
+      });
+    });
+  },
+);

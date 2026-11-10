@@ -32,7 +32,10 @@ export const INFIX_LEN = 3;
 
 /**
  * Lower case, accents removed, anything but letters / digits / `_`
- * becomes a single space.
+ * becomes a single space. Letters of every script count; the accents
+ * removed are the generic combining diacritics (U+0300 to U+036F: "José"
+ * is "jose"), while the marks a script spells its words with, such as
+ * Devanagari vowel signs and the virama, stay.
  * @param {unknown} text
  * @returns {string}
  */
@@ -40,9 +43,9 @@ export function normalizeText(text) {
   if (typeof text !== "string") return "";
   return text
     .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
-    .replace(/[^a-z0-9_]+/g, " ")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^\p{L}\p{M}\p{N}_]+/gu, " ")
     .trim();
 }
 

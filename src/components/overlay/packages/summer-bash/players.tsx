@@ -8,7 +8,7 @@
  */
 
 import type { PlayerCareerStatsRow } from "~/lib/firebase/types";
-import { oversText } from "../../overlay-kit";
+import { ballsPerOverOf, oversText } from "../../overlay-kit";
 import { usePlayerProfile } from "../../overlay-data";
 import { playerInSlot } from "../../profile-card";
 import type { SeriesFigures } from "../../types";
@@ -121,7 +121,7 @@ export function PlayerOfTheMatch(p: OverlayElementProps["playerOfTheMatch"]) {
   if (bowl) {
     tiles.push({
       label: "Bowling",
-      value: `${bowl.wickets_taken}-${bowl.runs_conceded} (${oversText(bowl.balls_bowled)})`,
+      value: `${bowl.wickets_taken}-${bowl.runs_conceded} (${oversText(bowl.balls_bowled, ballsPerOverOf(match))})`,
     });
   }
   return (

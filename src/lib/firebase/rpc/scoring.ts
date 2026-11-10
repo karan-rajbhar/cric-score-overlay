@@ -84,6 +84,7 @@ import {
   bowlingWithBowler,
   canApplyIncrementally,
   checkBallArgs as checkBall,
+  creaseChangeError,
   DISMISSAL_TYPES,
   EXTRA_TYPES,
   fielderOf,
@@ -100,6 +101,7 @@ import {
 import {
   penaltyCountsFor,
   recomputeInnings,
+  type CreaseOverride,
   type RecomputeOutput,
 } from "../scoring/recompute";
 import {
@@ -395,43 +397,11 @@ async function loadInningsBundle(
   return bundleOf(match, innings, overs);
 }
 
-/**
- * `bundle` with its batters' / bowlers' current flags set to the crease and
- * bowler `ball` was recorded with (unchanged when one of them has no row).
- */
-function withCreaseOf(
-  bundle: InningsBundle,
-  ball: BallByBallRow,
-): InningsBundle {
-  const { batsman_id: s, non_striker_id: ns, bowler_id: bw } = ball;
-  if (
-    !s ||
-    !ns ||
-    !bw ||
-    !bundle.batting.some((b) => b.user_id === s) ||
-    !bundle.batting.some((b) => b.user_id === ns) ||
-    !bundle.bowling.some((b) => b.user_id === bw)
-  ) {
-    return bundle;
-  }
-  return {
-    ...bundle,
-    batting: bundle.batting.map((b) => ({
-      ...b,
-      is_current_batsman: b.user_id === s || b.user_id === ns,
-      is_striker: b.user_id === s,
-    })),
-    bowling: bundle.bowling.map((b) => ({
-      ...b,
-      is_current_bowler: b.user_id === bw,
-    })),
-  };
-}
-
 function runRecompute(
   bundle: InningsBundle,
   balls: BallByBallRow[],
   now: string,
+  crease?: CreaseOverride,
 ): RecomputeOutput {
   return recomputeInnings({
     match: bundle.match,
@@ -440,6 +410,7 @@ function runRecompute(
     existingBatting: bundle.batting,
     existingBowling: bundle.bowling,
     now,
+    crease,
   });
 }
 
@@ -643,6 +614,20 @@ async function carriedPenaltyBalls(
  * otherwise the penalty runs awarded to the next batting side come from the
  * innings' `carried_penalties` (see {@link carriedPenaltyBalls}).
  */
+/**
+ * The chasing side's squad size, for the wickets in hand (one read, when a
+ * chase ends; the team document holds the roster). Null for a first innings.
+ */
+async function chaseSquadSizeOf(
+  t: ScoringTx,
+  completed: InningsRow,
+): Promise<number | null> {
+  if (completed.innings_number % 2 !== 0) return null;
+  return (
+    (await t.doc<TeamsRow>("teams", completed.team_id))?.roster?.length ?? null
+  );
+}
+
 async function applyAdvance(
   t: ScoringTx,
   match: MatchesRow,
@@ -652,13 +637,7 @@ async function applyAdvance(
   now: string,
   completedBalls?: readonly BallByBallRow[],
 ): Promise<AppliedAdvance> {
-  // The chasing side's squad, for the wickets in hand (one read, when a
-  // chase ends; the team document holds the roster).
-  const chaseSquadSize =
-    completed.innings_number % 2 === 0
-      ? ((await t.doc<TeamsRow>("teams", completed.team_id))?.roster?.length ??
-        null)
-      : null;
+  const chaseSquadSize = await chaseSquadSizeOf(t, completed);
   const out = advanceAfterInnings(
     { match, completed, allInnings, teamNames, now, chaseSquadSize },
     newId(),
@@ -714,6 +693,169 @@ async function teamNamesOf(
     }
   }
   return names;
+}
+
+/** A finished match back in play (undo, or an edit its last innings no longer ends with). */
+function reopenedMatchPatch(now: string): Partial<MatchesRow> {
+  return {
+    status: "live",
+    actual_end_time: null,
+    result_type: null,
+    result_description: null,
+    winning_team_id: null,
+    win_margin: null,
+    win_margin_type: null,
+    player_of_the_match_id: null,
+    updated_at: now,
+  };
+}
+
+const RESULT_FIELDS = [
+  "status",
+  "result_type",
+  "winning_team_id",
+  "win_margin_type",
+  "win_margin",
+  "result_description",
+] as const;
+
+/**
+ * After a change to the ball log outside `record_ball` (an edit, penalty
+ * runs, a retirement) recomputed an innings to `after` (`before` as stored,
+ * `balls` its log): what a delivery would have done.
+ *
+ * - An open innings the change completes (target reached, last wicket,
+ *   last ball) closes, and the next innings opens or the match ends
+ *   (`applyAdvance`).
+ * - A completed innings that sets a chase moves that chase's target with
+ *   its total, unless the target was revised (DLS, by hand); the chase may
+ *   then be complete too.
+ * - A finished match whose last innings changed (or its target) gets its
+ *   result again; when that innings no longer ends by the rules (a target
+ *   it no longer reaches, a wicket edited away) and did before, the match
+ *   reopens as after an undo. One ended by hand stays ended.
+ *
+ * The player records follow a completed innings' change.
+ */
+async function settleAfterEdit(
+  t: ScoringTx,
+  match: WithId<MatchesRow>,
+  before: WithId<InningsRow>,
+  after: WithId<InningsRow>,
+  balls: readonly BallByBallRow[],
+  now: string,
+): Promise<void> {
+  const readAll = () =>
+    t.where<InningsRow>("innings", [["match_id", "==", match.id]]);
+  if (!before.is_completed) {
+    if (completesInnings(match, after)) {
+      const all = replaceInnings(await readAll(), [after]);
+      await closeInnings(t, match, after, all, now, balls);
+    }
+    return;
+  }
+  const stored = await readAll();
+  let all = replaceInnings(stored, [after]);
+  const moved = movedChase(match, before, after, all, now);
+  if (moved) {
+    t.patch("innings", moved.id, {
+      target_runs: moved.target_runs,
+      updated_at: now,
+    });
+    all = replaceInnings(all, [moved]);
+    if (!moved.is_completed && completesInnings(match, moved)) {
+      // It syncs the records, with this innings' change.
+      await closeInnings(t, match, moved, all, now);
+      return;
+    }
+  }
+  const changed = [after.id, moved?.id];
+  all = await settleResult(t, match, stored, all, changed, now);
+  await syncMatchRecords(t, match.id, match, all, now);
+}
+
+/** Whether `open`, the innings in play, is now complete (it closes). */
+function completesInnings(match: MatchesRow, open: InningsRow): boolean {
+  return (
+    match.status === "live" &&
+    open.innings_number === (match.current_innings ?? 1) &&
+    inningsComplete(match, open)
+  );
+}
+
+async function closeInnings(
+  t: ScoringTx,
+  match: MatchesRow,
+  open: WithId<InningsRow>,
+  all: WithId<InningsRow>[],
+  now: string,
+  openBalls?: readonly BallByBallRow[],
+): Promise<void> {
+  const names = await teamNamesOf(t, match);
+  await applyAdvance(t, match, open, all, names, now, openBalls);
+}
+
+/**
+ * The chase `after` (a completed innings that sets one) sets, with its
+ * target moved to the new total: null when the total did not change, or
+ * the target no longer follows it (revised by DLS or by hand).
+ */
+function movedChase(
+  match: MatchesRow,
+  before: InningsRow,
+  after: InningsRow,
+  all: readonly WithId<InningsRow>[],
+  now: string,
+): WithId<InningsRow> | null {
+  if (after.innings_number % 2 !== 1) return null;
+  if (after.total_runs === before.total_runs) return null;
+  const next = all.find((i) => i.innings_number === after.innings_number + 1);
+  if (!next || next.target_runs !== (before.total_runs ?? 0) + 1) return null;
+  if (match.dls_revision?.innings_number === next.innings_number) return null;
+  return { ...next, target_runs: (after.total_runs ?? 0) + 1, updated_at: now };
+}
+
+/**
+ * A finished match whose last innings is among `changed` (as stored in
+ * `stored`, now in `all`): its result again, or back in play when that
+ * innings ended by the rules and no longer does. Returns `all` as it will
+ * be stored.
+ */
+async function settleResult(
+  t: ScoringTx,
+  match: WithId<MatchesRow>,
+  stored: readonly WithId<InningsRow>[],
+  all: WithId<InningsRow>[],
+  changed: readonly (string | undefined)[],
+  now: string,
+): Promise<WithId<InningsRow>[]> {
+  const last = all.reduce((m, i) => (i.innings_number > m.innings_number ? i : m));
+  const lastBefore = stored.find((i) => i.id === last.id);
+  if (match.status !== "completed" || !last.is_completed) return all;
+  if (!lastBefore || !changed.includes(last.id)) return all;
+  if (inningsComplete(match, lastBefore) && !inningsComplete(match, last)) {
+    t.patch("matches", match.id, reopenedMatchPatch(now));
+    t.patch("innings", last.id, { is_completed: false, updated_at: now });
+    return replaceInnings(all, [{ ...last, is_completed: false }]);
+  }
+  const { matchPatch } = advanceAfterInnings(
+    {
+      match,
+      completed: last,
+      allInnings: all,
+      teamNames: await teamNamesOf(t, match),
+      now,
+      chaseSquadSize: await chaseSquadSizeOf(t, last),
+    },
+    newId(),
+  );
+  const result = (k: (typeof RESULT_FIELDS)[number]) => matchPatch[k] ?? null;
+  if (RESULT_FIELDS.some((k) => result(k) !== (match[k] ?? null))) {
+    const patch: Partial<MatchesRow> = { updated_at: now };
+    for (const k of RESULT_FIELDS) Object.assign(patch, { [k]: result(k) });
+    t.patch("matches", match.id, patch);
+  }
+  return all;
 }
 
 async function requireAdmin(
@@ -1302,17 +1444,7 @@ async function undoInTransaction(
 
   // ---- writes ----
   if (match.status === "completed") {
-    t.patch("matches", matchId, {
-      status: "live",
-      actual_end_time: null,
-      result_type: null,
-      result_description: null,
-      winning_team_id: null,
-      win_margin: null,
-      win_margin_type: null,
-      player_of_the_match_id: null,
-      updated_at: now,
-    });
+    t.patch("matches", matchId, reopenedMatchPatch(now));
   }
 
   if (crossingBoundary && current) {
@@ -1327,10 +1459,14 @@ async function undoInTransaction(
   }
 
   const remaining = bundle.balls.filter((b) => b.id !== last.id);
-  // The crease and bowler the undone ball was bowled with are the ones
-  // chosen since the ball before it: where the remaining log leaves an end
-  // empty (a wicket, an over's end, no ball left), the recompute keeps them.
-  const out = runRecompute(withCreaseOf(bundle, last), remaining, now);
+  // The crease and bowler the undone entry was recorded with (a retirement
+  // has no bowler) are the state just before it, whatever the remaining log
+  // would give: a strike or a bowler changed by hand since the ball before.
+  const out = runRecompute(bundle, remaining, now, {
+    striker: last.batsman_id ?? null,
+    nonStriker: last.non_striker_id ?? null,
+    bowler: last.bowler_id ?? null,
+  });
   // Removing the ball that closed an innings (or finished the match) reopens
   // that innings so scoring can resume from it.
   if (crossingBoundary || target.is_completed) {
@@ -1469,7 +1605,7 @@ export async function updateBall(
     });
     const out = runRecompute(bundle, balls, now);
     const after = writeRecompute(t, bundle, out, balls, now);
-    await syncIfCompleted(t, match, innings, after, now);
+    await settleAfterEdit(t, match, innings, after, sortBySeq(balls), now);
     return match;
   });
   if (!tracked) return recordState(ctx.ds, matchId);
@@ -1482,9 +1618,17 @@ export async function updateBall(
 // end_innings
 // ---------------------------------------------------------------------------
 
+/**
+ * Ends the current innings. `inningsNumber`, when given, is the innings the
+ * scorer meant: once it has ended (the last ball closed it before a queued
+ * End innings arrived) or is not the current one, nothing is done and the
+ * current state is returned, so a replayed End innings never ends the next
+ * innings. Without it (actions queued by older clients), as before.
+ */
 export async function endInnings(
   ctx: ScoringContext,
   matchId: string,
+  inningsNumber?: number | null,
 ): Promise<ScoringState> {
   await requireAdmin(ctx, matchId);
   const now = new Date().toISOString();
@@ -1494,6 +1638,13 @@ export async function endInnings(
     if (!match) throw new DbQueryError("match_not_found", "22000");
     const { all, current } = await currentInningsOf(t, match);
     await guardClientAction(t, ctx, match, current);
+    if (
+      inningsNumber != null &&
+      (current?.innings_number !== inningsNumber || current.is_completed)
+    ) {
+      // Nothing written, like an action already applied.
+      throw new ActionAlreadyApplied();
+    }
     if (!current || current.is_completed)
       throw new DbQueryError("no_open_innings", "22000");
     await applyAdvance(
@@ -1529,6 +1680,10 @@ export async function startSuperOver(
     const { all, current } = await currentInningsOf(t, match);
     await guardClientAction(t, ctx, match, current);
     if (all.length === 0) throw new DbQueryError("no_innings_found", "22000");
+    // Only from a tie: not again once one has started (a second scorer, a
+    // queued start replayed), nor while an innings is in play.
+    if (match.status !== "completed" || match.result_type !== "tie")
+      throw new DbQueryError("super_over_needs_tie", "22000");
 
     const last = all.reduce(
       (m, i) => (i.innings_number > m.innings_number ? i : m),
@@ -1609,7 +1764,8 @@ export async function recomputeInningsRpc(
 // ---------------------------------------------------------------------------
 // Ball-log edits outside record_ball: penalties, retirements, re-assigning
 // the current over's bowler. Each appends to / edits the ball log and
-// recomputes the innings, without the innings-completion check (as before).
+// recomputes the innings, then settles it as a delivery would
+// (`settleAfterEdit`: an innings now complete closes).
 // ---------------------------------------------------------------------------
 
 async function editCurrentInnings(
@@ -1648,7 +1804,7 @@ async function editCurrentInnings(
       now,
       seq === undefined ? {} : { last_ball_seq: seq },
     );
-    await syncIfCompleted(t, match, innings, after, now);
+    await settleAfterEdit(t, match, innings, after, sortBySeq(balls), now);
     return match;
   });
   if (tracked) await finishQuietly(ctx, matchId, tracked[0], tracked[1]);
@@ -1672,8 +1828,9 @@ function eventBall(
  * Penalty runs to the fielding side (Law 41.17), logged in the ball log as
  * an event carrying `penalty_team_id`:
  *
- * - when that team has already batted, in its most recent innings, whose
- *   total goes up (and with it the current target, by the same runs);
+ * - when that team has already batted in this pair of innings (the match,
+ *   or the same super over), in that innings, whose total goes up (and with
+ *   it the current target, by the same runs);
  * - otherwise in the current innings, where it adds nothing; starting that
  *   team's innings carries it into their ball log (see `openNextInnings`).
  *
@@ -1700,10 +1857,17 @@ async function awardToFieldingSide(
     if (current.team_id === args.p_team_id)
       throw new DbQueryError("invalid_input", "22000");
 
+    // Their innings in the same pair (the match, or this super over): a
+    // super over's runs never reach the main match's innings.
+    const pairStart =
+      current.innings_number % 2 === 1
+        ? current.innings_number
+        : current.innings_number - 1;
     const theirs = all
       .filter(
         (i) =>
           i.team_id === args.p_team_id &&
+          i.innings_number >= pairStart &&
           i.innings_number < current.innings_number,
       )
       .sort((a, b) => b.innings_number - a.innings_number)[0];
@@ -2150,6 +2314,8 @@ export async function setCurrentBatsmen(
     if (distinct.size >= 11 && !anyExisting) {
       throw new DbQueryError("too_many_batsmen", "22000");
     }
+    const refused = creaseChangeError(current, strikerId, nonStrikerId);
+    if (refused) throw new DbQueryError(refused, "22000");
 
     const next = battingWithCrease(batting, strikerId, nonStrikerId);
     if (!next) return;

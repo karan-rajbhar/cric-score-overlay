@@ -16,7 +16,10 @@ import {
   userIdsByEmail,
   userIdsByPhone,
 } from "../user-private";
-import { remapScorecardUserId } from "../scorecard-sync";
+import { followKey, renameFollowTarget } from "~/lib/follows/store";
+import { PLAYER_MATCHES_COLLECTION, type PlayerMatchesRow } from "../scorecard";
+import { refreshLiveScorecards, remapScorecardUserId } from "../scorecard-sync";
+import { runScoringTransaction } from "../scoring/tx";
 import { isClubAdmin, isMatchAdmin } from "./auth-helpers";
 
 export const RESERVED_USERNAMES = new Set([
@@ -184,6 +187,14 @@ export async function checkUsernameAvailable(
   return { available: true, username: norm };
 }
 
+/**
+ * `usernames/{handle}`: the document a username save claims, in the same
+ * transaction as the profile write, so two saves of one handle contend on
+ * it and only one commits. Whether a handle is taken is still decided by
+ * the profiles holding it (handles from before claims have none).
+ */
+export const USERNAMES_COLLECTION = "usernames";
+
 export async function updateOwnUsername(
   ds: DataSource,
   uid: string | null,
@@ -193,10 +204,25 @@ export async function updateOwnUsername(
   const norm = (username ?? "").trim().toLowerCase();
   const check = await checkUsernameAvailable(ds, norm, uid);
   if (!check.available) return { ok: false, error: check.error };
-  await ds.update("users", uid, {
-    username: norm,
-    updated_at: new Date().toISOString(),
+  const now = new Date().toISOString();
+  const claimed = await runScoringTransaction({ ds }, async (t) => {
+    const [me, , holders] = await Promise.all([
+      t.getById("users", uid),
+      t.getById(USERNAMES_COLLECTION, norm),
+      t.query("users", [{ field: "username", op: "==", value: norm }]),
+    ]);
+    if (!me) throw new DbQueryError("player_not_found", "22000");
+    if (holders.some((u) => u.id !== uid)) return false;
+    if (typeof me.username === "string" && me.username !== norm) {
+      t.delete(USERNAMES_COLLECTION, me.username);
+    }
+    t.put(USERNAMES_COLLECTION, norm, { user_id: uid, created_at: now });
+    t.patch("users", uid, { username: norm, updated_at: now });
+    return true;
   });
+  if (!claimed) return { ok: false, error: "This username is already taken" };
+  // Through the data source too: search keys and name copies follow it.
+  await ds.update("users", uid, { username: norm, updated_at: now });
   return { ok: true, username: norm };
 }
 
@@ -211,7 +237,7 @@ export async function remapUserId(
 ): Promise<void> {
   if (oldId === newId) return;
   // Nested ids first: it finds the matches through the old team_players.
-  await remapScorecardUserId(ds, oldId, newId);
+  const matches = await remapScorecardUserId(ds, oldId, newId);
   await rewriteUserReferences(ds, oldId, newId);
   const old = await ds.getById("users", oldId);
   if (old) {
@@ -221,6 +247,8 @@ export async function remapUserId(
     await ds.delete("users", oldId);
   }
   await moveUserPrivate(ds, oldId, newId);
+  // Once the profile has its new id, so the scorecards name the player.
+  await refreshLiveScorecards(ds, matches);
 }
 
 /** Rows naming a person once per group (a squad, a club's members). */
@@ -230,14 +258,16 @@ const ONE_ROW_PER_USER: Partial<Record<string, string>> = {
 };
 
 /**
- * Points everything in `USER_REFERENCES` at `newId`. `merge`: `newId` is an
- * existing player, so a squad or club holding both keeps one row.
+ * Points everything in `USER_REFERENCES`, and follows of the player, at
+ * `newId`. `merge`: `newId` is an existing player, so a squad or club
+ * holding both keeps one row. `except`: a squad row (team_players id) the
+ * caller moves itself.
  */
 export async function rewriteUserReferences(
   ds: DataSource,
   oldId: string,
   newId: string,
-  { merge = false }: { merge?: boolean } = {},
+  { merge = false, except }: { merge?: boolean; except?: string } = {},
 ): Promise<void> {
   for (const ref of USER_REFERENCES) {
     if (ref.array) {
@@ -254,9 +284,9 @@ export async function rewriteUserReferences(
       }
       continue;
     }
-    const rows = await ds.query(ref.table, [
-      { field: ref.column, op: "==", value: oldId },
-    ]);
+    const rows = (
+      await ds.query(ref.table, [{ field: ref.column, op: "==", value: oldId }])
+    ).filter((row) => ref.table !== "team_players" || row.id !== except);
     const group = merge ? ONE_ROW_PER_USER[ref.table] : undefined;
     for (const row of rows) {
       if (group && ref.column === "user_id") {
@@ -276,6 +306,11 @@ export async function rewriteUserReferences(
       await ds.update(ref.table, row.id, { [ref.column]: newId });
     }
   }
+  await renameFollowTarget(
+    ds,
+    followKey("player", oldId),
+    followKey("player", newId),
+  );
 }
 
 function buildUserDoc(values: Partial<UsersRow> & { id: string }): Doc {
@@ -443,32 +478,143 @@ async function scoresMatchOf(
 
 /**
  * Who may add players to a team: its creator, captain or vice-captain, a
- * club admin, or (with `matchId`) a scorer of a match it plays.
+ * club admin, or (with `matchId`) a scorer of a match it plays. Null: no
+ * such team.
  */
+async function mayAddPlayers(
+  ds: DataSource,
+  callerId: string,
+  teamId: string,
+  matchId: string | null | undefined,
+): Promise<boolean | null> {
+  const team = (await ds.getById(
+    "teams",
+    teamId,
+  )) as unknown as TeamsRow | null;
+  if (!team) return null;
+  return (
+    team.created_by === callerId ||
+    team.captain_id === callerId ||
+    team.vice_captain_id === callerId ||
+    // Before the club: from the scoring screen this is the usual answer.
+    (await scoresMatchOf(ds, matchId, teamId, callerId)) ||
+    (await isClubAdmin(ds, team.club_id, callerId))
+  );
+}
+
 export async function assertMayAddPlayers(
   ds: DataSource,
   callerId: string,
   teamId: string,
   matchId: string | null | undefined,
 ): Promise<void> {
-  const team = (await ds.getById(
-    "teams",
-    teamId,
-  )) as unknown as TeamsRow | null;
-  if (!team) throw new DbQueryError("team_not_found", "22000");
-  const authorised =
-    team.created_by === callerId ||
-    team.captain_id === callerId ||
-    team.vice_captain_id === callerId ||
-    // Before the club: from the scoring screen this is the usual answer.
-    (await scoresMatchOf(ds, matchId, teamId, callerId)) ||
-    (await isClubAdmin(ds, team.club_id, callerId));
-  if (!authorised) {
+  const may = await mayAddPlayers(ds, callerId, teamId, matchId);
+  if (may === null) throw new DbQueryError("team_not_found", "22000");
+  if (!may) {
     throw new DbQueryError(
       "not_authorized: Not authorized to add players to this team",
       "42501",
     );
   }
+}
+
+/** Refusals of `assertMayActForPlaceholder`, for the actions to word. */
+export const PLACEHOLDER_OF_OTHER_TEAM = "placeholder_of_other_team";
+export const PLACEHOLDER_IN_OTHER_TEAMS = "placeholder_in_other_teams";
+
+/** The teams whose squads have the player. */
+async function squadTeamsOf(ds: DataSource, userId: string): Promise<string[]> {
+  const rows = await ds.query("team_players", [
+    { field: "user_id", op: "==", value: userId },
+  ]);
+  return Array.from(new Set(rows.map((r) => String(r.team_id))));
+}
+
+/**
+ * The teams a player has played for, from their match records: the
+ * batting side of each innings they batted in, the other side of each they
+ * bowled in (fielding alone names no innings). Reads their records, then
+ * those innings and matches.
+ */
+async function teamsPlayedFor(ds: DataSource, userId: string): Promise<string[]> {
+  const records = (await ds.query(PLAYER_MATCHES_COLLECTION, [
+    { field: "user_id", op: "==", value: userId },
+  ])) as unknown as PlayerMatchesRow[];
+  const batted = new Set(records.flatMap((r) => r.batting ?? []).map((b) => b.innings_id));
+  const bowled = new Set(records.flatMap((r) => r.bowling ?? []).map((b) => b.innings_id));
+  if (!batted.size && !bowled.size) return [];
+  const [innings, matches] = await Promise.all([
+    ds.getByIds("innings", [...new Set([...batted, ...bowled])]),
+    ds.getByIds("matches", [...new Set(records.map((r) => r.match_id))]),
+  ]);
+  const sides = new Map(matches.map((m) => [m.id, [m.team1_id, m.team2_id]]));
+  const teams = new Set<unknown>();
+  for (const inn of innings) {
+    if (batted.has(inn.id)) teams.add(inn.team_id);
+    if (bowled.has(inn.id)) {
+      teams.add(sides.get(String(inn.match_id))?.find((t) => t !== inn.team_id));
+    }
+  }
+  return [...teams].filter((t): t is string => typeof t === "string" && !!t);
+}
+
+/** Whether the caller may add players to any of `teams`. */
+async function runsAnyOf(
+  ds: DataSource,
+  callerId: string,
+  teams: string[],
+  matchId: string | null,
+): Promise<boolean> {
+  const say = await Promise.all(
+    teams.map((teamId) => mayAddPlayers(ds, callerId, teamId, matchId)),
+  );
+  return say.includes(true);
+}
+
+/**
+ * Authority over a placeholder (a player with no account) comes from the
+ * teams that already have it, never from a squad anyone may add it to:
+ * handing its records or identity to someone (a merge) takes every team
+ * whose squad has it (`every`); adding it to another squad takes one of
+ * them, or else a team it has played for (one that took it out of the
+ * squad by mistake, say). `known`: a team the caller is known to run.
+ */
+export async function assertMayActForPlaceholder(
+  ds: DataSource,
+  callerId: string,
+  userId: string,
+  {
+    every,
+    known,
+    matchId = null,
+  }: { every: boolean; known: string; matchId?: string | null },
+): Promise<void> {
+  const teams = await squadTeamsOf(ds, userId);
+  const others = teams.filter((teamId) => teamId !== known);
+  if (every) {
+    const say = await Promise.all(
+      others.map((teamId) => mayAddPlayers(ds, callerId, teamId, null)),
+    );
+    // A team since deleted (null) takes no say.
+    if (!say.includes(false)) return;
+    throw new DbQueryError(
+      `not_authorized: ${PLACEHOLDER_IN_OTHER_TEAMS}`,
+      "42501",
+    );
+  }
+  if (teams.includes(known) || (await runsAnyOf(ds, callerId, teams, matchId))) {
+    return;
+  }
+  const played = (await teamsPlayedFor(ds, userId)).filter(
+    (teamId) => !teams.includes(teamId),
+  );
+  if (
+    played.includes(known) ||
+    (await runsAnyOf(ds, callerId, played, matchId))
+  ) {
+    return;
+  }
+  throw new DbQueryError(`not_authorized: ${PLACEHOLDER_OF_OTHER_TEAM}`, "42501");
 }
 
 export async function createTeamPlayer(
@@ -537,7 +683,8 @@ export async function createTeamPlayer(
 /**
  * Adds a registered player to a team's squad: the scorer picks someone who
  * already has a profile instead of creating a second one. The same people
- * may do it as `createTeamPlayer`.
+ * may do it as `createTeamPlayer`; a placeholder, only someone who may add
+ * players to a team that already has it.
  */
 export async function addTeamPlayer(
   ds: DataSource,
@@ -554,6 +701,13 @@ export async function addTeamPlayer(
     userId,
   )) as unknown as UsersRow | null;
   if (!user) throw new DbQueryError("player_not_found", "22000");
+  if (user.is_placeholder === true) {
+    await assertMayActForPlaceholder(ds, callerId, userId, {
+      every: false,
+      known: teamId,
+      matchId,
+    });
+  }
   const already = await ds.query(
     "team_players",
     [

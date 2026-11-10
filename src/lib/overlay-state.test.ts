@@ -8,6 +8,7 @@ import {
   manualAutoRules,
   overlayPatchOf,
   parseOverlayState,
+  sponsorsFromLines,
   sceneOf,
   snapshotsOf,
   strapOnAir,
@@ -23,7 +24,7 @@ describe("overlayPatchOf", () => {
     });
     expect(
       overlayPatchOf({ type: "SET_BROADCAST_VIEW", broadcastView: null }, NOW),
-    ).toEqual({ scene: { view: null } });
+    ).toEqual({ scene: { view: null }, cleared: { view: NOW } });
     expect(
       overlayPatchOf({ type: "SHOW_CARD", card: "scorecard" }, NOW),
     ).toEqual({ scene: { card: "scorecard" } });
@@ -83,7 +84,40 @@ describe("overlayPatchOf", () => {
       scene: { view: null, card: "none", hold: null },
       strap: null,
       cue: null,
+      // The automatic ones go too.
+      cleared: { view: NOW, card: NOW, strap: NOW, sting: NOW },
     });
+  });
+
+  it("stamps the layer a Take off clears, so automatic graphics go too", () => {
+    expect(overlayPatchOf({ type: "HIDE_CARD" }, NOW)).toEqual({
+      scene: { card: "none" },
+      cleared: { card: NOW },
+    });
+    expect(overlayPatchOf({ type: "HIDE_STRAP" }, NOW)).toEqual({
+      strap: null,
+      cleared: { strap: NOW },
+    });
+    // Another view on air is not a take off.
+    expect(
+      overlayPatchOf({ type: "SET_BROADCAST_VIEW", broadcastView: "14" }, NOW),
+    ).toEqual({ scene: { view: "14", card: "none" } });
+    let doc = applyOverlayPatch(
+      null,
+      overlayPatchOf({ type: "HIDE_CARD" }, NOW)!,
+      null,
+      NOW,
+    );
+    doc = applyOverlayPatch(
+      doc,
+      overlayPatchOf({ type: "HIDE_STRAP" }, NOW + 1)!,
+      null,
+      NOW + 1,
+    );
+    expect(doc.cleared).toEqual({ card: NOW, strap: NOW + 1 });
+    expect(parseOverlayState(JSON.parse(JSON.stringify(doc)))?.cleared).toEqual(
+      doc.cleared,
+    );
   });
 
   it("refuses what the overlay would not know", () => {
@@ -156,6 +190,27 @@ describe("the stored state", () => {
     expect(parsed?.scene).toEqual({ theme: "standard", card: "toss" });
     expect(parsed?.cue).toBeNull();
     expect(parseOverlayState(null)).toBeNull();
+  });
+});
+
+describe("sponsorsFromLines", () => {
+  it("keeps each named sponsor whole and gives new lines unused ids", () => {
+    const onAir = [
+      { id: "s1", name: "Smith Builders", logoUrl: "https://cdn.example.com/a.png" },
+      { id: "s2", name: "Riverside Dairy", tagline: "Fresh daily" },
+    ];
+    expect(
+      sponsorsFromLines(" riverside dairy \n\nNew One\nSmith Builders\n", onAir),
+    ).toEqual([
+      { id: "s2", name: "Riverside Dairy", tagline: "Fresh daily" },
+      { id: "s3", name: "New One" },
+      { id: "s1", name: "Smith Builders", logoUrl: "https://cdn.example.com/a.png" },
+    ]);
+    // A name twice: the second line is a sponsor of its own.
+    expect(
+      sponsorsFromLines("Smith Builders\nSmith Builders", onAir).map((s) => s.id),
+    ).toEqual(["s1", "s2"]);
+    expect(sponsorsFromLines("", onAir)).toEqual([]);
   });
 });
 

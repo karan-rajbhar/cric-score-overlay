@@ -100,7 +100,12 @@ export interface QueuedSetBowler extends QueuedActionBase {
 
 export interface QueuedEndInnings extends QueuedActionBase {
   type: "endInnings";
-  payload: Record<string, never>;
+  /**
+   * `inningsNumber`: the innings the scorer ended. Once that innings has
+   * ended (the last ball closed it) the server does nothing, so a queued
+   * End innings never ends the next one. Absent in older queues.
+   */
+  payload: { inningsNumber?: number };
 }
 
 export interface QueuedUndoLastBall extends QueuedActionBase {
@@ -359,16 +364,26 @@ export function enqueueAction(
   type: QueuedActionType,
   payload: QueuedAction["payload"],
   queueId: string = generateQueueId(),
-  options?: { instant?: boolean },
+  options?: {
+    instant?: boolean;
+    /**
+     * Already sent once with no reply (the server may have applied it):
+     * the next send is marked a resend, and it is never taken back as if
+     * the server had not seen it.
+     */
+    sent?: boolean;
+  },
 ): QueuedAction {
   const current = getPendingActions(matchId);
+  const now = Date.now();
   const action = {
     queueId,
     matchId,
     type,
     payload,
-    enqueuedAt: Date.now(),
+    enqueuedAt: now,
     ...(options?.instant ? { instant: true } : {}),
+    ...(options?.sent ? { sentAt: now } : {}),
   } as QueuedAction;
 
   current.push(action);
@@ -604,12 +619,14 @@ export function hasPendingBalls(matchId: string): boolean {
 export function enqueuePendingBall(
   params: PendingBallParams,
   queueId?: string,
+  options?: { sent?: boolean },
 ): QueuedBall {
   const action = enqueueAction(
     params.matchId,
     "recordBall",
     params,
     queueId,
+    options,
   ) as QueuedRecordBall;
   return {
     ...params,
@@ -931,8 +948,13 @@ async function flushSequentially(
 
     if (!out.ok) {
       if (out.status >= 500) {
+        // A server error (a rollout, a cold start, the route's own 500)
+        // says nothing about the actions, and some may have been applied:
+        // like no reply, the queue stays whole and in order, to be re-sent.
         failed++;
-        if (recordFailure(matchId, head, out.message, maxRetries)) continue;
+        recordFailure(matchId, head, out.message, maxRetries, {
+          noReply: true,
+        });
         break;
       }
       // The batch itself was refused (nothing applied): keep the queue

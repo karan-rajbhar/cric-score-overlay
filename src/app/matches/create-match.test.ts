@@ -93,3 +93,117 @@ describe("createMatch", () => {
     expect(res.error).toMatch(/opponent/i);
   });
 });
+
+describe("createMatch in someone else's tournament", () => {
+  const confirm = (teamId: string) =>
+    ds.insert("tournament_registrations", [
+      {
+        id: `reg-${teamId}`,
+        tournament_id: "tour",
+        team_id: teamId,
+        status: "confirmed",
+      },
+    ]);
+
+  beforeEach(async () => {
+    await ds.insert("tournaments", [
+      {
+        id: "tour",
+        name: "Summer Cup",
+        created_by: "someone-else",
+        club_id: null,
+      },
+    ]);
+  });
+
+  it("refuses a team that is not confirmed against one that is", async () => {
+    await confirm("t3");
+    const res = await createMatch({
+      ...base,
+      team1Id: "t1",
+      team2Id: "t3",
+      tournamentId: "tour",
+    });
+    expect(res.data).toBeNull();
+    expect(res.error).toBe("Team 1 is not registered in this tournament.");
+    expect(await ds.query("matches", [])).toHaveLength(0);
+  });
+
+  it("lets a confirmed team's captain schedule a match against another", async () => {
+    await confirm("t1");
+    await confirm("t3");
+    const res = await createMatch({
+      ...base,
+      team1Id: "t1",
+      team2Id: "t3",
+      tournamentId: "tour",
+    });
+    expect(res.error).toBeNull();
+    expect(res.data).toMatchObject({ tournament_id: "tour", created_by: "u1" });
+  });
+});
+
+describe("createMatch in a club's tournament", () => {
+  beforeEach(async () => {
+    await ds.insert("clubs", [
+      { id: "c1", name: "Riverside CC", owner_id: "u1" },
+      { id: "c2", name: "Hillside CC", owner_id: "u1" },
+    ]);
+    await ds.insert("tournaments", [
+      {
+        id: "league",
+        name: "Club league",
+        created_by: "u1",
+        club_id: "c1",
+        season_id: "s2026",
+        last_man_stands: true,
+        golden_ball: true,
+      },
+    ]);
+    await ds.insert("tournament_registrations", [
+      { id: "r1", tournament_id: "league", team_id: "t1", status: "confirmed" },
+      { id: "r2", tournament_id: "league", team_id: "t2", status: "confirmed" },
+    ]);
+  });
+
+  it("takes the tournament's club, season and special rules", async () => {
+    const res = await createMatch({
+      ...base,
+      tournamentId: "league",
+      clubId: "c2",
+      seasonId: "other-season",
+      lastManStands: false,
+      goldenBall: false,
+    });
+    expect(res.error).toBeNull();
+    expect(await ds.getById("matches", res.data!.id as string)).toMatchObject({
+      tournament_id: "league",
+      club_id: "c1",
+      season_id: "s2026",
+      last_man_stands: true,
+      golden_ball: true,
+    });
+  });
+
+  it("stores no club for a tournament that has none", async () => {
+    await ds.update("tournaments", "league", {
+      club_id: null,
+      season_id: null,
+      last_man_stands: null,
+      golden_ball: null,
+    });
+    const res = await createMatch({
+      ...base,
+      tournamentId: "league",
+      clubId: "c2",
+      lastManStands: true,
+    });
+    expect(res.error).toBeNull();
+    expect(await ds.getById("matches", res.data!.id as string)).toMatchObject({
+      club_id: null,
+      season_id: null,
+      last_man_stands: false,
+      golden_ball: false,
+    });
+  });
+});

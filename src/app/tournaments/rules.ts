@@ -3,6 +3,30 @@
  * the "use server" actions file exports only actions).
  */
 
+import {
+  tournamentRules,
+  type TournamentRulesSource,
+} from "~/app/matches/create/match-setup";
+
+/**
+ * The format, overs and wickets of the fixtures a tournament's generators
+ * create: what the match wizard takes from the tournament
+ * (`tournamentRules`, which reads `custom_overs` on older tournaments),
+ * else the wizard's own T20 with 10 wickets.
+ */
+export function fixtureRulesOf(t: TournamentRulesSource): {
+  match_format: string;
+  overs_per_innings: number;
+  wickets_per_innings: number;
+} {
+  const rules = tournamentRules(t);
+  return {
+    match_format: rules.format ?? "T20",
+    overs_per_innings: rules.overs ?? 20,
+    wickets_per_innings: rules.wickets ?? 10,
+  };
+}
+
 const MATCH_FORMATS = new Set(["T20", "T10", "ODI", "Custom"]);
 
 /**
@@ -45,3 +69,36 @@ export const TOURNAMENT_STATUSES: ReadonlySet<string> = new Set([
   "ongoing",
   "completed",
 ]);
+
+/** Whether a tournament is over: it takes no new teams or fixtures. */
+export function isTournamentOver(status: string | null | undefined): boolean {
+  return status === "completed" || status === "cancelled";
+}
+
+/** The formats the tournament forms offer. */
+const TOURNAMENT_FORMATS: ReadonlySet<string> = new Set([
+  "league",
+  "knockout",
+  "mixed",
+  "round_robin",
+]);
+
+/** The format and dates a tournament form sends, or what is wrong with them. */
+export function tournamentShapeFrom(formData: FormData):
+  | {
+      tournament_format: string;
+      start_date: string | null;
+      end_date: string | null;
+    }
+  | { error: string } {
+  const format = (formData.get("tournament_format") as string) || "league";
+  if (!TOURNAMENT_FORMATS.has(format)) {
+    return { error: "Unknown tournament format" };
+  }
+  const start = (formData.get("start_date") as string) || null;
+  const end = (formData.get("end_date") as string) || null;
+  if (start && end && end < start) {
+    return { error: "The end date is before the start date" };
+  }
+  return { tournament_format: format, start_date: start, end_date: end };
+}
