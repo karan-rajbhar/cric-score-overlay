@@ -39,8 +39,11 @@ export async function ensureUserProfile(
 
     if (existingUser) return;
 
-    // 3. Re-map a profile that was created ahead of signup (seed, invite).
-    //    Emails live in server-only users_private, keyed by the same id.
+    // 3. A profile created ahead of signup (seed, invite) is re-mapped by
+    //    the profile routine alone, which moves every reference with it
+    //    (`remapUserId`); changing its id here would leave them behind. It
+    //    runs again before the next mutation. Emails live in server-only
+    //    users_private, keyed by the same id.
     const email = user.email?.toLowerCase() ?? null;
     if (email) {
       const { data: byEmail } = await client
@@ -48,19 +51,7 @@ export async function ensureUserProfile(
         .select("id")
         .eq("email", email)
         .maybeSingle();
-
-      if (byEmail) {
-        const now = new Date().toISOString();
-        await client
-          .from("users")
-          .update({ id: user.id, updated_at: now })
-          .eq("id", byEmail.id);
-        await client
-          .from("users_private")
-          .update({ id: user.id, updated_at: now })
-          .eq("id", byEmail.id);
-        return;
-      }
+      if (byEmail) return;
     }
 
     // 4. Create a fresh profile.

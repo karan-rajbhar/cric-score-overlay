@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
+
+vi.mock("server-only", () => ({}));
+
 import { ensureUserProfile } from "./user-profile";
 import type { AppUser } from "./auth-types";
+import { MemoryDataSource } from "./datasource";
+import { serverClientFor } from "./server-client";
 
 type Client = Parameters<typeof ensureUserProfile>[0];
 
@@ -53,40 +58,36 @@ describe("ensureUserProfile", () => {
     expect(mockSelect).toHaveBeenCalledWith("id");
   });
 
-  it("re-maps the profile id when the email already exists under another id", async () => {
-    const mockUpdateEq = vi.fn().mockResolvedValue({ error: null });
-    const mockUpdate = vi.fn().mockReturnValue({ eq: mockUpdateEq });
+  it("leaves a profile made ahead of sign-up for the profile routine to re-map", async () => {
+    // The routine stopped half way through re-mapping a placeholder: the
+    // squad names the account already, the profile is still the old one.
+    const ds = new MemoryDataSource({
+      users: [{ id: "old-seeded-id", full_name: "Ravi", is_placeholder: true }],
+      users_private: [{ id: "old-seeded-id", email: "seeded@example.com" }],
+      teams: [{ id: "t1", name: "Lions", created_by: "cap" }],
+      team_players: [{ id: "tp", team_id: "t1", user_id: "auth-uuid-new" }],
+    });
+    const user = baseUser({ id: "auth-uuid-new", email: "seeded@example.com" });
+    const server = serverClientFor({ ds, db: null, getUser: async () => user });
+    const failing = {
+      ...server,
+      rpc: async () => ({ data: null, error: { message: "deadline exceeded" } }),
+    };
 
-    let selectCallCount = 0;
-    const mockFrom = vi.fn().mockImplementation(() => ({
-      select: vi.fn().mockImplementation(() => ({
-        eq: vi.fn().mockImplementation(() => ({
-          maybeSingle: vi.fn().mockImplementation(async () => {
-            selectCallCount++;
-            if (selectCallCount === 1) return { data: null, error: null };
-            return { data: { id: "old-seeded-id" }, error: null };
-          }),
-        })),
-      })),
-      update: mockUpdate,
-    }));
-    const client = {
-      rpc: vi.fn().mockResolvedValue({ error: { message: "fail" } }),
-      from: mockFrom,
-    } as unknown as Client;
+    await ensureUserProfile(failing, user);
+    // Nothing re-keyed by hand (the references would not follow).
+    for (const table of ["users", "users_private"]) {
+      expect(ds.all(table).map((d) => d.id)).toEqual(["old-seeded-id"]);
+    }
 
-    await ensureUserProfile(
-      client,
-      baseUser({ id: "auth-uuid-new", email: "seeded@example.com" }),
-    );
-
-    expect(mockUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ id: "auth-uuid-new" }),
-    );
-    expect(mockUpdateEq).toHaveBeenCalledWith("id", "old-seeded-id");
-    // The email is looked up in, and moved with, users_private.
-    expect(mockFrom).toHaveBeenCalledWith("users_private");
-    expect(mockUpdate).toHaveBeenCalledTimes(2);
+    // The routine, next time, finishes the re-map.
+    await ensureUserProfile(server, user);
+    expect(ds.all("users").map((d) => [d.id, d.full_name])).toEqual([
+      ["auth-uuid-new", "Ravi"],
+    ]);
+    expect(ds.all("users_private")).toMatchObject([
+      { id: "auth-uuid-new", email: "seeded@example.com" },
+    ]);
   });
 
   it("inserts a new profile if neither id nor email exists", async () => {
