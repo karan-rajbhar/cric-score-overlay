@@ -58,6 +58,7 @@ import {
   inningsNo,
   projectedTotals,
   roleMark,
+  summaryInningsOf,
   partnershipOf,
   playerTeamOf,
 } from "../shared/derive";
@@ -723,13 +724,9 @@ export function SummaryCard(p: OverlayElementProps["matchSummary"] & { breakCard
   const s = p.state;
   const tones = matchTones(s);
   const bpo = ballsPerOverOf(p.match);
-  const shown = p.innings
-    .filter((i) => i.innings_number <= (p.breakCard ? 1 : 2))
-    .sort((a, b) => a.innings_number - b.innings_number);
+  const { shown, target } = summaryInningsOf(s, p.innings, p.breakCard);
   if (!shown.length) return null;
-  const first = inningsNo(p.innings, 1);
   const lead = sideOfInnings(s, p.match, shown[0]!);
-  const target = first ? first.total_runs + 1 : null;
   const aside = p.breakCard ? (
     target !== null && (
       <span className="block text-right leading-none">

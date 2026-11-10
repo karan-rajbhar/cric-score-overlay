@@ -27,11 +27,13 @@ export {
 export {
   ballsPerOverOf,
   overlayPhaseOf,
+  oversLimitOf,
   sidesOf,
   tossLineOf,
   type OverlayPhase,
   type Side,
 } from "../../score-bug";
+export { inningsBreakOf, summaryInningsOf } from "../../scorecard-cards";
 export { strapText, type StrapText } from "../../strap-views";
 
 // ---- balls and overs ----------------------------------------------------------

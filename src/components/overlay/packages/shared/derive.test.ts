@@ -20,10 +20,12 @@ import {
   estimateOf,
   initialsOf,
   inningsBalls,
+  inningsBreakOf,
   inningsLeaders,
   monogramOf,
   overBall,
   overSlotsLeft,
+  oversLimitOf,
   partnershipOf,
   playerTeamOf,
   projectedTotals,
@@ -48,6 +50,32 @@ describe("balls", () => {
     // The chase's own figure first, else the limit less the balls bowled.
     expect(ballsRemaining(live({ balls_remaining: 8 }))).toBe(8);
     expect(ballsRemaining(live({ balls_remaining: null, total_balls: 74 }))).toBe(46);
+  });
+});
+
+describe("the innings and its limit", () => {
+  const innings = DEMO_MATCH_DETAILS.innings!;
+  const first = innings.find((i) => i.innings_number === 1)!;
+  it("counts a DLS revision's overs while it is the current innings", () => {
+    expect(oversLimitOf(live({ overs_per_innings: 20 }))).toBe(20);
+    expect(oversLimitOf(live({ overs_per_innings: 20, dls_overs: 12 }))).toBe(12);
+    expect(oversLimitOf(live({ innings_number: 3, dls_overs: 12 }))).toBe(1);
+  });
+
+  it("breaks on the innings just completed, with the chase's own target", () => {
+    expect(inningsBreakOf(DEMO_BREAK_STATE, innings)).toEqual({
+      innings: first,
+      target: DEMO_BREAK_STATE.target_runs,
+    });
+    // A DLS target.
+    expect(inningsBreakOf(live({ target_runs: 98, dls_overs: 12 }), innings)?.target).toBe(98);
+    // No target in the row: the first innings plus one.
+    expect(inningsBreakOf(live({ target_runs: null }), innings)?.target).toBe(first.total_runs + 1);
+    // Before a super over's chase: the super over just bowled.
+    const so = { ...first, id: "so-1", innings_number: 3, total_runs: 11 };
+    expect(
+      inningsBreakOf(live({ innings_number: 4, target_runs: 12 }), [...innings, so]),
+    ).toEqual({ innings: so, target: 12 });
   });
 });
 

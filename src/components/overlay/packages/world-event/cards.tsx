@@ -33,7 +33,7 @@ import {
   type XiEntry,
 } from "./data";
 import { standShares } from "./lower-thirds";
-import { chaseLine, inningsLeaders } from "../shared/derive";
+import { chaseLine, inningsBreakOf, inningsLeaders, oversLimitOf } from "../shared/derive";
 import {
   Balls,
   BUG_HEIGHT,
@@ -648,13 +648,13 @@ export function WorldEventMatchSummary(p: OverlayElementProps["matchSummary"]) {
 }
 
 export function WorldEventInningsBreak(p: OverlayElementProps["inningsBreak"]) {
-  const first = mainInnings(p.innings).find((i) => i.innings_number === 1);
-  if (!first) return null;
+  const brk = inningsBreakOf(p.state, p.innings);
+  if (!brk || brk.target === null) return null;
+  const { innings: first, target } = brk;
   const batFirst = teamOfInnings(p.state, first, p.match);
   const chasing = teamsOf(p.state)[batFirst.n === 1 ? 1 : 0]!;
-  const target = p.state.target_runs ?? first.total_runs + 1;
-  const overs = p.state.dls_overs ?? p.state.overs_per_innings;
-  const rrr = overs ? fixed2((target * 6) / (overs * 6)) : null;
+  const overs = oversLimitOf(p.state);
+  const rrr = overs ? fixed2(target / overs) : null;
   return (
     <CardFrame
       state={p.state}
@@ -678,7 +678,7 @@ export function WorldEventInningsBreak(p: OverlayElementProps["inningsBreak"]) {
           <span className="we-label we-muted">to win</span>
           {overs && (
             <span className="we-label ml-auto">
-              {overs} overs{rrr ? `  ·  ${rrr} an over` : ""}
+              {overs} {overs === 1 ? "over" : "overs"}{rrr ? `  ·  ${rrr} an over` : ""}
             </span>
           )}
         </span>

@@ -112,10 +112,13 @@ export function sidesOf(state: LiveMatchState): {
 
 const codeOfSide = (side: Side) => teamCode(side.short, side.name);
 
-/** Overs per innings shown after the score (1 in a super over). */
-function oversLimitOf(state: LiveMatchState): number | null {
+/**
+ * Overs the innings may last, shown after the score: a DLS revision's
+ * while it is the current innings, 1 in a super over.
+ */
+export function oversLimitOf(state: LiveMatchState): number | null {
   if ((state.innings_number ?? 1) >= 3) return 1;
-  return state.overs_per_innings ?? null;
+  return state.dls_overs ?? state.overs_per_innings ?? null;
 }
 
 /** Legal deliveries per over (live_state does not carry it; the match does). */

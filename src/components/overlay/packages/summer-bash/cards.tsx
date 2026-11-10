@@ -23,8 +23,8 @@ import {
   teamCode,
 } from "../../overlay-kit";
 import { playingXi, tossWinnerName } from "../../presentation-card-views";
-import { ballsPerOverOf } from "../../score-bug";
-import { inningsLabel, inningsTeamName, scoreOf } from "../../scorecard-cards";
+import { ballsPerOverOf, oversLimitOf } from "../../score-bug";
+import { inningsLabel, inningsTeamName, scoreOf, summaryInningsOf } from "../../scorecard-cards";
 import type {
   FixtureSnapshot,
   LeaderboardSnapshot,
@@ -860,17 +860,17 @@ function SummaryCard({
   innings: Innings[];
   breakCard: boolean;
 }) {
-  const shown = innings.filter((i) => i.innings_number <= (breakCard ? 1 : 2));
+  const { shown, target } = summaryInningsOf(state, innings, breakCard);
   if (!shown.length) return null;
-  const first = innings.find((i) => i.innings_number === 1);
+  const first = breakCard ? shown[0] : undefined;
   const chase =
     !breakCard && !state.result_description && state.runs_needed !== null && state.balls_remaining !== null;
   const aside = breakCard ? (
-    first ? (
+    target !== null ? (
       <span style={neonStyle("yellow")} className="text-right">
         <span className={cn(s.label, "block text-[1rem] text-[color:var(--sb-yellow)]")}>Target</span>
         <span className={cn(s.figures, "block text-[3.5rem] leading-none text-[color:var(--sb-yellow)]")} style={{ fontWeight: 800, textShadow: "0 0 20px var(--sb-yellow-haze)" }}>
-          {first.total_runs + 1}
+          {target}
         </span>
       </span>
     ) : null
@@ -885,7 +885,7 @@ function SummaryCard({
       <Card
         side={breakCard ? (firstSide?.side ?? null) : sideOfName(state, state.winning_team_name)}
         width={1400}
-        eyebrow={eyebrowOf(state, breakCard ? "1st innings" : "Match summary")}
+        eyebrow={eyebrowOf(state, breakCard ? inningsLabel(first?.innings_number ?? 1) : "Match summary")}
         title={
           breakCard
             ? "Innings break"
@@ -896,17 +896,17 @@ function SummaryCard({
         {shown.map((inn, i) => (
           <InningsBlock key={inn.id} state={state} match={match} innings={inn} index={i} />
         ))}
-        {breakCard && first && (
+        {breakCard && first && target !== null && (
           <p className={cn(s.rise, s.semi, "mt-2 text-[1.375rem] font-bold text-[color:var(--sb-mist)]")} style={delay(600)}>
             {(() => {
-              const chasing = innings.find((i) => i.innings_number === 2);
+              const chasing = innings.find((i) => i.innings_number === first.innings_number + 1);
               const name = chasing
                 ? inningsSide(state, chasing, match).name
                 : firstSide?.name === state.team1_name
                   ? state.team2_name
                   : state.team1_name;
-              const overs = state.dls_overs ?? state.overs_per_innings;
-              return `${name ?? "The chase"} need ${first.total_runs + 1} to win${overs ? ` from ${overs} overs` : ""}`;
+              const overs = oversLimitOf(state);
+              return `${name ?? "The chase"} need ${target} to win${overs ? ` from ${overs} ${overs === 1 ? "over" : "overs"}` : ""}`;
             })()}
           </p>
         )}

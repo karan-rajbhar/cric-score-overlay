@@ -59,6 +59,7 @@ import {
   inningsTitle,
   isMultiInnings,
   ordinal,
+  oversLimitOf,
   partnershipRows,
   plural,
   scoreText,
@@ -1228,6 +1229,8 @@ export function InningsBreakCard(p: P<"inningsBreak">) {
   const target = state.target_runs ?? (n === 1 && !isMultiInnings(state.match_format) ? done.total_runs + 1 : null);
   const standing = standingOf(state, match);
   const next = sidesOf(state).batting.name;
+  // The chase's overs (a DLS revision's, one in a super over).
+  const overs = oversLimitOf(state);
   return (
     <Card label="innings-break">
       <CardShell
@@ -1255,10 +1258,10 @@ export function InningsBreakCard(p: P<"inningsBreak">) {
               <span className="italic" style={{ fontFamily: SERIF }}>
                 {next} need {target} to win
               </span>
-              {!isMultiInnings(state.match_format) && state.overs_per_innings ? (
+              {overs ? (
                 <span style={{ color: "rgba(243,236,218,0.75)" }}>
                   {" "}
-                  from {state.overs_per_innings} overs ({(target / state.overs_per_innings).toFixed(2)} an over)
+                  from {plural(overs, "over")} ({(target / overs).toFixed(2)} an over)
                 </span>
               ) : null}
             </span>

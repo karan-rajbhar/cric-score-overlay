@@ -30,7 +30,7 @@ import {
   currentSetOf,
   surnameOf,
 } from "./balls";
-import { initialsOf, inningsBalls, roleMark } from "../shared";
+import { initialsOf, inningsBalls, inningsBreakOf, roleMark } from "../shared";
 import {
   Caption,
   ChaseLine,
@@ -793,7 +793,11 @@ function inningsSides(state: LiveMatchState, match: Match | null, innings: Innin
   return innings
     .filter((i) => i.innings_number <= 2)
     .sort((a, b) => a.innings_number - b.innings_number)
-    .map((inn) => ({ inn, side: boardSideOf(state, match, inn), name: inningsTeamName(state, inn, match?.team1_id) }));
+    .map((inn) => sideLineOf(state, match, inn));
+}
+
+function sideLineOf(state: LiveMatchState, match: Match | null, inn: Innings) {
+  return { inn, side: boardSideOf(state, match, inn), name: inningsTeamName(state, inn, match?.team1_id) };
 }
 
 /** Best batters and bowler of an innings, as short lines. */
@@ -941,14 +945,14 @@ export function HundredMatchSummary(p: OverlayElementProps["matchSummary"]) {
 
 export function HundredInningsBreak(p: OverlayElementProps["inningsBreak"]) {
   const { state, match, innings } = p;
-  const lines = inningsSides(state, match, innings).filter((l) => l.inn.innings_number === 1);
-  const first = lines[0];
-  if (!first) return null;
+  const brk = inningsBreakOf(state, innings);
+  if (!brk || brk.target === null) return null;
+  const { target } = brk;
+  const first = sideLineOf(state, match, brk.innings);
   const chase = chaseOf(state);
-  const target = state.target_runs ?? first.inn.total_runs + 1;
   const chasing = first.side.tone === "t1" ? teamsOf(state)[1]! : teamsOf(state)[0]!;
   const bpo = ballsPerOverFrom(state, match);
-  const count = ballCountOf({ ...state, innings_number: 2 }, bpo);
+  const count = ballCountOf({ ...state, innings_number: brk.innings.innings_number + 1 }, bpo);
   const balls = chase?.balls ?? count.limit;
   return (
     <Board

@@ -18,7 +18,7 @@ import {
   teamCode,
 } from "./overlay-kit";
 import { playingXi, tossWinnerName } from "./presentation-card-views";
-import { inningsTeamName, scoreOf } from "./scorecard-cards";
+import { inningsTeamName, scoreOf, summaryInningsOf } from "./scorecard-cards";
 import type { LiveMatchState } from "./types";
 
 function inningsNo(innings: Innings[], n: number): Innings | undefined {
@@ -143,13 +143,12 @@ export function SummaryCard({
   innings: Innings[];
   breakCard?: boolean;
 }) {
-  const shown = innings.filter((i) => i.innings_number <= (breakCard ? 1 : 2));
+  const { shown, target } = summaryInningsOf(state, innings, breakCard);
   if (!shown.length) return null;
-  const first = inningsNo(innings, 1);
   const aside = breakCard
-    ? first && (
+    ? target !== null && (
         <span className={cn("text-[1.5rem] font-semibold", OV.accentText)}>
-          Target {first.total_runs + 1}
+          Target {target}
         </span>
       )
     : state.result_description
@@ -167,7 +166,7 @@ export function SummaryCard({
       eyebrow={eyebrowOf(state, breakCard ? "Innings break" : "Match summary")}
       title={
         breakCard
-          ? `${inningsTeamName(state, first ?? shown[0]!, match?.team1_id)} ${scoreOf(first ?? shown[0]!)}`
+          ? `${inningsTeamName(state, shown[0]!, match?.team1_id)} ${scoreOf(shown[0]!)}`
           : (state.result_description ?? `${state.team1_name} v ${state.team2_name}`)
       }
       aside={aside}

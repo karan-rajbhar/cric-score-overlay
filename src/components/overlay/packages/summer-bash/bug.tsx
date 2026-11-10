@@ -15,6 +15,7 @@ import { economyText, overTokens, oversText, teamCode } from "../../overlay-kit"
 import {
   ballsPerOverOf,
   inningsLabel,
+  oversLimitOf,
   sidesOf,
   tossLineOf,
   type OverlayPhase,
@@ -45,12 +46,6 @@ import {
 } from "./kit";
 
 // ---- data --------------------------------------------------------------------
-
-/** Overs per innings (1 in a super over). */
-function oversLimitOf(state: LiveMatchState): number | null {
-  if ((state.innings_number ?? 1) >= 3) return 1;
-  return state.overs_per_innings ?? null;
-}
 
 /** The batting side's key ("t1" / "t2"); team 1 when unknown. */
 function battingKey(state: LiveMatchState): "t1" | "t2" {
