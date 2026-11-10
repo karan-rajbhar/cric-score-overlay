@@ -73,6 +73,37 @@ export function inningsEndEventOf(
   return matchEventOf(state) ?? "innings_break";
 }
 
+/** Where a match stands, as its document (or a scoring reply) says. */
+export interface MatchProgress {
+  status?: string | null;
+  current_innings?: number | null;
+  result_description?: string | null;
+}
+
+/**
+ * The structural event of an action that is not a delivery (an edit, a
+ * penalty award, a retirement), from the match before and after it: their
+ * replies carry no flags of their own. The result when it finished the
+ * match, the break when it closed an innings and opened the next; nothing
+ * for a match already finished (`push_log` would stop a second result).
+ */
+export function progressEventOf(
+  before: MatchProgress | null | undefined,
+  after: MatchProgress | null | undefined,
+): { event: MatchEvent; state: EventState } | null {
+  if (!before || !after || before.status === "completed") return null;
+  const state: EventState = {
+    current_innings: after.current_innings,
+    result_description: after.result_description,
+    match_completed: after.status === "completed",
+  };
+  if (state.match_completed) return { event: "result", state };
+  if ((after.current_innings ?? 1) > (before.current_innings ?? 1)) {
+    return { event: "innings_break", state };
+  }
+  return null;
+}
+
 interface SummaryEntry {
   team_id?: string | null;
   innings_number?: number | null;

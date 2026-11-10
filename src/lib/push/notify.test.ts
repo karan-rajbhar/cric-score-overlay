@@ -23,6 +23,7 @@ import {
   matchMessage,
   notifyFollowersAfter,
   notifyMatchEvent,
+  progressEventOf,
   type EventState,
   type MatchDoc,
 } from "./notify";
@@ -179,6 +180,24 @@ describe("matchMessage", () => {
       key: "innings_break:1",
       body: "Innings break.",
     });
+  });
+});
+
+describe("progressEventOf", () => {
+  const live = { status: "live", current_innings: 2 };
+  it("reports what an edit, penalty or retirement changed", () => {
+    const won = { status: "completed", current_innings: 2, result_description: "Bravo won" };
+    expect(progressEventOf(live, won)).toEqual({
+      event: "result",
+      state: { current_innings: 2, result_description: "Bravo won", match_completed: true },
+    });
+    expect(
+      progressEventOf({ status: "live", current_innings: 1 }, live)?.event,
+    ).toBe("innings_break");
+    expect(progressEventOf(live, live)).toBeNull();
+    // A finished match edited: its result was told already.
+    expect(progressEventOf(won, won)).toBeNull();
+    expect(progressEventOf(null, won)).toBeNull();
   });
 });
 

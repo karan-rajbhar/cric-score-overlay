@@ -9,6 +9,8 @@ import {
   inningsEndEventOf,
   matchEventOf,
   notifyFollowersAfter,
+  progressEventOf,
+  type MatchProgress,
 } from "~/lib/push/notify";
 import { ensureUserProfile } from "~/lib/firebase/user-profile";
 import { teamSnapshot } from "~/lib/firebase/team-snapshot";
@@ -337,13 +339,81 @@ async function checkMatchAdminAuth(
   matchId: string,
   userId: string,
 ): Promise<boolean> {
+  return (await matchAdminCheck(db, matchId, userId)).allowed;
+}
+
+/**
+ * checkMatchAdminAuth, also answering where the match stood (from the same
+ * read), so an action can tell what it changed (`progressEventOf`).
+ */
+async function matchAdminCheck(
+  db: Awaited<ReturnType<typeof createServerClient>>,
+  matchId: string,
+  userId: string,
+): Promise<{ allowed: boolean; match: MatchProgress | null }> {
   const { data: match } = await db
     .from("matches")
-    .select("created_by, match_admins, club_id, tournament_id")
+    .select(
+      "created_by, match_admins, club_id, tournament_id, status, current_innings",
+    )
     .eq("id", matchId)
     .single();
+  if (!match) return { allowed: false, match: null };
+  return { allowed: await isAdminOfMatch(db, match, userId), match };
+}
 
-  if (!match) return false;
+/**
+ * Tells followers about the result or the innings break an action other
+ * than a delivery caused (an edit, penalty runs, a retirement), as
+ * `recordBall` does for a delivery.
+ */
+function notifyProgress(
+  matchId: string,
+  before: MatchProgress | null,
+  after: MatchProgress | null | undefined,
+): void {
+  const progress = progressEventOf(before, after);
+  if (progress) notifyFollowersAfter(matchId, progress.event, progress.state);
+}
+
+/**
+ * notifyProgress for an action answered with the committed documents: the
+ * match as committed, read again only when the reply could not carry it.
+ * Never fails the action.
+ */
+async function notifyProgressAfterEvent(
+  db: Awaited<ReturnType<typeof createServerClient>>,
+  matchId: string,
+  before: MatchProgress | null,
+  reply: { delta: ScoringDelta | null } | null,
+): Promise<void> {
+  if (!before || before.status === "completed") return;
+  try {
+    let after: MatchProgress | null = reply?.delta?.match ?? null;
+    if (!after) {
+      const { data } = await db
+        .from("matches")
+        .select("status, current_innings, result_description")
+        .eq("id", matchId)
+        .single();
+      after = data;
+    }
+    notifyProgress(matchId, before, after);
+  } catch (err) {
+    console.error("Could not tell followers about the change:", err);
+  }
+}
+
+async function isAdminOfMatch(
+  db: Awaited<ReturnType<typeof createServerClient>>,
+  match: {
+    created_by?: string | null;
+    match_admins?: string[] | null;
+    club_id?: string | null;
+    tournament_id?: string | null;
+  },
+  userId: string,
+): Promise<boolean> {
   if (match.created_by === userId) return true;
   if ((match.match_admins ?? []).includes(userId)) return true;
 
@@ -1031,12 +1101,12 @@ export async function updateBall(params: {
       return { data: null, error: "You must be logged in to edit deliveries" };
     }
 
-    const isAuthorized = await checkMatchAdminAuth(
+    const { allowed, match: before } = await matchAdminCheck(
       db,
       params.matchId,
       user.id,
     );
-    if (!isAuthorized) {
+    if (!allowed) {
       return {
         data: null,
         error:
@@ -1044,7 +1114,7 @@ export async function updateBall(params: {
       };
     }
 
-    const { data, error } = await db.rpc("update_ball", {
+    const { data, error } = await db.rpc<ScoringState>("update_ball", {
       p_match_id: params.matchId,
       p_ball_id: params.ballId,
       p_batsman_id: params.batsmanId ?? null,
@@ -1065,10 +1135,12 @@ export async function updateBall(params: {
       return { data: null, error: friendlyError(error.message) };
     }
 
+    // An edit can finish the match or close the innings.
+    notifyProgress(params.matchId, before, data);
     invalidateMatchCache(params.matchId);
     revalidatePath(`/matches/${params.matchId}`);
     revalidatePath(`/matches/${params.matchId}/score`);
-    return { data: data as ScoringState, error: null };
+    return { data, error: null };
   } catch (err) {
     console.error("Unexpected error in updateBall:", err);
     return {
@@ -1675,8 +1747,12 @@ export async function awardTeamPenalty(
       return { success: false, error: "You must be logged in to award penalty runs" };
     }
 
-    const isMatchAdmin = await checkMatchAdminAuth(db, matchId, user.id);
-    if (!isMatchAdmin) {
+    const { allowed, match: before } = await matchAdminCheck(
+      db,
+      matchId,
+      user.id,
+    );
+    if (!allowed) {
       return {
         success: false,
         error: "Only match administrators or designated scorers can award penalty runs",
@@ -1709,6 +1785,8 @@ export async function awardTeamPenalty(
       return { success: false, error: friendlyError(awardErr.message) };
     }
 
+    // Runs to the batting side can win the chase or end the innings.
+    await notifyProgressAfterEvent(db, matchId, before, reply);
     invalidateMatchCache(matchId);
     revalidatePath(`/matches/${matchId}`);
     revalidatePath(`/matches/${matchId}/score`);
@@ -1746,8 +1824,12 @@ export async function retirePlayer(
       return { success: false, error: "You must be logged in to retire a player" };
     }
 
-    const isMatchAdmin = await checkMatchAdminAuth(db, matchId, user.id);
-    if (!isMatchAdmin) {
+    const { allowed, match: before } = await matchAdminCheck(
+      db,
+      matchId,
+      user.id,
+    );
+    if (!allowed) {
       return {
         success: false,
         error: "Only match administrators or designated scorers can retire a player",
@@ -1776,6 +1858,8 @@ export async function retirePlayer(
       return { success: false, error: friendlyError(retireErr.message) };
     }
 
+    // Retired out for the last wicket ends the innings.
+    await notifyProgressAfterEvent(db, matchId, before, reply);
     invalidateMatchCache(matchId);
     revalidatePath(`/matches/${matchId}`);
     revalidatePath(`/matches/${matchId}/score`);
