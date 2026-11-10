@@ -708,5 +708,61 @@ describe("match-report export helpers", () => {
       expect(phaseBoundaries(5)).toEqual({ ppEnd: 2, midEnd: 4 });
       expect(phaseBoundaries(3)).toBeNull();
     });
+
+    it("leaves out penalty runs awarded to the side yet to bat", () => {
+      const ball = (over: number, n: number, extra: Record<string, unknown> = {}) => ({
+        id: `b${over}-${n}`,
+        match_id: "m1",
+        innings_id: "inn1",
+        over_number: over,
+        ball_number: n,
+        bowler_id: "bw1",
+        batsman_id: "u1",
+        non_striker_id: "u2",
+        runs_scored: 1,
+        extras: 0,
+        extra_type: null,
+        is_wicket: false,
+        ...extra,
+      });
+      // 12 singles in 2 overs; in over 1, 5 penalty runs to t2, the
+      // fielding side, carried into its own innings.
+      const balls = [
+        ...[1, 2, 3, 4, 5, 6].map((n) => ball(0, n)),
+        ball(0, 7, {
+          bowler_id: null,
+          batsman_id: null,
+          non_striker_id: null,
+          runs_scored: 0,
+          extras: 5,
+          extra_type: "penalty",
+          penalty_team_id: "t2",
+        }),
+        ...[1, 2, 3, 4, 5, 6].map((n) => ball(1, n)),
+      ];
+      const r = buildMatchReport(
+        {
+          ...sampleMatch,
+          overs_per_innings: 20,
+          innings: [
+            {
+              ...innings1,
+              total_runs: 12,
+              total_wickets: 0,
+              total_balls: 12,
+              ball_by_ball: balls as never,
+            },
+          ],
+        },
+        URL_,
+      );
+      const worm = r.charts!.sides[0]!.overs;
+      expect(worm.map((o) => o.runs)).toEqual([6, 6]);
+      expect(worm.at(-1)!.total).toBe(12);
+      const overs = r.overs!.rows.map((row) => row[0]!);
+      expect(overs.map((o) => o.cumulativeRuns)).toEqual([6, 12]);
+      expect(overs[0]!.balls.map((b) => b.text)).not.toContain("p5");
+      expect(r.phases!.rows[0]!.sides[0]!.score).toBe("12/0");
+    });
   });
 });

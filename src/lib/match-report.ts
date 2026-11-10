@@ -4,6 +4,7 @@ import {
   bowlerConcedes,
   isLegalDelivery,
   NON_BOWLER_DISMISSALS,
+  penaltyCountsFor,
 } from "./firebase/scoring/recompute";
 
 /** The match's balls-faced rules (null: the Laws' convention). */
@@ -189,6 +190,19 @@ function mainInningsInOrder(
 
 type InningsRow = NonNullable<Match["innings"]>[number];
 
+/**
+ * Whether a ball-log entry's runs belong to `inn`: all but a penalty
+ * awarded to the side yet to bat, which is logged here and carried into its
+ * own innings (the engine's `penaltyCountsFor`).
+ */
+function countsForInnings(
+  entry: object,
+  inn: Pick<InningsRow, "team_id">,
+): boolean {
+  const ball = entry as { penalty_team_id?: string | null };
+  return !ball.penalty_team_id || penaltyCountsFor(ball, inn);
+}
+
 /** Batted in the innings (a not-out batter who has not faced yet too). */
 function hasBatted(
   b: NonNullable<InningsRow["batting_performances"]>[number],
@@ -265,9 +279,9 @@ function getInningsPartnerships(
   };
 
   for (const d of deliveries) {
-    const penaltyTeam = (d as { penalty_team_id?: string | null }).penalty_team_id;
     // Penalty runs logged for the other side are not this pair's.
-    if (penaltyTeam && penaltyTeam !== inn.team_id) continue;
+    if (!countsForInnings(d, inn)) continue;
+    const penaltyTeam = (d as { penalty_team_id?: string | null }).penalty_team_id;
     const striker = d.batsman_id;
     const other = d.non_striker_id;
     if (striker && other) {
@@ -335,11 +349,13 @@ function getInningsOverComparison(
   inn: InningsRow,
   rules: FacedRules = {},
 ): OverData[] {
-  const deliveries = (inn.ball_by_ball ?? []).slice().sort((a, b) => {
-    const overDiff = (a.over_number ?? 0) - (b.over_number ?? 0);
-    if (overDiff !== 0) return overDiff;
-    return (a.ball_number ?? 0) - (b.ball_number ?? 0);
-  });
+  const deliveries = (inn.ball_by_ball ?? [])
+    .filter((d) => countsForInnings(d, inn))
+    .sort((a, b) => {
+      const overDiff = (a.over_number ?? 0) - (b.over_number ?? 0);
+      if (overDiff !== 0) return overDiff;
+      return (a.ball_number ?? 0) - (b.ball_number ?? 0);
+    });
 
   if (!deliveries.length) return [];
 
@@ -530,7 +546,9 @@ function getPhaseStatsForInnings(
     },
   ];
 
-  const deliveries = inn.ball_by_ball ?? [];
+  const deliveries = (inn.ball_by_ball ?? []).filter((d) =>
+    countsForInnings(d, inn),
+  );
 
   if (deliveries.length > 0) {
     return phasesDef.map((ph) => {
