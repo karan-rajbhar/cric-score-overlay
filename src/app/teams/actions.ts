@@ -192,6 +192,26 @@ export async function getTeam(id: string) {
   return { data, error: null };
 }
 
+/** Longest team name (what the team forms allow). */
+const TEAM_NAME_MAX = 60;
+/** Longest short name: what the scoreboard and overlay have room for. */
+const SHORT_NAME_MAX = 5;
+
+/** Why a new team's name or short name will not do, or null. */
+function newTeamNameError(
+  name: string,
+  shortName: string | null,
+): string | null {
+  if (!name) return "Team name is required";
+  if (name.length > TEAM_NAME_MAX) {
+    return `Keep the team name to ${TEAM_NAME_MAX} characters`;
+  }
+  if (shortName && shortName.length > SHORT_NAME_MAX) {
+    return `Short name: up to ${SHORT_NAME_MAX} letters`;
+  }
+  return null;
+}
+
 export async function createTeam(formData: FormData) {
   const db = await createServerClient();
   const name = (formData.get("name") as string)?.trim();
@@ -216,9 +236,8 @@ export async function createTeam(formData: FormData) {
 
   await ensureUserProfile(db, user);
 
-  if (!name) {
-    return { error: "Team name is required" };
-  }
+  const nameError = newTeamNameError(name ?? "", short_name);
+  if (nameError) return { error: nameError };
   if (!primary.ok) return { error: primary.error };
   if (!secondary.ok) return { error: secondary.error };
 
@@ -292,9 +311,6 @@ export async function createTeam(formData: FormData) {
   redirect(`/teams/${data.id}`);
 }
 
-/** Longest short name: what the scoreboard and overlay have room for. */
-const SHORT_NAME_MAX = 5;
-
 /**
  * Edits a team's name, short name and description. Allowed for those who
  * manage the team (`canManageTeam`: creator, captain, vice-captain, club
@@ -326,7 +342,9 @@ export async function updateTeam(
 
   const name = (input.name ?? "").trim();
   if (!name) return { error: "Team name is required" };
-  if (name.length > 60) return { error: "Keep the team name to 60 characters" };
+  if (name.length > TEAM_NAME_MAX) {
+    return { error: `Keep the team name to ${TEAM_NAME_MAX} characters` };
+  }
   const shortName = (input.shortName ?? "").trim().toUpperCase() || null;
   const colors: Record<string, string | null> = {};
   for (const [field, value] of [
@@ -560,15 +578,15 @@ export async function createTeamQuick(name: string, shortName?: string) {
   await ensureUserProfile(db, user);
 
   const trimmed = name.trim();
-  if (!trimmed) {
-    return { data: null, error: "Team name is required" };
-  }
+  const short = shortName?.trim() || null;
+  const nameError = newTeamNameError(trimmed, short);
+  if (nameError) return { data: null, error: nameError };
 
   const { data, error } = await db
     .from("teams")
     .insert({
       name: trimmed,
-      short_name: shortName?.trim() || null,
+      short_name: short,
       created_by: user.id,
       is_template: false,
       team_type: "club",
@@ -699,62 +717,9 @@ export async function addExistingPlayerQuick(
   }
 }
 
-export async function addPlayerToTeam(
-  teamId: string,
-  userId: string,
-  role: string = "player",
-) {
-  const db = await createServerClient();
-
-  const {
-    data: { user },
-  } = await db.auth.getUser();
-
-  if (!user) return { error: "You must be logged in to add players" };
-
-  await ensureUserProfile(db, user);
-
-  const canManage = await canManageTeam(db, teamId, user.id);
-  if (!canManage) {
-    return {
-      error:
-        "Only team captains, creators, or club admins can add players to this team",
-    };
-  }
-
-  const { data: player } = await db
-    .from("users")
-    .select("id, is_placeholder")
-    .eq("id", userId)
-    .maybeSingle();
-  if (player?.is_placeholder === true) {
-    const refused = await placeholderRefusal(db, teamId, userId, false);
-    if (refused) return { error: addPlayerError(refused) };
-  }
-
-  const { error } = await db.from("team_players").insert({
-    team_id: teamId,
-    user_id: userId,
-    role_in_team: role,
-    added_by: user.id,
-  });
-
-  if (error) {
-    // Check for unique violation (player already in team)
-    if (error.code === "23505") {
-      return { error: "Player is already in this team" };
-    }
-    console.error("Error adding player:", error);
-    return { error: error.message };
-  }
-
-  revalidatePath(`/teams/${teamId}`);
-  await notifySquadChanged(db, { teamId });
-  return { success: true };
-}
-
 /** Roles a squad row holds (the squad's row menu offers each). */
 const SQUAD_ROLES = ["captain", "vice_captain", "wicket_keeper", "player"];
+const UNKNOWN_ROLE = "Choose captain, vice-captain, wicket-keeper or player";
 
 /** The team column naming the one holder of a role. */
 const LEAD_COLUMNS = {
@@ -793,9 +758,7 @@ async function setSquadRole(
   userId: string,
   role: string,
 ): Promise<string | null> {
-  if (!SQUAD_ROLES.includes(role)) {
-    return "Choose captain, vice-captain, wicket-keeper or player";
-  }
+  if (!SQUAD_ROLES.includes(role)) return UNKNOWN_ROLE;
   const [{ data: team }, { data: entry }] = await Promise.all([
     db
       .from("teams")
@@ -832,6 +795,78 @@ async function setSquadRole(
     .eq("team_id", teamId)
     .eq("user_id", userId);
   return error?.message ?? null;
+}
+
+/** Why `userId` may not join the squad with `role`, or null. */
+async function addRefusal(
+  db: ServerClient,
+  teamId: string,
+  userId: string,
+  role: string,
+): Promise<string | null> {
+  if (!SQUAD_ROLES.includes(role)) return UNKNOWN_ROLE;
+  const { data: player } = await db
+    .from("users")
+    .select("id, is_placeholder")
+    .eq("id", userId)
+    .maybeSingle();
+  if (!player) return "That player no longer exists";
+  if (player.is_placeholder !== true) return null;
+  const refused = await placeholderRefusal(db, teamId, userId, false);
+  return refused ? addPlayerError(refused) : null;
+}
+
+export async function addPlayerToTeam(
+  teamId: string,
+  userId: string,
+  role: string = "player",
+) {
+  const db = await createServerClient();
+
+  const {
+    data: { user },
+  } = await db.auth.getUser();
+
+  if (!user) return { error: "You must be logged in to add players" };
+
+  await ensureUserProfile(db, user);
+
+  const canManage = await canManageTeam(db, teamId, user.id);
+  if (!canManage) {
+    return {
+      error:
+        "Only team captains, creators, or club admins can add players to this team",
+    };
+  }
+
+  const refused = await addRefusal(db, teamId, userId, role);
+  if (refused) return { error: refused };
+
+  const lead = role in LEAD_COLUMNS;
+  const { error } = await db.from("team_players").insert({
+    team_id: teamId,
+    user_id: userId,
+    role_in_team: lead ? "player" : role,
+    added_by: user.id,
+  });
+
+  if (error) {
+    // Check for unique violation (player already in team)
+    if (error.code === "23505") {
+      return { error: "Player is already in this team" };
+    }
+    console.error("Error adding player:", error);
+    return { error: error.message };
+  }
+  // A captain or vice-captain through the routine that keeps them in step.
+  const roleError = lead
+    ? await setSquadRole(db, teamId, userId, role)
+    : null;
+  if (roleError) return { error: roleError };
+
+  revalidatePath(`/teams/${teamId}`);
+  await notifySquadChanged(db, { teamId });
+  return { success: true };
 }
 
 export async function removePlayerFromTeam(

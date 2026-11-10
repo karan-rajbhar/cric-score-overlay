@@ -16,7 +16,11 @@ vi.mock("~/lib/firebase/server", () => ({
 import type { AppUser } from "~/lib/firebase/auth-types";
 import { MemoryDataSource } from "~/lib/firebase/datasource";
 import { serverClientFor } from "~/lib/firebase/server-client";
-import { removePlayerFromTeam, updatePlayerRole } from "./actions";
+import {
+  addPlayerToTeam,
+  removePlayerFromTeam,
+  updatePlayerRole,
+} from "./actions";
 
 let ds: MemoryDataSource;
 const T = "lions";
@@ -103,6 +107,26 @@ describe("captain and vice-captain stay in step with the squad", () => {
       captain: null,
       vice: null,
       squad: { c: "player" },
+    });
+  });
+
+  it("adds only someone who exists, with a role it knows, in step too", async () => {
+    expect(await addPlayerToTeam(T, "ghost")).toEqual({
+      error: "That player no longer exists",
+    });
+    expect(await addPlayerToTeam(T, "org", "emperor")).toEqual({
+      error: "Choose captain, vice-captain, wicket-keeper or player",
+    });
+    expect((await roles()).squad).not.toHaveProperty("ghost");
+    expect((await roles()).squad).not.toHaveProperty("org");
+
+    expect(await addPlayerToTeam(T, "org", "captain")).toEqual({
+      success: true,
+    });
+    expect(await roles()).toEqual({
+      captain: "org",
+      vice: "b",
+      squad: { a: "player", b: "vice_captain", c: "player", org: "captain" },
     });
   });
 

@@ -16,7 +16,7 @@ vi.mock("~/lib/firebase/server", () => ({
 import type { AppUser } from "~/lib/firebase/auth-types";
 import { MemoryDataSource } from "~/lib/firebase/datasource";
 import { serverClientFor } from "~/lib/firebase/server-client";
-import { createTeam, updateTeam } from "./actions";
+import { createTeam, createTeamQuick, updateTeam } from "./actions";
 
 let ds: MemoryDataSource;
 
@@ -195,6 +195,27 @@ describe("createTeam", () => {
     expect(await squadOf(team.id as string)).toMatchObject([
       { user_id: "org", role_in_team: "captain" },
     ]);
+  });
+
+  it("keeps the name and short name to what the forms allow", async () => {
+    signIn("org");
+    expect(await createTeam(form({ name: "x".repeat(61) }))).toEqual({
+      error: "Keep the team name to 60 characters",
+    });
+    expect(
+      await createTeam(form({ name: "Hawks", short_name: "HAWKSX" })),
+    ).toEqual({ error: "Short name: up to 5 letters" });
+    expect(await createTeamQuick("x".repeat(61))).toEqual({
+      data: null,
+      error: "Keep the team name to 60 characters",
+    });
+    expect(
+      await ds.query("teams", [{ field: "created_by", op: "==", value: "org" }]),
+    ).toHaveLength(0);
+    await createTeam(form({ name: "x".repeat(60), short_name: "HAWKS" }));
+    expect(await teamNamed("x".repeat(60))).toMatchObject({
+      short_name: "HAWKS",
+    });
   });
 
   it("leaves the creator out when they do not play for the team", async () => {
