@@ -363,25 +363,59 @@ async function matchAdminCheck(
 }
 
 /**
- * Tells followers about the result or the innings break an action other
- * than a delivery caused (an edit, penalty runs, a retirement), as
- * `recordBall` does for a delivery.
+ * What a finished match needs however it finished (a delivery, End
+ * innings, an edit, penalty runs, a retirement): its tournament and club
+ * pages revalidated and the automatic player of the match. Never fails the
+ * action that finished it.
  */
-function notifyProgress(
+async function afterMatchCompleted(
+  db: Awaited<ReturnType<typeof createServerClient>>,
   matchId: string,
-  before: MatchProgress | null,
-  after: MatchProgress | null | undefined,
-): void {
-  const progress = progressEventOf(before, after);
-  if (progress) notifyFollowersAfter(matchId, progress.event, progress.state);
+): Promise<void> {
+  try {
+    const { data: matchData } = await db
+      .from("matches")
+      .select("tournament_id, club_id")
+      .eq("id", matchId)
+      .single();
+    if (matchData?.tournament_id) {
+      revalidatePath(`/tournaments/${matchData.tournament_id}`);
+      revalidatePath("/tournaments");
+    }
+    if (matchData?.club_id) {
+      revalidatePath(`/clubs/${matchData.club_id}`);
+      revalidatePath("/clubs");
+    }
+    await autoAssignPlayerOfTheMatch(matchId);
+  } catch (err) {
+    console.error("After the match completed:", err);
+  }
 }
 
 /**
- * notifyProgress for an action answered with the committed documents: the
+ * What an action other than a delivery changed (an edit, penalty runs, a
+ * retirement), handled as `recordBall` handles a delivery: followers hear
+ * about the result or the innings break, and a match it finished gets
+ * `afterMatchCompleted`.
+ */
+async function settleProgress(
+  db: Awaited<ReturnType<typeof createServerClient>>,
+  matchId: string,
+  before: MatchProgress | null,
+  after: MatchProgress | null | undefined,
+): Promise<void> {
+  const progress = progressEventOf(before, after);
+  if (!progress) return;
+  notifyFollowersAfter(matchId, progress.event, progress.state);
+  if (progress.event === "result") await afterMatchCompleted(db, matchId);
+}
+
+/**
+ * settleProgress for an action answered with the committed documents: the
  * match as committed, read again only when the reply could not carry it.
  * Never fails the action.
  */
-async function notifyProgressAfterEvent(
+async function settleProgressAfterEvent(
   db: Awaited<ReturnType<typeof createServerClient>>,
   matchId: string,
   before: MatchProgress | null,
@@ -398,9 +432,9 @@ async function notifyProgressAfterEvent(
         .single();
       after = data;
     }
-    notifyProgress(matchId, before, after);
+    await settleProgress(db, matchId, before, after);
   } catch (err) {
-    console.error("Could not tell followers about the change:", err);
+    console.error("Could not settle the change:", err);
   }
 }
 
@@ -615,29 +649,7 @@ export async function recordBall(params: {
     invalidateMatchCache(params.matchId);
     revalidatePath(`/matches/${params.matchId}`);
 
-    if ((data as ScoringState)?.match_completed) {
-      const { data: matchData } = await db
-        .from("matches")
-        .select("tournament_id, club_id")
-        .eq("id", params.matchId)
-        .single();
-
-      if (matchData?.tournament_id) {
-        revalidatePath(`/tournaments/${matchData.tournament_id}`);
-        revalidatePath("/tournaments");
-      }
-      if (matchData?.club_id) {
-        revalidatePath(`/clubs/${matchData.club_id}`);
-        revalidatePath("/clubs");
-      }
-
-      // Automatically determine and assign Player of the Match
-      try {
-        await autoAssignPlayerOfTheMatch(params.matchId);
-      } catch (potmErr) {
-        console.error("Auto POTM assignment failed:", potmErr);
-      }
-    }
+    if (data?.match_completed) await afterMatchCompleted(db, params.matchId);
 
     return { data, error: null, delta: reply?.delta ?? null };
   } catch (err) {
@@ -844,27 +856,7 @@ export async function endInnings(
     revalidatePath(`/matches/${matchId}/score`);
 
     if ((data as ScoringState)?.match_completed) {
-      const { data: matchData } = await db
-        .from("matches")
-        .select("tournament_id, club_id")
-        .eq("id", matchId)
-        .single();
-
-      if (matchData?.tournament_id) {
-        revalidatePath(`/tournaments/${matchData.tournament_id}`);
-        revalidatePath("/tournaments");
-      }
-      if (matchData?.club_id) {
-        revalidatePath(`/clubs/${matchData.club_id}`);
-        revalidatePath("/clubs");
-      }
-
-      // Automatically determine and assign Player of the Match
-      try {
-        await autoAssignPlayerOfTheMatch(matchId);
-      } catch (potmErr) {
-        console.error("Auto POTM assignment failed:", potmErr);
-      }
+      await afterMatchCompleted(db, matchId);
     }
 
     return { data: data as ScoringState, error: null };
@@ -920,7 +912,8 @@ export async function setPlayerOfTheMatch(
 /**
  * Automatically calculates and awards Player of the Match using cricket analytics impact scoring.
  * Not exported: every export of this file is a server action anyone can
- * call, and this one checks no caller (recordBall / endInnings have).
+ * call, and this one checks no caller (`afterMatchCompleted`'s callers
+ * have).
  */
 async function autoAssignPlayerOfTheMatch(
   matchId: string,
@@ -1136,7 +1129,7 @@ export async function updateBall(params: {
     }
 
     // An edit can finish the match or close the innings.
-    notifyProgress(params.matchId, before, data);
+    await settleProgress(db, params.matchId, before, data);
     invalidateMatchCache(params.matchId);
     revalidatePath(`/matches/${params.matchId}`);
     revalidatePath(`/matches/${params.matchId}/score`);
@@ -1786,7 +1779,7 @@ export async function awardTeamPenalty(
     }
 
     // Runs to the batting side can win the chase or end the innings.
-    await notifyProgressAfterEvent(db, matchId, before, reply);
+    await settleProgressAfterEvent(db, matchId, before, reply);
     invalidateMatchCache(matchId);
     revalidatePath(`/matches/${matchId}`);
     revalidatePath(`/matches/${matchId}/score`);
@@ -1859,7 +1852,7 @@ export async function retirePlayer(
     }
 
     // Retired out for the last wicket ends the innings.
-    await notifyProgressAfterEvent(db, matchId, before, reply);
+    await settleProgressAfterEvent(db, matchId, before, reply);
     invalidateMatchCache(matchId);
     revalidatePath(`/matches/${matchId}`);
     revalidatePath(`/matches/${matchId}/score`);
