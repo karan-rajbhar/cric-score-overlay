@@ -337,6 +337,43 @@ describe("ControlClient", () => {
     }
   });
 
+  it("keeps the sponsors' logos when the producer edits the list, which follows what is on air", () => {
+    renderReal();
+    const box = () =>
+      screen.getByLabelText(/Sponsors taking turns/) as HTMLTextAreaElement;
+    act(() => watchOf("overlay_state").next(null));
+    expect(box().value).toBe("");
+    // The club's sponsors are copied in after the stream starts.
+    const logo = "https://cdn.example.com/smith.png";
+    act(() =>
+      watchOf("overlay_state").next({
+        version: 1,
+        scene: {
+          sponsors: [
+            { id: "c1", name: "Smith Builders", logoUrl: logo, tagline: "Since 1990" },
+            { id: "c2", name: "Riverside Dairy" },
+          ],
+        },
+      }),
+    );
+    expect(box().value).toBe("Smith Builders\nRiverside Dairy");
+
+    fireEvent.change(box(), {
+      target: { value: "Smith Builders\nRiverside Dairy\nNew Sponsor" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save sponsors" }));
+    expect(sentPayload()).toMatchObject({
+      type: "SET_SPONSORS",
+      sponsors: [
+        { id: "c1", name: "Smith Builders", logoUrl: logo, tagline: "Since 1990" },
+        { id: "c2", name: "Riverside Dairy" },
+        { name: "New Sponsor" },
+      ],
+    });
+    const ids = sentPayload().sponsors.map((s: { id: string }) => s.id);
+    expect(new Set(ids).size).toBe(3);
+  });
+
   it("picks themes from the shared list", () => {
     renderDemo();
     const look = screen

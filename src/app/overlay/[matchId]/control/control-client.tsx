@@ -50,6 +50,7 @@ import {
   autoRulesIn,
   isReplayRule,
   manualAutoRules,
+  sponsorsFromLines,
   type HoldMode,
   type SceneLayout,
 } from "~/lib/overlay-state";
@@ -396,9 +397,11 @@ export function ControlClient({
   const [loadingSnapshots, setLoadingSnapshots] = useState(false);
   const [sponsorText, setSponsorText] = useState(scene.sponsor);
   const [tickerText, setTickerText] = useState(scene.tickerText);
-  const [sponsorsText, setSponsorsText] = useState(
-    scene.sponsors.map((s) => s.name).join("\n"),
-  );
+  // The sponsor list shows what is on air (the club's sponsors copied in
+  // when the stream starts included) until the producer edits it.
+  const [sponsorsEdit, setSponsorsEdit] = useState<string | null>(null);
+  const sponsorsText =
+    sponsorsEdit ?? scene.sponsors.map((s) => s.name).join("\n");
   const [volume, setVolume] = useState(Math.round(scene.volume * 100));
   // The forms start from what is stored, once it has been read.
   const [formsLoaded, setFormsLoaded] = useState(false);
@@ -406,7 +409,6 @@ export function ControlClient({
     setFormsLoaded(true);
     setSponsorText(scene.sponsor);
     setTickerText(scene.tickerText);
-    setSponsorsText(scene.sponsors.map((s) => s.name).join("\n"));
     setVolume(Math.round(scene.volume * 100));
     setReplayScene(scene.replayScene);
   }
@@ -1390,11 +1392,11 @@ export function ControlClient({
               className="mt-4 space-y-2"
               onSubmit={(e) => {
                 e.preventDefault();
-                const sponsors = sponsorsText
-                  .split("\n")
-                  .map((name) => name.trim())
-                  .filter(Boolean)
-                  .map((name, i) => ({ id: `s${i + 1}`, name }));
+                const sponsors = sponsorsFromLines(
+                  sponsorsText,
+                  scene.sponsors,
+                );
+                setSponsorsEdit(null);
                 void send(
                   { type: "SET_SPONSORS", sponsors },
                   sponsors.length
@@ -1413,7 +1415,7 @@ export function ControlClient({
                 id={ids.sponsors}
                 rows={3}
                 value={sponsorsText}
-                onChange={(e) => setSponsorsText(e.target.value)}
+                onChange={(e) => setSponsorsEdit(e.target.value)}
                 className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-base text-white sm:text-sm"
               />
               <button type="submit" className={QUIET}>

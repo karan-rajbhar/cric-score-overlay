@@ -8,6 +8,7 @@ import {
   manualAutoRules,
   overlayPatchOf,
   parseOverlayState,
+  sponsorsFromLines,
   sceneOf,
   snapshotsOf,
   strapOnAir,
@@ -189,6 +190,27 @@ describe("the stored state", () => {
     expect(parsed?.scene).toEqual({ theme: "standard", card: "toss" });
     expect(parsed?.cue).toBeNull();
     expect(parseOverlayState(null)).toBeNull();
+  });
+});
+
+describe("sponsorsFromLines", () => {
+  it("keeps each named sponsor whole and gives new lines unused ids", () => {
+    const onAir = [
+      { id: "s1", name: "Smith Builders", logoUrl: "https://cdn.example.com/a.png" },
+      { id: "s2", name: "Riverside Dairy", tagline: "Fresh daily" },
+    ];
+    expect(
+      sponsorsFromLines(" riverside dairy \n\nNew One\nSmith Builders\n", onAir),
+    ).toEqual([
+      { id: "s2", name: "Riverside Dairy", tagline: "Fresh daily" },
+      { id: "s3", name: "New One" },
+      { id: "s1", name: "Smith Builders", logoUrl: "https://cdn.example.com/a.png" },
+    ]);
+    // A name twice: the second line is a sponsor of its own.
+    expect(
+      sponsorsFromLines("Smith Builders\nSmith Builders", onAir).map((s) => s.id),
+    ).toEqual(["s1", "s2"]);
+    expect(sponsorsFromLines("", onAir)).toEqual([]);
   });
 });
 

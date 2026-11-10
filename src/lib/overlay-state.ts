@@ -307,6 +307,38 @@ function sponsorsOf(v: unknown): SponsorItem[] | undefined {
     }));
 }
 
+/**
+ * The corner sponsors from a list of names, one per line: a line naming a
+ * sponsor already on air (`onAir`, case aside) keeps that sponsor whole
+ * (id, logo, tagline), so editing the names never drops a logo; a new
+ * line gets a fresh id.
+ */
+export function sponsorsFromLines(
+  text: string,
+  onAir: readonly SponsorItem[],
+): SponsorItem[] {
+  const left = [...onAir];
+  const used = new Set<string>();
+  const out: SponsorItem[] = [];
+  for (const name of text.split("\n").map((l) => l.trim()).filter(Boolean)) {
+    const at = left.findIndex(
+      (s) => s.name.trim().toLowerCase() === name.toLowerCase(),
+    );
+    const kept = at >= 0 ? left.splice(at, 1)[0]! : null;
+    out.push(kept ?? { id: "", name });
+    if (kept) used.add(kept.id);
+  }
+  let n = 0;
+  for (const s of out) {
+    if (s.id) continue;
+    do n += 1;
+    while (used.has(`s${n}`));
+    s.id = `s${n}`;
+    used.add(s.id);
+  }
+  return out;
+}
+
 function colorsOf(v: unknown): CustomThemeColors | undefined {
   const c = v as CustomThemeColors | undefined;
   return c && HEX.test(c.primary) && HEX.test(c.accent)
