@@ -5,7 +5,7 @@ import type { Match } from "~/lib/match-types";
 import { cn } from "~/lib/utils";
 import { OverlayStage } from "./overlay-stage";
 import type { LiveMatchState } from "./types";
-import type { OverlayLayers } from "./use-overlay-state";
+import type { OverlayLayers, OverlayLayersResult } from "./use-overlay-state";
 
 const FRAME_W = 1920;
 const FRAME_H = 1080;
@@ -13,12 +13,15 @@ const FRAME_H = 1080;
 interface OverlayPreviewProps {
   state: LiveMatchState | null;
   match: Match | null;
-  layers: OverlayLayers;
+  /**
+   * What is on air; from `useOverlayLayers`, it also takes an event card or
+   * lower third off when its time is up, as on the OBS output.
+   */
+  layers: OverlayLayers &
+    Partial<Pick<OverlayLayersResult, "dismissSting" | "dismissStrap">>;
   /** Accessible name, e.g. "Overlay preview: what is on air". */
   label: string;
   className?: string;
-  onDismissSting?: () => void;
-  onDismissStrap?: () => void;
 }
 
 const noop = () => {};
@@ -34,8 +37,6 @@ export function OverlayPreview({
   layers,
   label,
   className,
-  onDismissSting = noop,
-  onDismissStrap = noop,
 }: OverlayPreviewProps) {
   const box = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0);
@@ -75,8 +76,8 @@ export function OverlayPreview({
             state={state}
             match={match}
             layers={layers}
-            onDismissSting={onDismissSting}
-            onDismissStrap={onDismissStrap}
+            onDismissSting={layers.dismissSting ?? noop}
+            onDismissStrap={layers.dismissStrap ?? noop}
             preview
           />
         </div>

@@ -301,6 +301,42 @@ describe("ControlClient", () => {
     ).toBeInTheDocument();
   });
 
+  it("takes an event card off the preview after its seconds, and with Clear", () => {
+    // A box with a width, so the preview draws the stage.
+    class SizedResizeObserver {
+      constructor(private cb: ResizeObserverCallback) {}
+      observe() {
+        this.cb(
+          [{ contentRect: { width: 960 } } as ResizeObserverEntry],
+          this as unknown as ResizeObserver,
+        );
+      }
+      unobserve() {}
+      disconnect() {}
+    }
+    window.ResizeObserver =
+      SizedResizeObserver as unknown as typeof ResizeObserver;
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    try {
+      renderDemo();
+      const sting = () => document.querySelector("[data-sting-type]");
+      fireEvent.click(screen.getByRole("button", { name: /^Six/ }));
+      act(() => vi.advanceTimersByTime(0));
+      expect(sting()).toBeInTheDocument();
+      act(() => vi.advanceTimersByTime(60_000));
+      expect(sting()).toBeNull();
+
+      fireEvent.click(screen.getByRole("button", { name: /^Four/ }));
+      act(() => vi.advanceTimersByTime(0));
+      expect(sting()).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: /Clear graphics/ }));
+      act(() => vi.advanceTimersByTime(1000));
+      expect(sting()).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("picks themes from the shared list", () => {
     renderDemo();
     const look = screen
