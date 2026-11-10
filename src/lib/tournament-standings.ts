@@ -3,7 +3,10 @@
  * Pure mathematical functions implementing standard ICC regulations and tournament rules.
  */
 
-import { inningsLimits } from "~/lib/firebase/scoring/result";
+import {
+  inningsLimits,
+  isSuperOverInnings,
+} from "~/lib/firebase/scoring/result";
 import type { DlsRevision, MatchesRow } from "~/lib/firebase/types";
 
 /** What net run rate reads of a finished match. */
@@ -48,11 +51,12 @@ function revisedTargetOf(
 }
 
 /**
- * Each innings' runs and overs for net run rate (ICC playing conditions):
- * an innings counts the overs it faced, or its whole quota when the side
- * was all out (the revised overs for a chase cut short); when the chase's
- * target was revised (DLS, or set by hand), the side batting first is
- * credited with the target minus 1 off the overs the chase was allotted.
+ * Each innings' runs and overs for net run rate (ICC playing conditions;
+ * super overs left out): an innings counts the overs it faced, or its whole
+ * quota when the side was all out (the revised overs for a chase cut
+ * short); when the chase's target was revised (DLS, or set by hand), the
+ * side batting first is credited with the target minus 1 off the overs the
+ * chase was allotted.
  */
 export function nrrFigures(
   match: NrrMatch,
@@ -61,8 +65,9 @@ export function nrrFigures(
   const limits = (n: number) => inningsLimits(match as MatchesRow, n);
   const revisedTarget = revisedTargetOf(match, innings);
   return innings.flatMap((inn): NrrFigure[] => {
-    if (!inn.team_id) return [];
     const n = inn.innings_number ?? 1;
+    // A super over decides the points only.
+    if (!inn.team_id || isSuperOverInnings(n)) return [];
     const { maxBalls, wicketsCap, ballsPerOver } = limits(n);
     if (revisedTarget !== null && n === 1) {
       const overs = limits(2).maxBalls / ballsPerOver;

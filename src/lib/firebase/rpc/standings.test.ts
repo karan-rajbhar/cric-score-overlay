@@ -177,6 +177,29 @@ describe("net run rate", () => {
     }
   });
 
+  it("leaves the super over out", async () => {
+    // Tied on 150 off 20; super over: B 6/1, then A 7/0 off 3 balls.
+    const { A, B } = await tableAfter({
+      winning_team_id: "A",
+      innings_summary: [
+        inn("A", 1, 150, 6, 120),
+        inn("B", 2, 150, 8, 120, 151),
+        inn("B", 3, 6, 1, 6),
+        inn("A", 4, 7, 0, 3, 7),
+      ],
+    });
+    for (const row of [A, B]) {
+      expect(row).toMatchObject({
+        runs_scored: 150,
+        overs_faced: 20,
+        runs_conceded: 150,
+        overs_bowled: 20,
+        net_run_rate: 0,
+      });
+    }
+    expect(A.points).toBe(2);
+  });
+
   it("still charges an all-out side its full overs in a match not revised", async () => {
     // A all out for 150 in 18; B 151/5 in 19: 150/20 - 151/19.
     const { A, B } = await tableAfter({
