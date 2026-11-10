@@ -3,6 +3,78 @@
  * Pure mathematical functions implementing standard ICC regulations and tournament rules.
  */
 
+import { inningsLimits } from "~/lib/firebase/scoring/result";
+import type { DlsRevision, MatchesRow } from "~/lib/firebase/types";
+
+/** What net run rate reads of a finished match. */
+export interface NrrMatch {
+  overs_per_innings?: number | null;
+  balls_per_over?: number | null;
+  wickets_per_innings?: number | null;
+  dls_revision?: DlsRevision | null;
+}
+
+/** What net run rate reads of an innings (a match's `innings_summary`). */
+export interface NrrInnings {
+  team_id?: string | null;
+  innings_number?: number | null;
+  total_runs?: number | null;
+  total_wickets?: number | null;
+  total_balls?: number | null;
+  target_runs?: number | null;
+}
+
+/** A side's runs and the overs they count against, from one innings. */
+export interface NrrFigure {
+  teamId: string;
+  runs: number;
+  overs: number;
+}
+
+/**
+ * The chase's target when it was revised, as the engine sees it
+ * (`advanceAfterInnings`): a target other than the first innings plus 1,
+ * or a DLS revision of the chase. Null otherwise.
+ */
+function revisedTargetOf(
+  match: NrrMatch,
+  innings: readonly NrrInnings[],
+): number | null {
+  const first = innings.find((i) => i.innings_number === 1);
+  const target = innings.find((i) => i.innings_number === 2)?.target_runs;
+  if (!first || target == null) return null;
+  const dlsChase = match.dls_revision?.innings_number === 2;
+  return dlsChase || target !== (first.total_runs ?? 0) + 1 ? target : null;
+}
+
+/**
+ * Each innings' runs and overs for net run rate (ICC playing conditions):
+ * an innings counts the overs it faced, or its whole quota when the side
+ * was all out (the revised overs for a chase cut short); when the chase's
+ * target was revised (DLS, or set by hand), the side batting first is
+ * credited with the target minus 1 off the overs the chase was allotted.
+ */
+export function nrrFigures(
+  match: NrrMatch,
+  innings: readonly NrrInnings[],
+): NrrFigure[] {
+  const limits = (n: number) => inningsLimits(match as MatchesRow, n);
+  const revisedTarget = revisedTargetOf(match, innings);
+  return innings.flatMap((inn): NrrFigure[] => {
+    if (!inn.team_id) return [];
+    const n = inn.innings_number ?? 1;
+    const { maxBalls, wicketsCap, ballsPerOver } = limits(n);
+    if (revisedTarget !== null && n === 1) {
+      const overs = limits(2).maxBalls / ballsPerOver;
+      return [{ teamId: inn.team_id, runs: revisedTarget - 1, overs }];
+    }
+    const allOut = (inn.total_wickets ?? 0) >= wicketsCap;
+    const balls = allOut ? maxBalls : (inn.total_balls ?? 0);
+    const runs = inn.total_runs ?? 0;
+    return [{ teamId: inn.team_id, runs, overs: balls / ballsPerOver }];
+  });
+}
+
 export interface InningsPerformance {
   runs: number;
   wickets: number;

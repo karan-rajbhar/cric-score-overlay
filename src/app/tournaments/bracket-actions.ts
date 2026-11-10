@@ -10,6 +10,11 @@ import {
   type BracketMatch,
   type NextRound,
 } from "~/lib/tournament-scheduler";
+import {
+  nrrFigures,
+  type NrrInnings,
+  type NrrMatch,
+} from "~/lib/tournament-standings";
 
 /**
  * "Create next round" for knockout and mixed tournaments: the groups, the
@@ -41,13 +46,6 @@ export interface NextRoundPreview {
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-interface SummaryEntry {
-  team_id?: string | null;
-  total_runs?: number | null;
-  total_balls?: number | null;
-  total_wickets?: number | null;
-}
-
 interface Loaded {
   db: ServerClient;
   userId: string;
@@ -58,15 +56,11 @@ interface Loaded {
   latestScheduled: string | null;
 }
 
-const num = (v: unknown, fallback: number) =>
-  Number(v) > 0 ? Number(v) : fallback;
 const str = (v: unknown) => (typeof v === "string" ? v : null);
 
 /** A group / knockout match as the planner sees it; null for other matches. */
 function toBracketMatch(m: Record<string, unknown>): BracketMatch | null {
   if (m.stage !== "group" && m.stage !== "knockout") return null;
-  const bpo = num(m.balls_per_over, 6);
-  const cap = num(m.wickets_per_innings, 10);
   return {
     id: String(m.id),
     stage: m.stage,
@@ -77,16 +71,10 @@ function toBracketMatch(m: Record<string, unknown>): BracketMatch | null {
     status: String(m.status),
     winnerId: str(m.winning_team_id),
     resultType: str(m.result_type),
-    ballsPerOver: bpo,
-    quotaBalls: num(m.overs_per_innings, 0) * bpo,
-    totals: ((m.innings_summary ?? []) as SummaryEntry[])
-      .filter((e) => e.team_id)
-      .map((e) => ({
-        teamId: e.team_id!,
-        runs: e.total_runs ?? 0,
-        balls: e.total_balls ?? 0,
-        allOut: (e.total_wickets ?? 0) >= cap,
-      })),
+    totals: nrrFigures(
+      m as NrrMatch,
+      (m.innings_summary ?? []) as NrrInnings[],
+    ),
   };
 }
 
@@ -151,7 +139,7 @@ async function load(
       db
         .from("matches")
         .select(
-          "id, status, stage, round, group_name, team1_id, team2_id, winning_team_id, result_type, scheduled_at, balls_per_over, overs_per_innings, wickets_per_innings, innings_summary",
+          "id, status, stage, round, group_name, team1_id, team2_id, winning_team_id, result_type, scheduled_at, balls_per_over, overs_per_innings, wickets_per_innings, dls_revision, innings_summary",
         )
         .eq("tournament_id", tournamentId),
     ]);

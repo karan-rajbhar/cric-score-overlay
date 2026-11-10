@@ -4,6 +4,8 @@
  * Guarantees each pair of teams meets exactly once.
  */
 
+import type { NrrFigure } from "./tournament-standings";
+
 export interface ScheduledFixture {
   round: number;
   homeTeamId: string;
@@ -178,11 +180,8 @@ export interface BracketMatch {
   winnerId: string | null;
   /** "win", "tie", "no_result", "abandoned". */
   resultType: string | null;
-  /** Innings totals by team, for group standings (net run rate). */
-  totals?: { teamId: string; runs: number; balls: number; allOut: boolean }[];
-  /** Balls in a full innings (overs x balls per over), for all-out teams. */
-  quotaBalls?: number;
-  ballsPerOver?: number;
+  /** Each innings' runs and overs (`nrrFigures`), for group net run rate. */
+  totals?: NrrFigure[];
 }
 
 export interface GroupStanding {
@@ -243,18 +242,16 @@ function recordResult(a: StandingRow, b: StandingRow, m: BracketMatch): boolean 
   return false;
 }
 
-/** Each innings' runs and overs (an all-out side charged its full overs). */
+/** Each innings' runs and the overs `nrrFigures` charged for them. */
 function addRuns(a: StandingRow, b: StandingRow, m: BracketMatch): void {
-  const bpo = m.ballsPerOver && m.ballsPerOver > 0 ? m.ballsPerOver : 6;
   for (const t of m.totals ?? []) {
-    const overs = (t.allOut && m.quotaBalls ? m.quotaBalls : t.balls) / bpo;
     const [batting, bowling] =
       t.teamId === a.teamId ? [a, b] : t.teamId === b.teamId ? [b, a] : [];
     if (!batting || !bowling) continue;
     batting.rf += t.runs;
-    batting.of += overs;
+    batting.of += t.overs;
     bowling.ra += t.runs;
-    bowling.ob += overs;
+    bowling.ob += t.overs;
   }
 }
 

@@ -7,6 +7,7 @@
  * read their innings, in batches) and writes only the rows that changed.
  */
 
+import { nrrFigures } from "~/lib/tournament-standings";
 import { chunk, IN_CHUNK_SIZE, type DataSource } from "../datasource";
 import { newId } from "../query-builder";
 import { sameRow } from "../scoring/rows";
@@ -133,21 +134,13 @@ export async function recalculateTournamentStandings(
     for (const m of matchDocs) {
       if (m.status !== "completed") continue;
       if (m.team1_id !== teamId && m.team2_id !== teamId) continue;
-      const bpo = m.balls_per_over ?? 6;
-      const wicketsCap = m.wickets_per_innings ?? 10;
-      const oversQuota = m.overs_per_innings ?? 20;
-      for (const inn of inningsByMatch.get(m.id) ?? []) {
-        const balls = inn.total_balls ?? 0;
-        const overs =
-          (inn.total_wickets ?? 0) >= wicketsCap
-            ? oversQuota
-            : Math.floor(balls / bpo) + (balls % bpo) / bpo;
-        if (inn.team_id === teamId) {
-          runsScored += inn.total_runs ?? 0;
-          oversFaced += overs;
+      for (const f of nrrFigures(m, inningsByMatch.get(m.id) ?? [])) {
+        if (f.teamId === teamId) {
+          runsScored += f.runs;
+          oversFaced += f.overs;
         } else {
-          runsConceded += inn.total_runs ?? 0;
-          oversBowled += overs;
+          runsConceded += f.runs;
+          oversBowled += f.overs;
         }
       }
     }
@@ -228,5 +221,6 @@ const STANDINGS_INPUTS = [
   "balls_per_over",
   "wickets_per_innings",
   "overs_per_innings",
+  "dls_revision",
   "innings_summary",
 ] as const;

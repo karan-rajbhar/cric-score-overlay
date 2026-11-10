@@ -108,3 +108,94 @@ describe("bracket actions", () => {
     expect(res.data).toMatchObject({ kind: "invalid" });
   });
 });
+
+const MIXED = "850e8400-e29b-41d4-a716-4466554400aa";
+
+/** Innings summary entry: team, innings number, runs / wickets off balls. */
+const inn = (
+  team: string,
+  n: number,
+  runs: number,
+  wkts: number,
+  balls: number,
+  target: number | null = null,
+) => ({
+  team_id: team,
+  innings_number: n,
+  total_runs: runs,
+  total_wickets: wkts,
+  total_balls: balls,
+  target_runs: target,
+});
+
+/**
+ * A mixed tournament of six teams with its group stage created. Seeds are
+ * dealt in a snake: group A is t1, t4, t5; group B t2, t3, t6. Returns a
+ * way to record a group match's result.
+ */
+async function mixedCupGroups() {
+  const ids = ["t1", "t2", "t3", "t4", "t5", "t6"];
+  await ds.insert("tournaments", [
+    { id: MIXED, name: "Mixed cup", tournament_format: "mixed", created_by: ORGANISER },
+  ]);
+  await ds.insert(
+    "teams",
+    ids.map((id) => ({ id, name: id.toUpperCase(), created_by: ORGANISER })),
+  );
+  await ds.insert(
+    "tournament_registrations",
+    ids.map((id, i) => ({
+      id: `r-${id}`,
+      tournament_id: MIXED,
+      team_id: id,
+      status: "confirmed",
+      registered_at: `2026-01-0${i + 1}T00:00:00.000Z`,
+    })),
+  );
+  expect((await createNextRound(MIXED, { groupCount: 2 })).error).toBeNull();
+  const groupMatches = (
+    await ds.query("matches", [{ field: "tournament_id", op: "==", value: MIXED }])
+  ).filter((m) => m.stage === "group");
+  const between = (a: string, b: string) =>
+    groupMatches.find(
+      (m) =>
+        (m.team1_id === a && m.team2_id === b) ||
+        (m.team1_id === b && m.team2_id === a),
+    )!;
+  return (a: string, b: string, winner: string, extra: Record<string, unknown> = {}) =>
+    ds.update("matches", between(a, b).id, {
+      status: "completed",
+      result_type: "win",
+      winning_team_id: winner,
+      ...extra,
+    });
+}
+
+describe("group net run rate", () => {
+  it("counts a DLS chase at its revised overs", async () => {
+    const result = await mixedCupGroups();
+    // Group A goes round in a circle, so net run rate decides it. t1 beat t4
+    // on DLS: 180/6, then t4 110/7 chasing 121 in 12 overs.
+    await result("t1", "t4", "t1", {
+      dls_revision: { innings_number: 2, target_runs: 121, overs: 12 },
+      innings_summary: [inn("t1", 1, 180, 6, 120), inn("t4", 2, 110, 7, 72, 121)],
+    });
+    await result("t4", "t5", "t4", {
+      innings_summary: [inn("t4", 1, 150, 5, 120), inn("t5", 2, 140, 5, 120, 151)],
+    });
+    await result("t5", "t1", "t5", {
+      innings_summary: [inn("t5", 1, 150, 5, 120), inn("t1", 2, 145, 5, 120, 151)],
+    });
+    await result("t2", "t3", "t2");
+    await result("t2", "t6", "t2");
+    await result("t3", "t6", "t3");
+
+    // Charging t1 the 20 overs of its innings (not t4's target off 12)
+    // would put t4 top of group A.
+    const preview = await previewNextRound(MIXED, { qualifiersPerGroup: 1 });
+    expect(preview.data).toMatchObject({
+      label: "Final",
+      matches: [{ home: "T1", away: "T2" }],
+    });
+  });
+});
