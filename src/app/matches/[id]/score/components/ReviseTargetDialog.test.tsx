@@ -1,13 +1,19 @@
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ReviseTargetDialog } from "./ReviseTargetDialog";
 
-function open(props: { currentOvers?: number | null } = {}) {
-  const onConfirm = vi.fn();
+function open(
+  props: {
+    currentOvers?: number | null;
+    reply?: { error: string | null };
+  } = {},
+) {
+  const onConfirm = vi.fn(async () => props.reply);
+  const onOpenChange = vi.fn();
   render(
     <ReviseTargetDialog
       open={true}
-      onOpenChange={vi.fn()}
+      onOpenChange={onOpenChange}
       currentTarget={161}
       currentOvers={props.currentOvers ?? 20}
       maxOvers={20}
@@ -18,7 +24,7 @@ function open(props: { currentOvers?: number | null } = {}) {
     fireEvent.click(
       screen.getByRole("button", { name: /save revised target/i }),
     );
-  return { onConfirm, save };
+  return { onConfirm, onOpenChange, save };
 }
 
 describe("ReviseTargetDialog", () => {
@@ -48,5 +54,27 @@ describe("ReviseTargetDialog", () => {
       save();
     }
     expect(onConfirm).not.toHaveBeenCalled();
+  });
+
+  it("stays open with the server's refusal", async () => {
+    const refused = open({
+      reply: {
+        error: "The revised overs must be more than the overs already bowled",
+      },
+    });
+    refused.save();
+    expect(
+      await screen.findByText(
+        "The revised overs must be more than the overs already bowled",
+      ),
+    ).toHaveAttribute("role", "alert");
+    expect(refused.onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it("closes once the target is saved", async () => {
+    const saved = open({ reply: { error: null } });
+    saved.save();
+    await waitFor(() => expect(saved.onOpenChange).toHaveBeenCalledWith(false));
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 });

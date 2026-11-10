@@ -22,10 +22,11 @@ interface ReviseTargetDialogProps {
   currentOvers?: number | null;
   /** The match's overs: a revision can only shorten the chase. */
   maxOvers?: number | null;
+  /** Resolves with the server's error, if any (the dialog then stays open). */
   onConfirm: (params: {
     targetRuns: number | null;
     overs?: number | null;
-  }) => Promise<void> | void;
+  }) => Promise<{ error: string | null } | void> | void;
   isProcessing?: boolean;
 }
 
@@ -56,6 +57,7 @@ function ReviseTargetForm({
   const [overs, setOvers] = useState<string>(
     currentOvers != null ? String(currentOvers) : "",
   );
+  const [error, setError] = useState<string | null>(null);
   const oversLimit = maxOvers ?? 100;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -65,11 +67,14 @@ function ReviseTargetForm({
     if (runsNum === null) return;
     if (overs.trim() !== "" && oversNum === null) return;
 
-    await onConfirm({
+    setError(null);
+    const res = await onConfirm({
       targetRuns: runsNum,
       overs: oversNum,
     });
-    onCancel();
+    const refused = res ? res.error : null;
+    if (refused) setError(refused);
+    else onCancel();
   };
 
   return (
@@ -135,6 +140,12 @@ function ReviseTargetForm({
             Updating the target will instantly recompute the required run rate and equation for all viewers, scoreboards, and broadcast overlays.
           </p>
         </div>
+
+        {error && (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        )}
       </div>
 
       <DialogFooter className="gap-2 sm:gap-0">

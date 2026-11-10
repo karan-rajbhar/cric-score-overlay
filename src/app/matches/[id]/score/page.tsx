@@ -1101,18 +1101,17 @@ function useScoringScreen() {
     return true;
   };
 
+  /** Revise the chase's target; a refusal is shown in the dialog. */
   const handleReviseTargetConfirm = async (params: {
     targetRuns: number | null;
     overs?: number | null;
   }) => {
-    if (!match) return;
+    if (!match) return { error: null };
     const res = await callServer(() => updateTargetRuns(match.id, params));
-    if (res.error) {
-      toast.error(res.error);
-    } else {
-      toast.success("Target updated");
-      await syncFromDb();
-    }
+    if (res.error) return { error: res.error };
+    toast.success("Target updated");
+    await syncFromDb();
+    return { error: null };
   };
 
   /** Correct a ball (any over); the error is shown in the dialog. */
