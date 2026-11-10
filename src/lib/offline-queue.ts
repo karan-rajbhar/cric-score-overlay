@@ -948,8 +948,13 @@ async function flushSequentially(
 
     if (!out.ok) {
       if (out.status >= 500) {
+        // A server error (a rollout, a cold start, the route's own 500)
+        // says nothing about the actions, and some may have been applied:
+        // like no reply, the queue stays whole and in order, to be re-sent.
         failed++;
-        if (recordFailure(matchId, head, out.message, maxRetries)) continue;
+        recordFailure(matchId, head, out.message, maxRetries, {
+          noReply: true,
+        });
         break;
       }
       // The batch itself was refused (nothing applied): keep the queue
