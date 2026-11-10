@@ -187,3 +187,59 @@ describe("addTeamPlayer", () => {
     expect(rows).toMatchObject([{ team_id: "t1", added_by: "coscorer" }]);
   });
 });
+
+describe("addTeamPlayer for a placeholder", () => {
+  it("adds one only for someone who runs a team that has it", async () => {
+    const ds = new MemoryDataSource({
+      teams: [
+        { id: "t1", created_by: "owner", club_id: null },
+        { id: "t2", created_by: "rival", club_id: null },
+        { id: "t3", created_by: "owner", club_id: null },
+        { id: "mine", created_by: "outsider", club_id: null },
+      ],
+      users: [
+        { id: "p2", full_name: "Placeholder", is_placeholder: true },
+        { id: "orphan", full_name: "Nobody's", is_placeholder: true },
+      ],
+      team_players: [{ id: "tp", team_id: "t2", user_id: "p2" }],
+      matches: [
+        {
+          id: "m1",
+          created_by: "owner",
+          match_admins: ["coscorer"],
+          team1_id: "t1",
+          team2_id: "t2",
+          status: "live",
+        },
+      ],
+    });
+    const squadOf = async (teamId: string) =>
+      (
+        await ds.query("team_players", [
+          { field: "team_id", op: "==", value: teamId },
+        ])
+      ).map((r) => r.user_id);
+
+    // An outsider, and a team admin with no say over the player's team.
+    await expect(addTeamPlayer(ds, "outsider", "mine", "p2")).rejects.toThrow(
+      /not_authorized/,
+    );
+    await expect(addTeamPlayer(ds, "owner", "t3", "p2")).rejects.toThrow(
+      /not_authorized/,
+    );
+    await expect(addTeamPlayer(ds, "outsider", "mine", "orphan")).rejects.toThrow(
+      /not_authorized/,
+    );
+    expect(await squadOf("mine")).toEqual([]);
+    expect(await squadOf("t3")).toEqual([]);
+
+    // The match's scorer, from the other side's squad ("Plays for ...").
+    await addTeamPlayer(ds, "coscorer", "t1", "p2", "m1");
+    expect(await squadOf("t1")).toEqual(["p2"]);
+    // The player's own team admin, to another team of theirs.
+    await addTeamPlayer(ds, "rival", "t2", "p2");
+    await ds.update("teams", "t3", { captain_id: "rival" });
+    await addTeamPlayer(ds, "rival", "t3", "p2");
+    expect(await squadOf("t3")).toEqual(["p2"]);
+  });
+});

@@ -1,6 +1,7 @@
 "use server";
 
 import type { Doc } from "~/lib/firebase/datasource";
+import type { ServerClient } from "~/lib/firebase/server-client";
 import { matchesSearch, searchKey } from "~/lib/firebase/derive.mjs";
 import { sortRows } from "~/lib/firebase/filters";
 import { prefixSearch } from "~/lib/firebase/search";
@@ -12,6 +13,10 @@ import {
   refreshLiveMatchesFor,
 } from "~/lib/firebase/live-sync";
 import { ensureUserProfile } from "~/lib/firebase/user-profile";
+import {
+  PLACEHOLDER_IN_OTHER_TEAMS,
+  PLACEHOLDER_OF_OTHER_TEAM,
+} from "~/lib/firebase/rpc/profiles";
 import { friendlyError } from "~/app/matches/errors";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -375,6 +380,64 @@ export async function updateTeam(
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PLACEHOLDER_DOMAIN = PLACEHOLDER_EMAIL_DOMAIN;
 
+const OTHER_TEAMS_PLAYER =
+  "Only an admin of a team this player is already in can add them to another squad";
+
+/** A merge refusal in words: one of the player's teams is not the caller's. */
+function mergeError(message: string): string {
+  return message.includes(PLACEHOLDER_IN_OTHER_TEAMS)
+    ? "Only an admin of every team this player is in can merge them"
+    : friendlyError(message);
+}
+
+/** The teams whose squads have the player. */
+async function squadTeamsOf(
+  db: ServerClient,
+  playerId: string,
+): Promise<Set<string>> {
+  const { data: rows } = await db
+    .from("team_players")
+    .select("team_id")
+    .eq("user_id", playerId);
+  return new Set((rows ?? []).map((r) => String(r.team_id)));
+}
+
+/**
+ * Whether the caller runs `every` one of `teams` (to hand on a
+ * placeholder's identity), or at least one (to add a placeholder to another
+ * squad). A squad anyone can add a player to gives no say over them
+ * (`assertMayActForPlaceholder` is the rpc side).
+ */
+async function runsTeams(
+  db: ServerClient,
+  callerId: string,
+  teams: Set<string>,
+  every: boolean,
+): Promise<boolean> {
+  const runs = await Promise.all(
+    [...teams].map((teamId) => canManageTeam(db, teamId, callerId)),
+  );
+  return every ? runs.every(Boolean) : runs.some(Boolean);
+}
+
+/** Why the caller may not invite a squad player to claim their profile. */
+async function claimRefusal(
+  db: ServerClient,
+  callerId: string,
+  teamId: string,
+  playerId: string,
+): Promise<string | null> {
+  if (!(await canManageTeam(db, teamId, callerId))) {
+    return "Only the team's creator, captain, vice-captain or a club admin can invite its players";
+  }
+  const teams = await squadTeamsOf(db, playerId);
+  if (!teams.delete(teamId)) return "That player is not in this team's squad";
+  if (!(await runsTeams(db, callerId, teams, true))) {
+    return "Only an admin of every team they play for can invite this player";
+  }
+  return null;
+}
+
 /**
  * "Invite to claim": a team admin gives a squad player who has no account
  * (a placeholder profile) their real Google email, or removes it again
@@ -398,20 +461,8 @@ export async function setPlayerClaimEmail(
   } = await db.auth.getUser();
   if (!user) return { error: "You must be logged in" };
 
-  if (!(await canManageTeam(db, teamId, user.id))) {
-    return {
-      error:
-        "Only the team's creator, captain, vice-captain or a club admin can invite its players",
-    };
-  }
-
-  const { data: entry } = await db
-    .from("team_players")
-    .select("id")
-    .eq("team_id", teamId)
-    .eq("user_id", playerId)
-    .maybeSingle();
-  if (!entry) return { error: "That player is not in this team's squad" };
+  const refusal = await claimRefusal(db, user.id, teamId, playerId);
+  if (refusal) return { error: refusal };
 
   const [{ data: profile }, { data: priv }] = await Promise.all([
     db
@@ -537,6 +588,21 @@ export async function createTeamQuick(name: string, shortName?: string) {
   return { data, error: null };
 }
 
+/** The add-player rpcs' refusals in words, the first that applies. */
+const ADD_PLAYER_ERRORS: [string, string][] = [
+  [PLACEHOLDER_OF_OTHER_TEAM, OTHER_TEAMS_PLAYER],
+  [
+    "not_authorized",
+    "Only team captains, club admins or this match's scorers can add players",
+  ],
+  ["team_not_found", "Team no longer exists"],
+  ["player_not_found", "That player no longer exists"],
+];
+
+function addPlayerError(message: string): string {
+  return ADD_PLAYER_ERRORS.find(([key]) => message.includes(key))?.[1] ?? message;
+}
+
 /**
  * Add a player who isn't on the platform yet — used inline while scoring
  * when the squad doesn't have enough names. Creates the player's identity
@@ -572,17 +638,7 @@ export async function createPlayerQuick(
 
     if (error) {
       console.error("Error creating player:", error);
-      if (error.message.includes("not_authorized")) {
-        return {
-          data: null,
-          error:
-            "Only team captains, club admins or this match's scorers can add players",
-        };
-      }
-      if (error.message.includes("team_not_found")) {
-        return { data: null, error: "Team no longer exists" };
-      }
-      return { data: null, error: error.message };
+      return { data: null, error: addPlayerError(error.message) };
     }
 
     // From the scoring screen a revalidation only re-renders that screen for
@@ -627,20 +683,7 @@ export async function addExistingPlayerQuick(
     });
     if (error) {
       console.error("Error adding player:", error);
-      if (error.message.includes("not_authorized")) {
-        return {
-          data: null,
-          error:
-            "Only team captains, club admins or this match's scorers can add players",
-        };
-      }
-      if (error.message.includes("team_not_found")) {
-        return { data: null, error: "Team no longer exists" };
-      }
-      if (error.message.includes("player_not_found")) {
-        return { data: null, error: "That player no longer exists" };
-      }
-      return { data: null, error: error.message };
+      return { data: null, error: addPlayerError(error.message) };
     }
 
     // From the scoring screen a revalidation only re-renders that screen for
@@ -680,6 +723,18 @@ export async function addPlayerToTeam(
       error:
         "Only team captains, creators, or club admins can add players to this team",
     };
+  }
+
+  const { data: player } = await db
+    .from("users")
+    .select("id, is_placeholder")
+    .eq("id", userId)
+    .maybeSingle();
+  if (player?.is_placeholder === true) {
+    const teams = await squadTeamsOf(db, userId);
+    if (!teams.has(teamId) && !(await runsTeams(db, user.id, teams, false))) {
+      return { error: OTHER_TEAMS_PLAYER };
+    }
   }
 
   const { error } = await db.from("team_players").insert({
@@ -807,13 +862,13 @@ export async function previewMergePlayer(
       "preview_player_merge",
       { p_team_id: teamId, p_from_id: fromId, p_to_id: toId },
     );
-    if (error) return { data: null, error: friendlyError(error.message) };
+    if (error) return { data: null, error: mergeError(error.message) };
     return { data, error: null };
   } catch (err) {
     console.error("Unexpected error in previewMergePlayer:", err);
     return {
       data: null,
-      error: friendlyError(
+      error: mergeError(
         err instanceof Error ? err.message : "Could not compare the players",
       ),
     };
@@ -840,7 +895,7 @@ export async function mergePlayerInto(
       p_from_id: fromId,
       p_to_id: toId,
     });
-    if (error) return { data: null, error: friendlyError(error.message) };
+    if (error) return { data: null, error: mergeError(error.message) };
     if (data?.done) {
       revalidatePath(`/teams/${teamId}`);
       revalidatePath(`/players/${toId}`);
@@ -851,7 +906,7 @@ export async function mergePlayerInto(
     console.error("Unexpected error in mergePlayerInto:", err);
     return {
       data: null,
-      error: friendlyError(
+      error: mergeError(
         err instanceof Error ? err.message : "Could not merge the players",
       ),
     };

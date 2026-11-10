@@ -10,8 +10,10 @@
  * remains the tool for bulk clean-ups.
  *
  * It cannot be undone, so it refuses what it cannot be sure of: an account
- * or an invited player (only a placeholder is merged away), and two players
- * who played together (they are different people). Each match is its own
+ * or an invited player (only a placeholder is merged away), two players
+ * who played together (they are different people), and anyone who does not
+ * run every team whose squad has the placeholder (a squad anyone can add
+ * it to gives no say over it). Each match is its own
  * transaction, so a batch that fails leaves every match whole, and running
  * it again carries on.
  */
@@ -23,7 +25,11 @@ import { PLAYER_MATCHES_COLLECTION } from "../scorecard";
 import type { DataSource } from "../datasource";
 import type { UsersRow } from "../types";
 import { getUserPrivate, USERS_PRIVATE } from "../user-private";
-import { assertMayAddPlayers, rewriteUserReferences } from "./profiles";
+import {
+  assertMayActForPlaceholder,
+  assertMayAddPlayers,
+  rewriteUserReferences,
+} from "./profiles";
 import { movePlayer, type ScoringContext } from "./scoring";
 
 /** Matches moved per call: the browser calls again until none are left. */
@@ -107,6 +113,11 @@ async function checkMerge(
   if (!(await squadRow(ds, teamId, from))) {
     throw new DbQueryError("player_not_in_team", "22000");
   }
+  // Not a squad the caller put them in: every team that has them.
+  await assertMayActForPlaceholder(ds, uid, from, {
+    every: true,
+    known: teamId,
+  });
   const keeper = await ds.getById("users", to);
   if (!keeper) throw new DbQueryError("player_not_found", "22000");
   const [fromMatches, toMatches] = await Promise.all([

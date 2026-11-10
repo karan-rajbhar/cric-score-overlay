@@ -13,6 +13,7 @@ import { OVERS_COLLECTION, type PlayerMatchesRow } from "../scorecard";
 import { rebuildStats } from "../stats.mjs";
 import type { Doc } from "../datasource";
 import type { BattingPerformancesRow, InningsRow } from "../types";
+import { addTeamPlayer } from "./profiles";
 import {
   MERGE_BATCH,
   mergePlayer,
@@ -240,6 +241,73 @@ describe("merge_player", () => {
       await expect(
         mergePlayer(ctx, { ...args, to: args.from }),
       ).rejects.toThrow("invalid_input");
+    });
+  });
+
+  describe("a placeholder belongs to the teams that already have it", () => {
+    const OUTSIDER = "mal";
+
+    /** The victim team's placeholder, its captain, and an outsider's team. */
+    const withOutsider = async () => {
+      const p = await played(true);
+      await p.ds.update("teams", p.args.teamId, { captain_id: p.dup.user_id });
+      await p.ds.insert("users", [{ id: OUTSIDER, full_name: "Outsider" }]);
+      await p.ds.insert("teams", [
+        { id: "evil", name: "Evil XI", created_by: OUTSIDER },
+      ]);
+      const snapshot = () =>
+        JSON.stringify([
+          p.ds.all("innings"),
+          p.ds.all(OVERS_COLLECTION),
+          p.ds.all("player_matches"),
+          p.ds.all("teams"),
+        ]);
+      return { ...p, snapshot };
+    };
+
+    it("an outsider cannot put it in their squad, nor merge it into themselves", async () => {
+      const { ds, ctx, args, dup, snapshot } = await withOutsider();
+      await expect(
+        addTeamPlayer(ds, OUTSIDER, "evil", dup.user_id),
+      ).rejects.toThrow("not_authorized");
+      expect(
+        ds.all("team_players").some((r) => r.team_id === "evil"),
+      ).toBe(false);
+
+      // A squad row that got there anyway gives no authority either.
+      await ds.insert("team_players", [
+        { id: "tp-evil", team_id: "evil", user_id: dup.user_id },
+      ]);
+      const before = snapshot();
+      const steal = { teamId: "evil", from: dup.user_id, to: OUTSIDER };
+      await expect(previewPlayerMerge(ds, OUTSIDER, steal)).rejects.toThrow(
+        "not_authorized",
+      );
+      await expect(
+        mergePlayer({ ...ctx, uid: OUTSIDER }, steal),
+      ).rejects.toThrow("not_authorized");
+      expect(snapshot()).toBe(before);
+      expect(await ds.getById("users", dup.user_id)).not.toBeNull();
+      expect(await ds.getById("teams", args.teamId)).toMatchObject({
+        captain_id: dup.user_id,
+      });
+    });
+
+    it("a merge needs every team whose squad has the player", async () => {
+      const { ds, ctx, args, dup } = await played(true);
+      await ds.insert("teams", [{ id: "club-b", created_by: "someone-else" }]);
+      await ds.insert("team_players", [
+        { id: "tp-b", team_id: "club-b", user_id: dup.user_id },
+      ]);
+      await expect(mergePlayer(ctx, args)).rejects.toThrow("not_authorized");
+      expect(await ds.getById("users", dup.user_id)).not.toBeNull();
+
+      // Running both teams, their admin merges it.
+      await ds.update("teams", "club-b", { vice_captain_id: ADMIN });
+      await expect(mergePlayer(ctx, args)).resolves.toMatchObject({
+        done: true,
+      });
+      expect(await ds.getById("users", dup.user_id)).toBeNull();
     });
   });
 });

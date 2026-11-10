@@ -443,31 +443,86 @@ async function scoresMatchOf(
 
 /**
  * Who may add players to a team: its creator, captain or vice-captain, a
- * club admin, or (with `matchId`) a scorer of a match it plays.
+ * club admin, or (with `matchId`) a scorer of a match it plays. Null: no
+ * such team.
  */
+async function mayAddPlayers(
+  ds: DataSource,
+  callerId: string,
+  teamId: string,
+  matchId: string | null | undefined,
+): Promise<boolean | null> {
+  const team = (await ds.getById(
+    "teams",
+    teamId,
+  )) as unknown as TeamsRow | null;
+  if (!team) return null;
+  return (
+    team.created_by === callerId ||
+    team.captain_id === callerId ||
+    team.vice_captain_id === callerId ||
+    // Before the club: from the scoring screen this is the usual answer.
+    (await scoresMatchOf(ds, matchId, teamId, callerId)) ||
+    (await isClubAdmin(ds, team.club_id, callerId))
+  );
+}
+
 export async function assertMayAddPlayers(
   ds: DataSource,
   callerId: string,
   teamId: string,
   matchId: string | null | undefined,
 ): Promise<void> {
-  const team = (await ds.getById(
-    "teams",
-    teamId,
-  )) as unknown as TeamsRow | null;
-  if (!team) throw new DbQueryError("team_not_found", "22000");
-  const authorised =
-    team.created_by === callerId ||
-    team.captain_id === callerId ||
-    team.vice_captain_id === callerId ||
-    // Before the club: from the scoring screen this is the usual answer.
-    (await scoresMatchOf(ds, matchId, teamId, callerId)) ||
-    (await isClubAdmin(ds, team.club_id, callerId));
-  if (!authorised) {
+  const may = await mayAddPlayers(ds, callerId, teamId, matchId);
+  if (may === null) throw new DbQueryError("team_not_found", "22000");
+  if (!may) {
     throw new DbQueryError(
       "not_authorized: Not authorized to add players to this team",
       "42501",
     );
+  }
+}
+
+/** Refusals of `assertMayActForPlaceholder`, for the actions to word. */
+export const PLACEHOLDER_OF_OTHER_TEAM = "placeholder_of_other_team";
+export const PLACEHOLDER_IN_OTHER_TEAMS = "placeholder_in_other_teams";
+
+/** The teams whose squads have the player. */
+async function squadTeamsOf(ds: DataSource, userId: string): Promise<string[]> {
+  const rows = await ds.query("team_players", [
+    { field: "user_id", op: "==", value: userId },
+  ]);
+  return Array.from(new Set(rows.map((r) => String(r.team_id))));
+}
+
+/**
+ * Authority over a placeholder (a player with no account) comes from the
+ * teams whose squads already have it, never from a squad anyone may add it
+ * to: handing its records or identity to someone (a merge) takes every one
+ * of them (`every`), adding it to another squad takes one. `known`: a team
+ * the caller is already known to run.
+ */
+export async function assertMayActForPlaceholder(
+  ds: DataSource,
+  callerId: string,
+  userId: string,
+  {
+    every,
+    known,
+    matchId = null,
+  }: { every: boolean; known: string; matchId?: string | null },
+): Promise<void> {
+  const teams = await squadTeamsOf(ds, userId);
+  if (!every && teams.includes(known)) return;
+  const say = await Promise.all(
+    teams
+      .filter((teamId) => teamId !== known)
+      .map((teamId) => mayAddPlayers(ds, callerId, teamId, matchId)),
+  );
+  // A team since deleted (null) gives no say and takes none.
+  if (every ? say.includes(false) : !say.includes(true)) {
+    const why = every ? PLACEHOLDER_IN_OTHER_TEAMS : PLACEHOLDER_OF_OTHER_TEAM;
+    throw new DbQueryError(`not_authorized: ${why}`, "42501");
   }
 }
 
@@ -537,7 +592,8 @@ export async function createTeamPlayer(
 /**
  * Adds a registered player to a team's squad: the scorer picks someone who
  * already has a profile instead of creating a second one. The same people
- * may do it as `createTeamPlayer`.
+ * may do it as `createTeamPlayer`; a placeholder, only someone who may add
+ * players to a team that already has it.
  */
 export async function addTeamPlayer(
   ds: DataSource,
@@ -554,6 +610,13 @@ export async function addTeamPlayer(
     userId,
   )) as unknown as UsersRow | null;
   if (!user) throw new DbQueryError("player_not_found", "22000");
+  if (user.is_placeholder === true) {
+    await assertMayActForPlaceholder(ds, callerId, userId, {
+      every: false,
+      known: teamId,
+      matchId,
+    });
+  }
   const already = await ds.query(
     "team_players",
     [
