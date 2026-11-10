@@ -515,13 +515,21 @@ interface Replay {
   /** The stand in progress (none before the first ball or after a wicket). */
   stand: PartnershipsRow | null;
   totals: InningsTotals;
+  /**
+   * The innings' balls: legal deliveries, and the rest of an over ended by
+   * the cap on deliveries (it counts as complete).
+   */
   legal: number;
   /** What each over conceded, over the whole log (maidens, as SQL did). */
   overTotals: Map<number, number>;
   ends: Ends;
   lastBowler: string | null;
   overNumber: number;
+  /** Deliveries in the over (wides and no-balls count; events do not). */
   ballsInOver: number;
+  legalInOver: number;
+  /** The over the cap ended, if any (it ends an over once). */
+  cappedOver: number | null;
   overJustEnded: boolean;
   /** The bowler of the over the last ball ended (not allowed the next one). */
   endedOverBowler: string | null;
@@ -564,6 +572,8 @@ function startReplay(input: RecomputeInput): Replay {
     lastBowler: null,
     overNumber: 0,
     ballsInOver: 0,
+    legalInOver: 0,
+    cappedOver: null,
     overJustEnded: false,
     endedOverBowler: null,
     retiredByLast: null,
@@ -726,12 +736,53 @@ function replayWicket(r: Replay, ball: BallInput): string | null {
   return dismissedId;
 }
 
+/** A delivery, not an event logged between balls (a retirement, penalty or bonus runs). */
+function isDelivery(ball: BallInput): boolean {
+  return (
+    Boolean(ball.bowler_id) &&
+    ball.extra_type !== "penalty" &&
+    ball.extra_type !== "bonus"
+  );
+}
+
+/**
+ * Whether `ball` ends its over at the cap on deliveries
+ * (`max_balls_per_over`: wides and no-balls count) before its legal balls
+ * do. Once per over.
+ */
+function endsAtCap(r: Replay, ball: BallInput): boolean {
+  const max = r.match.max_balls_per_over;
+  return (
+    max !== null &&
+    max !== undefined &&
+    isDelivery(ball) &&
+    r.ballsInOver >= max &&
+    r.legalInOver < r.bpo &&
+    r.cappedOver !== ball.over_number
+  );
+}
+
+/**
+ * An over the cap ended counts as complete: the innings' balls, and those
+ * of the bowler of its last delivery, take the legal balls it did not have,
+ * so the next ball starts the next over and the innings ends after its
+ * overs.
+ */
+function completeCappedOver(r: Replay, ball: BallInput): void {
+  const rest = r.bpo - r.legalInOver;
+  r.legal += rest;
+  r.legalInOver = r.bpo;
+  r.cappedOver = ball.over_number;
+  const bw = r.bowling.get(ball.bowler_id!)!;
+  bw.balls_bowled = (bw.balls_bowled ?? 0) + rest;
+}
+
 /** An over that `ball` ends: the ends swap, the bowler may get a maiden. */
 function replayOverEnd(r: Replay, ball: BallInput): void {
-  const max = r.match.max_balls_per_over;
+  const capped = endsAtCap(r, ball);
+  if (capped) completeCappedOver(r, ball);
   r.overJustEnded =
-    (isLegalDelivery(ball) && r.legal % r.bpo === 0) ||
-    (max !== null && max !== undefined && r.ballsInOver >= max);
+    capped || (isLegalDelivery(ball) && r.legal % r.bpo === 0);
   if (!r.overJustEnded) return;
   r.ends = { striker: r.ends.nonStriker, nonStriker: r.ends.striker };
   if (ball.bowler_id && (r.overTotals.get(ball.over_number) ?? 0) === 0) {
@@ -751,10 +802,10 @@ function replayEntry(r: Replay, ball: BallInput): void {
   if (ball.bowler_id) r.lastBowler = ball.bowler_id;
   if (ball.over_number !== r.overNumber) {
     r.overNumber = ball.over_number;
-    r.ballsInOver = 1;
-  } else {
-    r.ballsInOver += 1;
+    r.ballsInOver = 0;
+    r.legalInOver = 0;
   }
+  if (isDelivery(ball)) r.ballsInOver += 1;
 
   ensureBatter(r, ball.batsman_id);
   ensureBatter(r, ball.non_striker_id);
@@ -768,7 +819,10 @@ function replayEntry(r: Replay, ball: BallInput): void {
   if (ball.batsman_id)
     creditBatter(r.batting.get(ball.batsman_id)!, ball, credit);
   if (ball.bowler_id) creditBowler(r.bowling.get(ball.bowler_id)!, ball);
-  r.legal += isLegalDelivery(ball) ? 1 : 0;
+  if (isLegalDelivery(ball)) {
+    r.legal += 1;
+    r.legalInOver += 1;
+  }
   addToTotals(r.totals, ball);
   if (ball.batsman_id && ball.non_striker_id) replayStand(r, ball, credit);
   const dismissedId = ball.is_wicket ? replayWicket(r, ball) : null;
