@@ -264,10 +264,11 @@ export function PartnershipCard({
 
 export function OverSummaryCard({
   state,
-  ballsPerOver = 6,
+  ballsPerOver,
 }: {
   state: LiveMatchState;
-  ballsPerOver?: number;
+  /** The match's (`ballsPerOverOf`). */
+  ballsPerOver: number;
 }) {
   const over = (state.current_over ?? 0) + 1;
   const econ = economyText(state.bowler_runs, state.bowler_balls, ballsPerOver);
