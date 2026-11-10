@@ -144,6 +144,46 @@ export async function getRegistrableTeams(tournamentId: string): Promise<{
   };
 }
 
+/**
+ * Writes a team's registration: a new row, or the old one of a team
+ * rejected or withdrawn before. Refuses a team already in or waiting.
+ * Answers the error to show, if any.
+ */
+async function saveRegistration(
+  db: Awaited<ReturnType<typeof createServerClient>>,
+  tournamentId: string,
+  teamId: string,
+  fields: { registered_by: string; status: string; payment_status: string },
+): Promise<string | null> {
+  const { data: previous } = await db
+    .from("tournament_registrations")
+    .select("id, status")
+    .eq("tournament_id", tournamentId)
+    .eq("team_id", teamId)
+    .maybeSingle();
+  if (previous?.status === "pending" || previous?.status === "confirmed") {
+    return "This team is already registered";
+  }
+  const { error } = previous
+    ? await db
+        .from("tournament_registrations")
+        .update({
+          ...fields,
+          registered_at: new Date().toISOString(),
+          approved_by: null,
+          approved_at: null,
+        })
+        .eq("id", previous.id)
+    : await db
+        .from("tournament_registrations")
+        .insert({ tournament_id: tournamentId, team_id: teamId, ...fields });
+  if (error) {
+    console.error("registerTeamForTournament error:", error);
+    return error.message;
+  }
+  return null;
+}
+
 export async function registerTeamForTournament(
   tournamentId: string,
   teamId: string,
@@ -172,20 +212,12 @@ export async function registerTeamForTournament(
 
   // Organisers add teams directly; a team's own request waits for them.
   const status = isTournAdmin ? "confirmed" : "pending";
-  const { error: regError } = await db
-    .from("tournament_registrations")
-    .insert({
-      tournament_id: tournamentId,
-      team_id: teamId,
-      registered_by: user.id,
-      status,
-      payment_status: isTournAdmin ? "paid" : "pending",
-    });
-
-  if (regError) {
-    console.error("registerTeamForTournament error:", regError);
-    return { error: regError.message };
-  }
+  const regError = await saveRegistration(db, tournamentId, teamId, {
+    registered_by: user.id,
+    status,
+    payment_status: isTournAdmin ? "paid" : "pending",
+  });
+  if (regError) return { error: regError };
 
   if (status === "confirmed") {
     // Initialise the team's row in the points table.
@@ -286,6 +318,11 @@ export async function overridePointsTableEntry(
   return { success: true };
 }
 
+const REGISTRATION_DECISIONS: ReadonlySet<string> = new Set([
+  "confirmed",
+  "rejected",
+]);
+
 /**
  * Confirm or reject a registration. The organiser check runs against the
  * tournament the registration belongs to; `_tournamentId` (what the page
@@ -303,13 +340,13 @@ export async function updateRegistrationStatus(
 
   if (!user) return { error: "You must be logged in" };
 
-  if (status !== "confirmed" && status !== "rejected") {
+  if (!REGISTRATION_DECISIONS.has(status)) {
     return { error: "Unknown registration status" };
   }
 
   const { data: registration } = await db
     .from("tournament_registrations")
-    .select("tournament_id")
+    .select("tournament_id, status")
     .eq("id", registrationId)
     .maybeSingle();
   const tournamentId = registration?.tournament_id as string | undefined;
@@ -337,7 +374,8 @@ export async function updateRegistrationStatus(
     return { error: error.message };
   }
 
-  if (status === "confirmed") {
+  // The team joins the points table, or leaves it once rejected.
+  if (status === "confirmed" || registration?.status === "confirmed") {
     await db.rpc("recalculate_tournament_standings", {
       p_tournament_id: tournamentId,
     });

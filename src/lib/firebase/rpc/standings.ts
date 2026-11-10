@@ -48,12 +48,9 @@ export async function recalculateTournamentStandings(
     ]) as Promise<unknown> as Promise<TournamentStandingsRow[]>,
   ]);
 
-  const excluded = options.excludeMatchId
-    ? (allMatchDocs.find((m) => m.id === options.excludeMatchId) ?? null)
-    : null;
-  const matchDocs = excluded
-    ? allMatchDocs.filter((m) => m.id !== excluded.id)
-    : allMatchDocs;
+  const matchDocs = allMatchDocs.filter(
+    (m) => m.id !== options.excludeMatchId,
+  );
 
   const teamIds = new Set<string>();
   // Requests still waiting for the organisers (or turned down) stay out.
@@ -64,17 +61,13 @@ export async function recalculateTournamentStandings(
     if (m.team1_id) teamIds.add(m.team1_id);
     if (m.team2_id) teamIds.add(m.team2_id);
   }
-  // A team that was in the table only through the excluded match (not
-  // registered, no other match) leaves it, unless it carries a manual
-  // adjustment, so the table equals one built without that match.
-  if (excluded) {
-    for (const teamId of [excluded.team1_id, excluded.team2_id]) {
-      if (!teamId || teamIds.has(teamId)) continue;
-      const row = standingsDocs.find((s) => s.team_id === teamId);
-      if (!row) continue;
-      if (row.points_adjustment || row.adjustment_reason) teamIds.add(teamId);
-      else await ds.delete("tournament_standings", row.id);
-    }
+  // A team no longer in the table (rejected or withdrawn with no match
+  // played, or in it only through the excluded match) leaves it, unless it
+  // carries a manual adjustment, so the table equals one built afresh.
+  for (const row of standingsDocs) {
+    if (!row.team_id || teamIds.has(row.team_id)) continue;
+    if (row.points_adjustment || row.adjustment_reason) teamIds.add(row.team_id);
+    else await ds.delete("tournament_standings", row.id);
   }
   if (teamIds.size === 0) return;
 

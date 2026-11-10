@@ -164,6 +164,48 @@ describe("updateRegistrationStatus", () => {
   });
 });
 
+describe("a rejected registration", () => {
+  it("lets the team register again, keeping one row", async () => {
+    signIn("cap");
+    await registerTeamForTournament("tour", "lions");
+    const reg = await registrationOf("lions");
+    signIn("org");
+    await updateRegistrationStatus(reg!.id as string, "tour", "rejected");
+
+    signIn("cap");
+    expect(await registerTeamForTournament("tour", "lions")).toEqual({
+      success: true,
+      status: "pending",
+    });
+    const rows = await ds.query("tournament_registrations", [
+      { field: "team_id", op: "==", value: "lions" },
+    ]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ id: reg!.id, status: "pending" });
+
+    // A team already in (or waiting) is not registered twice.
+    expect(await registerTeamForTournament("tour", "lions")).toEqual({
+      error: "This team is already registered",
+    });
+  });
+
+  it("takes a team rejected after confirmation out of the points table", async () => {
+    signIn("org");
+    await registerTeamForTournament("tour", "tigers");
+    expect(await standingOf("tigers")).toBeDefined();
+    const reg = await registrationOf("tigers");
+    await updateRegistrationStatus(reg!.id as string, "tour", "rejected");
+    expect(await standingOf("tigers")).toBeUndefined();
+
+    // Added again by the organisers: straight back in.
+    expect(await registerTeamForTournament("tour", "tigers")).toEqual({
+      success: true,
+      status: "confirmed",
+    });
+    expect(await standingOf("tigers")).toBeDefined();
+  });
+});
+
 describe("tournament rules", () => {
   it("stores the overs chosen when the tournament is created", async () => {
     signIn("org");

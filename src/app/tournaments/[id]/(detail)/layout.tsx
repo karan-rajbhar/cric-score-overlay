@@ -329,7 +329,10 @@ export default async function TournamentLayout({
   const confirmedRegistrations = (registrations ?? []).filter(
     (r) => r.status === "confirmed",
   );
-  const registeredTeamIds = (registrations ?? []).map((r) => r.team_id);
+  // A team rejected or withdrawn may register again.
+  const registeredTeamIds = (registrations ?? [])
+    .filter((r) => r.status === "pending" || r.status === "confirmed")
+    .map((r) => r.team_id);
 
   const teamsForCalculator = (standings ?? []).map((s) => {
     const teamObj = s.team as { name: string } | null;
@@ -533,7 +536,7 @@ export default async function TournamentLayout({
 
       <ContentSheet className="mt-4 sm:mt-8">
       <StatGrid compact>
-        <StatTile compact icon={Users} label="Teams" value={(registrations ?? []).length} />
+        <StatTile compact icon={Users} label="Teams" value={confirmedRegistrations.length} />
         <StatTile compact icon={Swords} label="Matches" value={typedMatches.length} />
         <StatTile compact icon={CheckCircle2} label="Completed" value={completedMatches.length} />
         <StatTile compact
