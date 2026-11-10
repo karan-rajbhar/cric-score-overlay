@@ -142,3 +142,68 @@ describe("createMatch in someone else's tournament", () => {
     expect(res.data).toMatchObject({ tournament_id: "tour", created_by: "u1" });
   });
 });
+
+describe("createMatch in a club's tournament", () => {
+  beforeEach(async () => {
+    await ds.insert("clubs", [
+      { id: "c1", name: "Riverside CC", owner_id: "u1" },
+      { id: "c2", name: "Hillside CC", owner_id: "u1" },
+    ]);
+    await ds.insert("tournaments", [
+      {
+        id: "league",
+        name: "Club league",
+        created_by: "u1",
+        club_id: "c1",
+        season_id: "s2026",
+        last_man_stands: true,
+        golden_ball: true,
+      },
+    ]);
+    await ds.insert("tournament_registrations", [
+      { id: "r1", tournament_id: "league", team_id: "t1", status: "confirmed" },
+      { id: "r2", tournament_id: "league", team_id: "t2", status: "confirmed" },
+    ]);
+  });
+
+  it("takes the tournament's club, season and special rules", async () => {
+    const res = await createMatch({
+      ...base,
+      tournamentId: "league",
+      clubId: "c2",
+      seasonId: "other-season",
+      lastManStands: false,
+      goldenBall: false,
+    });
+    expect(res.error).toBeNull();
+    expect(await ds.getById("matches", res.data!.id as string)).toMatchObject({
+      tournament_id: "league",
+      club_id: "c1",
+      season_id: "s2026",
+      last_man_stands: true,
+      golden_ball: true,
+    });
+  });
+
+  it("stores no club for a tournament that has none", async () => {
+    await ds.update("tournaments", "league", {
+      club_id: null,
+      season_id: null,
+      last_man_stands: null,
+      golden_ball: null,
+    });
+    const res = await createMatch({
+      ...base,
+      tournamentId: "league",
+      clubId: "c2",
+      lastManStands: true,
+    });
+    expect(res.error).toBeNull();
+    expect(await ds.getById("matches", res.data!.id as string)).toMatchObject({
+      club_id: null,
+      season_id: null,
+      last_man_stands: false,
+      golden_ball: false,
+    });
+  });
+});

@@ -91,7 +91,9 @@ export async function createMatch(formData: MatchFormData) {
     formData.tournamentId
       ? db
           .from("tournaments")
-          .select("id, created_by, club_id")
+          .select(
+            "id, created_by, club_id, season_id, last_man_stands, golden_ball",
+          )
           .eq("id", formData.tournamentId)
           .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
@@ -120,15 +122,20 @@ export async function createMatch(formData: MatchFormData) {
     return { data: null, error: "Selected opponent team does not exist" };
   }
 
+  // A tournament match counts for the tournament's club and season and
+  // plays its special rules, whatever the form sent (as its generated
+  // fixtures do).
+  const tournament = formData.tournamentId ? tournamentRes.data : null;
+  const clubId = formData.tournamentId
+    ? (tournament?.club_id ?? null)
+    : formData.clubId || null;
+
   // Collect relevant club IDs to check admin / ownership in one batch
   const relevantClubIds = Array.from(
     new Set(
-      [
-        team1.club_id,
-        team2.club_id,
-        formData.clubId,
-        tournamentRes.data?.club_id,
-      ].filter((id): id is string => Boolean(id)),
+      [team1.club_id, team2.club_id, clubId].filter((id): id is string =>
+        Boolean(id),
+      ),
     ),
   );
 
@@ -172,19 +179,15 @@ export async function createMatch(formData: MatchFormData) {
     team1.vice_captain_id === user.id;
 
   const isTournamentAdmin = Boolean(
-    tournamentRes.data &&
-      (tournamentRes.data.created_by === user.id ||
-        isClubAdmin(tournamentRes.data.club_id)),
+    tournament &&
+      (tournament.created_by === user.id || isClubAdmin(tournament.club_id)),
   );
 
   const isAuthorized =
     isTeam1Mine ||
     myTeamIds.has(team1.id) ||
     isClubAdmin(team1.club_id) ||
-    isTournamentAdmin ||
-    (formData.clubId &&
-      team1.club_id === formData.clubId &&
-      isClubAdmin(formData.clubId));
+    isTournamentAdmin;
 
   if (!isAuthorized) {
     return {
@@ -196,7 +199,6 @@ export async function createMatch(formData: MatchFormData) {
 
   // Validate tournamentId association if provided
   if (formData.tournamentId) {
-    const tournament = tournamentRes.data;
     if (!tournament) {
       return { data: null, error: "Selected tournament does not exist" };
     }
@@ -225,14 +227,14 @@ export async function createMatch(formData: MatchFormData) {
     }
   }
 
-  // Validate clubId association if provided
-  if (formData.clubId) {
-    const club = (clubsRes.data ?? []).find((c) => c.id === formData.clubId);
+  // Validate the club chosen for a match outside a tournament
+  if (!formData.tournamentId && clubId) {
+    const club = (clubsRes.data ?? []).find((c) => c.id === clubId);
     if (!club) {
       return { data: null, error: "Selected club does not exist" };
     }
 
-    if (!isClubAdmin(formData.clubId) && team1.club_id !== formData.clubId) {
+    if (!isClubAdmin(clubId) && team1.club_id !== clubId) {
       return {
         data: null,
         error:
@@ -243,8 +245,8 @@ export async function createMatch(formData: MatchFormData) {
 
   // Validate Team 2 (Opponent) eligibility under Option 1
   if (!formData.tournamentId) {
-    if (formData.clubId) {
-      const isTeam2InClub = team2.club_id === formData.clubId;
+    if (clubId) {
+      const isTeam2InClub = team2.club_id === clubId;
       const isTeam2Mine =
         team2.created_by === user.id ||
         team2.captain_id === user.id ||
@@ -295,18 +297,26 @@ export async function createMatch(formData: MatchFormData) {
       scheduled_at: formData.scheduledAt,
       umpire1_name: formData.umpire1Name,
       umpire2_name: formData.umpire2Name,
-      club_id: formData.clubId,
+      club_id: clubId,
       // Only a club match has sides that count for a club; "both" is the
       // default, so it is not stored.
       club_side:
-        formData.clubId && formData.clubSide && formData.clubSide !== "both"
+        clubId && formData.clubSide && formData.clubSide !== "both"
           ? formData.clubSide
           : null,
       tournament_id: formData.tournamentId,
-      season_id: formData.seasonId,
       wickets_per_innings: formData.wicketsPerInnings ?? 10,
-      last_man_stands: formData.lastManStands ?? false,
-      golden_ball: formData.goldenBall ?? false,
+      ...(tournament
+        ? {
+            season_id: tournament.season_id ?? null,
+            last_man_stands: tournament.last_man_stands ?? false,
+            golden_ball: tournament.golden_ball ?? false,
+          }
+        : {
+            season_id: formData.seasonId,
+            last_man_stands: formData.lastManStands ?? false,
+            golden_ball: formData.goldenBall ?? false,
+          }),
       created_by: user.id,
       match_admins: [user.id],
       status: "scheduled",
