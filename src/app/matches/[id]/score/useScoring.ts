@@ -278,6 +278,15 @@ function matchWithInningsEnded(prev: Match): Match {
   };
 }
 
+/** What the screen waits for after showing what is queued (`foldPending`). */
+function awaitingOf(folded: {
+  waiting: boolean;
+  endsInnings: boolean;
+}): "action" | "innings_end" | null {
+  if (!folded.waiting) return null;
+  return folded.endsInnings ? "innings_end" : "action";
+}
+
 /** An End innings sent with no reply: queued, and said so. */
 const END_NOT_CONFIRMED =
   "No connection: the end of the innings is not confirmed yet. It is sent again.";
@@ -454,8 +463,15 @@ export function useScoring(
    */
   const snapshotRef = useRef<Snapshot | null>(null);
   const baseRef = useRef<PredictionBase | null>(null);
-  /** The queued actions cannot be shown yet: the screen waits for the server. */
-  const [awaitingServer, setAwaitingServer] = useState(false);
+  /**
+   * The queued actions cannot be shown yet: the screen waits for the server
+   * ("innings_end": a delivery that ended the innings, after which the next
+   * innings or the result is the server's to decide).
+   */
+  const [awaiting, setAwaiting] = useState<"action" | "innings_end" | null>(
+    null,
+  );
+  const awaitingServer = awaiting !== null;
   /**
    * Instant undo (`~/lib/scoring-undo`): for the recent balls the screen
    * saw happen, the state just before each (what the server's undo
@@ -668,7 +684,7 @@ export function useScoring(
       pending.length === 0 ||
       pending.some((a) => !a.instant)
     ) {
-      setAwaitingServer(false);
+      setAwaiting(null);
       await renderSnapshot(confirmed);
       return confirmed;
     }
@@ -679,7 +695,7 @@ export function useScoring(
       undefined,
       undoTargetsRef.current,
     );
-    setAwaitingServer(folded.waiting);
+    setAwaiting(awaitingOf(folded));
     await renderSnapshot(folded.state.snapshot);
     return folded.state.snapshot;
   }, [matchId, renderSnapshot, squadNames]);
@@ -1623,7 +1639,7 @@ export function useScoring(
     setPendingCount(getPendingCount(matchId));
     // A delivery that ends the innings shows, then waits for the server:
     // the next innings or the result is its to decide.
-    setAwaitingServer(folded.waiting);
+    setAwaiting(awaitingOf(folded));
     const shown = folded.state.snapshot;
     void renderSnapshot(shown);
     if (type === "recordBall" && !folded.endsInnings) {
@@ -2768,6 +2784,9 @@ export function useScoring(
    */
   const endInningsOnDevice = (unconfirmed: boolean) => {
     setPendingCount(getPendingCount(matchId));
+    // A delivery that ended the innings no longer waits for the server:
+    // what follows it is queued in offline mode.
+    setAwaiting(null);
     const said = (text: string) =>
       unconfirmed ? `${END_NOT_CONFIRMED} ${text}` : text;
 
@@ -2871,6 +2890,12 @@ export function useScoring(
     refreshQueueState();
   };
 
+  // Offline, a delivery that ended the innings cannot reach the server that
+  // would open the next one: the scorer ends the innings on this device
+  // (`handleEndInnings`, as in offline mode), so nothing waits for it.
+  const waitsForServer =
+    awaitingServer && !(awaiting === "innings_end" && isOffline);
+
   return {
     match,
     loading,
@@ -2884,7 +2909,7 @@ export function useScoring(
     lastBalls,
     rawDeliveries,
     // Waiting for the server (an action it must decide) blocks scoring too.
-    isProcessing: isProcessing || awaitingServer,
+    isProcessing: isProcessing || waitsForServer,
     /** Undo is unavailable (a blocking action or a server undo runs). */
     undoBusy: isProcessing || undoing,
     /** What the last undo took back, for the over strip (null: nothing). */
@@ -2902,7 +2927,7 @@ export function useScoring(
     /** The queue's head when the server refused it (it may be skipped). */
     refusedHead,
     /** A ball or action is waiting for the server's answer to show. */
-    awaitingServer,
+    awaitingServer: waitsForServer,
     flushOfflineQueue,
     handleSkipHeadAction,
     handleResendDeadLetters,

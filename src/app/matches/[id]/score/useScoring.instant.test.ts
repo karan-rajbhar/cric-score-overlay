@@ -882,6 +882,64 @@ describe("useScoring: instant scoring", () => {
     }
   });
 
+  it("offline, ends the innings a ball closed on the device and scores the next one", async () => {
+    // A one-over match: the sixth ball ends the innings.
+    MATCH.overs_per_innings = 1;
+    try {
+      const { result } = await open();
+      vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+      act(() => {
+        window.dispatchEvent(new Event("offline"));
+      });
+      for (let i = 0; i < 6; i += 1) {
+        await act(async () => {
+          await result.current.handleScore("b1", "p1", "p2", { runsScored: 2 });
+        });
+      }
+      expect(currentInnings(result.current.match)).toMatchObject({
+        total_runs: 12,
+        total_balls: 6,
+      });
+      // The server that would open the next innings cannot be reached:
+      // nothing waits for it, and End innings can run.
+      expect(result.current.awaitingServer).toBe(false);
+      expect(result.current.isProcessing).toBe(false);
+
+      await act(async () => {
+        await result.current.handleEndInnings();
+      });
+      expect(result.current.match?.current_innings).toBe(2);
+      expect(getPendingActions(M).at(-1)).toMatchObject({
+        type: "endInnings",
+        payload: { inningsNumber: 1 },
+      });
+      expect(result.current.isProcessing).toBe(false);
+
+      await act(async () => {
+        await result.current.handleConfirmBatsmen("b1", "b2");
+      });
+      await act(async () => {
+        await result.current.handleConfirmBowler("p3");
+      });
+      await act(async () => {
+        await result.current.handleScore("p3", "b1", "b2", { runsScored: 4 });
+      });
+      const second = result.current.match?.innings?.find(
+        (i) => i.innings_number === 2,
+      );
+      expect(second).toMatchObject({ total_runs: 4, total_balls: 1 });
+      expect(getPendingActions(M).map((a) => a.type).slice(-4)).toEqual([
+        "endInnings",
+        "setBatsmen",
+        "setBowler",
+        "recordBall",
+      ]);
+      expect(server.batches).toHaveLength(0);
+    } finally {
+      MATCH.overs_per_innings = 20;
+    }
+  });
+
   it("waits for the server when it has no documents to predict from", async () => {
     vi.mocked(getScoringState).mockImplementation(
       async () => ({ ...server.state(), base: null }) as never,

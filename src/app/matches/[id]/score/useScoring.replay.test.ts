@@ -26,6 +26,7 @@ vi.mock("../../../teams/actions", () => ({
   createPlayerQuick: vi.fn(),
   addExistingPlayerQuick: vi.fn(),
 }));
+vi.mock("~/lib/report-error", () => ({ reportClientError: vi.fn() }));
 vi.mock("sonner", () => ({
   toast: { info: vi.fn(), error: vi.fn(), success: vi.fn(), warning: vi.fn() },
 }));
@@ -44,6 +45,7 @@ import { stage2Driver, type Stage2Side } from "~/lib/firebase/scoring/__fixtures
 import { serverClientFor, type ServerClient } from "~/lib/firebase/server-client";
 import type { InningsRow, MatchesRow } from "~/lib/firebase/types";
 import { getDeadLetterActions, getPendingActions } from "~/lib/offline-queue";
+import { applyLiveResync } from "~/lib/scoring-delta";
 import type { ReplayBatch } from "~/lib/scoring-replay/protocol";
 import { getScoringState, getTeamPlayers } from "../../queries";
 import { useScoring } from "./useScoring";
@@ -112,6 +114,65 @@ const storedInnings = () =>
     .map((i) => [i.innings_number, i.total_runs, i.total_balls, i.is_completed])
     .sort((a, b) => Number(a[0]) - Number(b[0]));
 
+/**
+ * `getScoringState` with the documents behind it (instant scoring's base),
+ * read from the engine's store and built the way a reply's delta is.
+ */
+function engineState() {
+  const innings = (
+    side.ds.all("innings") as unknown as Array<InningsRow & { id: string }>
+  ).find((i) => i.innings_number === 1)!;
+  const shell = {
+    ...START,
+    match: { ...storedMatch(), ...START.match },
+  };
+  const names = new Map(
+    [...A, ...B].map((id) => [id, { id, full_name: id }] as const),
+  );
+  const data = applyLiveResync(shell as never, [innings], [], names);
+  return { data, base: { innings, overs: [] }, error: null };
+}
+
+type Screen = { current: ReturnType<typeof useScoring> };
+const [BOWLER, OPENER1, OPENER2] = [B[10]!, A[0]!, A[1]!];
+
+/** The openers, the bowler and the one over of the first innings: 12 runs. */
+async function scoreFirstInnings(result: Screen) {
+  await act(async () => {
+    await result.current.handleConfirmBatsmen(OPENER1, OPENER2);
+  });
+  await act(async () => {
+    await result.current.handleConfirmBowler(BOWLER);
+  });
+  for (let i = 0; i < 6; i += 1) {
+    await act(async () => {
+      await result.current.handleScore(BOWLER, OPENER1, OPENER2, {
+        runsScored: 2,
+      });
+    });
+  }
+}
+
+/** End innings, then the second innings' openers, bowler and a four. */
+async function scoreEndAndNextBall(result: Screen) {
+  await act(async () => {
+    await result.current.handleEndInnings();
+  });
+  expect(result.current.match?.current_innings).toBe(2);
+  await act(async () => {
+    await result.current.handleConfirmBatsmen(B[0]!, B[1]!);
+  });
+  await act(async () => {
+    await result.current.handleConfirmBowler(A[10]!);
+  });
+  await act(async () => {
+    await result.current.handleScore(A[10]!, B[0]!, B[1]!, { runsScored: 4 });
+  });
+  expect(
+    getPendingActions("M").find((a) => a.type === "endInnings")?.payload,
+  ).toEqual({ inningsNumber: 1 });
+}
+
 /** The engine's match, the server client over it, and the screen's reads. */
 function seed() {
   localStorage.clear();
@@ -144,6 +205,37 @@ function seed() {
 describe("useScoring: offline queue replayed by the server", () => {
   beforeEach(seed);
 
+  it("instant scoring offline: ends the innings a ball closed, scores the next, and replays", async () => {
+    vi.mocked(getScoringState).mockResolvedValue(engineState() as never);
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
+    const { result } = renderHook(() => useScoring("M"));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    const online = vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    act(() => {
+      window.dispatchEvent(new Event("offline"));
+    });
+    await scoreFirstInnings(result);
+    // Shown at once (predicted), with nothing left waiting for the server.
+    expect(getPendingActions("M").every((a) => a.instant)).toBe(true);
+    expect(result.current.isProcessing).toBe(false);
+    await scoreEndAndNextBall(result);
+
+    online.mockReturnValue(true);
+    routeToEngine();
+    await act(async () => {
+      await result.current.flushOfflineQueue();
+    });
+
+    expect(getPendingActions("M")).toEqual([]);
+    expect(getDeadLetterActions("M")).toEqual([]);
+    expect(storedMatch()).toMatchObject({ status: "live", current_innings: 2 });
+    expect(storedInnings()).toEqual([
+      [1, 12, 6, true],
+      [2, 4, 1, false],
+    ]);
+  });
+
   it("ends only the innings the scorer ended, after the last ball already did", async () => {
     vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
     const { result } = renderHook(() => useScoring("M"));
@@ -152,36 +244,8 @@ describe("useScoring: offline queue replayed by the server", () => {
     // No signal: the first innings, its last ball, End innings, and the
     // start of the second innings, all queued on the device.
     const online = vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
-    const [bowler, opener1, opener2] = [B[10]!, A[0]!, A[1]!];
-    await act(async () => {
-      await result.current.handleConfirmBatsmen(opener1, opener2);
-    });
-    await act(async () => {
-      await result.current.handleConfirmBowler(bowler);
-    });
-    for (let i = 0; i < 6; i += 1) {
-      await act(async () => {
-        await result.current.handleScore(bowler, opener1, opener2, {
-          runsScored: 2,
-        });
-      });
-    }
-    await act(async () => {
-      await result.current.handleEndInnings();
-    });
-    expect(result.current.match?.current_innings).toBe(2);
-    await act(async () => {
-      await result.current.handleConfirmBatsmen(B[0]!, B[1]!);
-    });
-    await act(async () => {
-      await result.current.handleConfirmBowler(A[10]!);
-    });
-    await act(async () => {
-      await result.current.handleScore(A[10]!, B[0]!, B[1]!, { runsScored: 4 });
-    });
-    expect(getPendingActions("M").find((a) => a.type === "endInnings")?.payload).toEqual({
-      inningsNumber: 1,
-    });
+    await scoreFirstInnings(result);
+    await scoreEndAndNextBall(result);
 
     // Back online: the sixth ball closes the first innings on the server,
     // so the queued End innings has nothing left to end.
