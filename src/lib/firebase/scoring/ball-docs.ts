@@ -41,7 +41,7 @@ import {
   type IncrementalOutput,
 } from "./incremental";
 import { startsNewPartnership } from "./recompute";
-import { inningsLimits } from "./result";
+import { inningsLimits, type LimitsMatch } from "./result";
 
 type WithId<T> = T & { id: string };
 
@@ -197,8 +197,11 @@ export function newBall(
 }
 
 export function inningsComplete(
-  match: MatchesRow,
-  innings: InningsRow,
+  match: LimitsMatch,
+  innings: Pick<
+    InningsRow,
+    "innings_number" | "target_runs" | "total_runs" | "total_wickets" | "total_balls"
+  >,
 ): boolean {
   const limits = inningsLimits(match, innings.innings_number);
   const targetReached =
@@ -527,11 +530,13 @@ export function penaltyFields(
  * The documents after `event` (from {@link newEventBall}: a retirement at a
  * full crease, or penalty / bonus runs to the batting side at a full crease
  * with a bowler) applied to the running totals, as `ballDocsAfter` does for
- * a delivery. Null for any other event or when that would not be exact:
- * the engine then recomputes the innings, and the screen waits for it.
+ * a delivery. Null for any other event, for one that completes the innings
+ * (the next innings or the result is the server's to decide), or when that
+ * would not be exact: the engine then recomputes the innings, and the
+ * screen waits for it.
  */
 export function eventDocsAfter(input: {
-  match: BallMatch;
+  match: BallMatch & LimitsMatch;
   innings: WithId<InningsRow>;
   overDoc: BallDocsInput["overDoc"];
   event: WithId<BallByBallRow>;
@@ -550,7 +555,10 @@ export function eventDocsAfter(input: {
     (event.runs_scored ?? 0) === 0 &&
     !event.is_wicket;
   if (!penalty && !isRetirementAtCrease(event)) return null;
-  return docsAfterEntry(match, innings, sortedOver, event, now);
+  const docs = docsAfterEntry(match, innings, sortedOver, event, now);
+  if (docs && inningsComplete(match, { ...innings, ...docs.inningsPatch }))
+    return null;
+  return docs;
 }
 
 /**

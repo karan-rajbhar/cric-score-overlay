@@ -12,7 +12,14 @@
  * events without one: the "edits" scenario's hashes from its reassignment on
  * differ only by a bonus event's `bowler_id` (null, not the new bowler). And
  * again when the live row took the app's one spelling of a ball
- * (`deliveryLabel`): with `this_over_balls` masked no hash moved. Replaying
+ * (`deliveryLabel`): with `this_over_balls` masked no hash moved. And when
+ * an edit began to settle the innings and the match as a delivery does: in
+ * the "edits" scenario, the edit of the completed first innings moves the
+ * chase's target with it (steps 27 to 30 differ by innings 2's target and
+ * live_state's target, runs needed and required rate), and the edit that
+ * takes the winning chase below its target reopens the match (steps 42 and
+ * 43: live, no result, innings 2 open); the undo after them lands on the
+ * recorded state again. Replaying
  * the same steps on the current engine and hashing the legacy-shaped view of
  * its storage (innings arrays and over documents expanded back into rows by
  * `legacyRowsDataSource`) must give identical hashes: same scorecards, ball
