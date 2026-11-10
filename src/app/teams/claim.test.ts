@@ -145,7 +145,7 @@ describe("invite to claim", () => {
     signIn("asha");
 
     expect((await addPlayerToTeam("evil", placeholder)).error).toMatch(
-      /already in can add them/,
+      /is in or has played for/,
     );
     // A squad row that got there anyway gives no say over the player.
     await ds.insert("team_players", [

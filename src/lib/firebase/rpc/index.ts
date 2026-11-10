@@ -28,6 +28,7 @@ import { inviteStreamerEmail } from "./streamers";
 import { deleteMatch } from "./delete-match";
 import {
   addTeamPlayer,
+  assertMayActForPlaceholder,
   checkUsernameAvailable,
   createTeamPlayer,
   ensureOwnProfile,
@@ -277,6 +278,15 @@ export async function callRpc(
         typeof args.p_jersey_number === "number" ? args.p_jersey_number : null,
         optStr(args, "p_match_id"),
       );
+    case "assert_may_act_for_placeholder":
+      // Server-only: the placeholder rule of the team page's actions
+      // (add to a squad, invite to claim), one copy with the rpcs'.
+      if (!ctx.uid) throw new DbQueryError("Authentication required", "42501");
+      await assertMayActForPlaceholder(ctx.ds, ctx.uid, str(args, "p_user_id"), {
+        every: args.p_every === true,
+        known: str(args, "p_team_id"),
+      });
+      return null;
     case "add_team_player":
       return addTeamPlayer(
         ctx.ds,

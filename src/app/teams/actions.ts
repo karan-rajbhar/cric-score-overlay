@@ -381,7 +381,7 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PLACEHOLDER_DOMAIN = PLACEHOLDER_EMAIL_DOMAIN;
 
 const OTHER_TEAMS_PLAYER =
-  "Only an admin of a team this player is already in can add them to another squad";
+  "Only an admin of a team this player is in or has played for can add them to a squad. Ask one of them, or add a new player";
 
 /** A merge refusal in words: one of the player's teams is not the caller's. */
 function mergeError(message: string): string {
@@ -390,34 +390,25 @@ function mergeError(message: string): string {
     : friendlyError(message);
 }
 
-/** The teams whose squads have the player. */
-async function squadTeamsOf(
-  db: ServerClient,
-  playerId: string,
-): Promise<Set<string>> {
-  const { data: rows } = await db
-    .from("team_players")
-    .select("team_id")
-    .eq("user_id", playerId);
-  return new Set((rows ?? []).map((r) => String(r.team_id)));
-}
-
 /**
- * Whether the caller runs `every` one of `teams` (to hand on a
- * placeholder's identity), or at least one (to add a placeholder to another
- * squad). A squad anyone can add a player to gives no say over them
- * (`assertMayActForPlaceholder` is the rpc side).
+ * The placeholder rule (`assertMayActForPlaceholder`): a squad anyone can
+ * add a player to gives no say over them. `every`: the caller runs every
+ * team whose squad has them (to hand on their identity); else a team that
+ * has them or that they played for (to add them to `teamId`, which the
+ * caller runs). The rpc's error message when refused.
  */
-async function runsTeams(
+async function placeholderRefusal(
   db: ServerClient,
-  callerId: string,
-  teams: Set<string>,
+  teamId: string,
+  playerId: string,
   every: boolean,
-): Promise<boolean> {
-  const runs = await Promise.all(
-    [...teams].map((teamId) => canManageTeam(db, teamId, callerId)),
-  );
-  return every ? runs.every(Boolean) : runs.some(Boolean);
+): Promise<string | null> {
+  const { error } = await db.rpc("assert_may_act_for_placeholder", {
+    p_team_id: teamId,
+    p_user_id: playerId,
+    p_every: every,
+  });
+  return error?.message ?? null;
 }
 
 /** Why the caller may not invite a squad player to claim their profile. */
@@ -430,12 +421,18 @@ async function claimRefusal(
   if (!(await canManageTeam(db, teamId, callerId))) {
     return "Only the team's creator, captain, vice-captain or a club admin can invite its players";
   }
-  const teams = await squadTeamsOf(db, playerId);
-  if (!teams.delete(teamId)) return "That player is not in this team's squad";
-  if (!(await runsTeams(db, callerId, teams, true))) {
+  const { data: entry } = await db
+    .from("team_players")
+    .select("id")
+    .eq("team_id", teamId)
+    .eq("user_id", playerId)
+    .maybeSingle();
+  if (!entry) return "That player is not in this team's squad";
+  const refused = await placeholderRefusal(db, teamId, playerId, true);
+  if (refused?.includes(PLACEHOLDER_IN_OTHER_TEAMS)) {
     return "Only an admin of every team they play for can invite this player";
   }
-  return null;
+  return refused;
 }
 
 /**
@@ -731,10 +728,8 @@ export async function addPlayerToTeam(
     .eq("id", userId)
     .maybeSingle();
   if (player?.is_placeholder === true) {
-    const teams = await squadTeamsOf(db, userId);
-    if (!teams.has(teamId) && !(await runsTeams(db, user.id, teams, false))) {
-      return { error: OTHER_TEAMS_PLAYER };
-    }
+    const refused = await placeholderRefusal(db, teamId, userId, false);
+    if (refused) return { error: addPlayerError(refused) };
   }
 
   const { error } = await db.from("team_players").insert({

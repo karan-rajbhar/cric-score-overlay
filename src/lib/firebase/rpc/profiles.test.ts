@@ -243,3 +243,48 @@ describe("addTeamPlayer for a placeholder", () => {
     expect(await squadOf("t3")).toEqual(["p2"]);
   });
 });
+
+describe("addTeamPlayer for a placeholder in no squad", () => {
+  it("adds them back for an admin of a team they played for", async () => {
+    // Taken out of every squad by mistake; one batted for t1, one bowled
+    // for t1 (in t2's innings), both against t2.
+    const ds = new MemoryDataSource({
+      teams: [
+        { id: "t1", created_by: "owner", club_id: null },
+        { id: "t2", created_by: "rival", club_id: null },
+        { id: "t3", created_by: "owner", club_id: null },
+        { id: "mine", created_by: "outsider", club_id: null },
+      ],
+      users: [
+        { id: "bat", full_name: "Batter", is_placeholder: true },
+        { id: "bowl", full_name: "Bowler", is_placeholder: true },
+      ],
+      matches: [{ id: "m0", team1_id: "t1", team2_id: "t2", status: "completed" }],
+      innings: [
+        { id: "i1", match_id: "m0", team_id: "t1", innings_number: 1 },
+        { id: "i2", match_id: "m0", team_id: "t2", innings_number: 2 },
+      ],
+      player_matches: [
+        { id: "m0_bat", match_id: "m0", user_id: "bat", batting: [{ innings_id: "i1" }], bowling: [] },
+        { id: "m0_bowl", match_id: "m0", user_id: "bowl", batting: [], bowling: [{ innings_id: "i2" }] },
+      ],
+    });
+    const squads = async () =>
+      (await ds.query("team_players", [])).map((r) => `${r.team_id}:${r.user_id}`).sort();
+
+    for (const player of ["bat", "bowl"]) {
+      // Not for the other side's admin, nor an outsider.
+      await expect(addTeamPlayer(ds, "rival", "t2", player)).rejects.toThrow(
+        /placeholder_of_other_team/,
+      );
+      await expect(addTeamPlayer(ds, "outsider", "mine", player)).rejects.toThrow(
+        /placeholder_of_other_team/,
+      );
+    }
+    expect(await squads()).toEqual([]);
+
+    await addTeamPlayer(ds, "owner", "t1", "bat");
+    await addTeamPlayer(ds, "owner", "t3", "bowl");
+    expect(await squads()).toEqual(["t1:bat", "t3:bowl"]);
+  });
+});

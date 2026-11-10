@@ -17,6 +17,7 @@ import {
   userIdsByPhone,
 } from "../user-private";
 import { followKey, renameFollowTarget } from "~/lib/follows/store";
+import { PLAYER_MATCHES_COLLECTION, type PlayerMatchesRow } from "../scorecard";
 import { refreshLiveScorecards, remapScorecardUserId } from "../scorecard-sync";
 import { isClubAdmin, isMatchAdmin } from "./auth-helpers";
 
@@ -505,11 +506,53 @@ async function squadTeamsOf(ds: DataSource, userId: string): Promise<string[]> {
 }
 
 /**
+ * The teams a player has played for, from their match records: the
+ * batting side of each innings they batted in, the other side of each they
+ * bowled in (fielding alone names no innings). Reads their records, then
+ * those innings and matches.
+ */
+async function teamsPlayedFor(ds: DataSource, userId: string): Promise<string[]> {
+  const records = (await ds.query(PLAYER_MATCHES_COLLECTION, [
+    { field: "user_id", op: "==", value: userId },
+  ])) as unknown as PlayerMatchesRow[];
+  const batted = new Set(records.flatMap((r) => r.batting ?? []).map((b) => b.innings_id));
+  const bowled = new Set(records.flatMap((r) => r.bowling ?? []).map((b) => b.innings_id));
+  if (!batted.size && !bowled.size) return [];
+  const [innings, matches] = await Promise.all([
+    ds.getByIds("innings", [...new Set([...batted, ...bowled])]),
+    ds.getByIds("matches", [...new Set(records.map((r) => r.match_id))]),
+  ]);
+  const sides = new Map(matches.map((m) => [m.id, [m.team1_id, m.team2_id]]));
+  const teams = new Set<unknown>();
+  for (const inn of innings) {
+    if (batted.has(inn.id)) teams.add(inn.team_id);
+    if (bowled.has(inn.id)) {
+      teams.add(sides.get(String(inn.match_id))?.find((t) => t !== inn.team_id));
+    }
+  }
+  return [...teams].filter((t): t is string => typeof t === "string" && !!t);
+}
+
+/** Whether the caller may add players to any of `teams`. */
+async function runsAnyOf(
+  ds: DataSource,
+  callerId: string,
+  teams: string[],
+  matchId: string | null,
+): Promise<boolean> {
+  const say = await Promise.all(
+    teams.map((teamId) => mayAddPlayers(ds, callerId, teamId, matchId)),
+  );
+  return say.includes(true);
+}
+
+/**
  * Authority over a placeholder (a player with no account) comes from the
- * teams whose squads already have it, never from a squad anyone may add it
- * to: handing its records or identity to someone (a merge) takes every one
- * of them (`every`), adding it to another squad takes one. `known`: a team
- * the caller is already known to run.
+ * teams that already have it, never from a squad anyone may add it to:
+ * handing its records or identity to someone (a merge) takes every team
+ * whose squad has it (`every`); adding it to another squad takes one of
+ * them, or else a team it has played for (one that took it out of the
+ * squad by mistake, say). `known`: a team the caller is known to run.
  */
 export async function assertMayActForPlaceholder(
   ds: DataSource,
@@ -522,17 +565,31 @@ export async function assertMayActForPlaceholder(
   }: { every: boolean; known: string; matchId?: string | null },
 ): Promise<void> {
   const teams = await squadTeamsOf(ds, userId);
-  if (!every && teams.includes(known)) return;
-  const say = await Promise.all(
-    teams
-      .filter((teamId) => teamId !== known)
-      .map((teamId) => mayAddPlayers(ds, callerId, teamId, matchId)),
-  );
-  // A team since deleted (null) gives no say and takes none.
-  if (every ? say.includes(false) : !say.includes(true)) {
-    const why = every ? PLACEHOLDER_IN_OTHER_TEAMS : PLACEHOLDER_OF_OTHER_TEAM;
-    throw new DbQueryError(`not_authorized: ${why}`, "42501");
+  const others = teams.filter((teamId) => teamId !== known);
+  if (every) {
+    const say = await Promise.all(
+      others.map((teamId) => mayAddPlayers(ds, callerId, teamId, null)),
+    );
+    // A team since deleted (null) takes no say.
+    if (!say.includes(false)) return;
+    throw new DbQueryError(
+      `not_authorized: ${PLACEHOLDER_IN_OTHER_TEAMS}`,
+      "42501",
+    );
   }
+  if (teams.includes(known) || (await runsAnyOf(ds, callerId, teams, matchId))) {
+    return;
+  }
+  const played = (await teamsPlayedFor(ds, userId)).filter(
+    (teamId) => !teams.includes(teamId),
+  );
+  if (
+    played.includes(known) ||
+    (await runsAnyOf(ds, callerId, played, matchId))
+  ) {
+    return;
+  }
+  throw new DbQueryError(`not_authorized: ${PLACEHOLDER_OF_OTHER_TEAM}`, "42501");
 }
 
 export async function createTeamPlayer(
