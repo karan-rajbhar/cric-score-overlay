@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { NextRequest } from "next/server";
+import { streamedRequest } from "~/test/streamed-request";
 import { POST } from "./route";
 
 function request(body: string, ua = "TestAgent/1.0"): NextRequest {
@@ -61,4 +62,38 @@ describe("POST /api/client-error", () => {
     );
     expect(log).not.toHaveBeenCalled();
   });
+
+  it("stops reading a streamed body once it passes the cap", async () => {
+    const { request, pulled } = streamedRequest(
+      "http://localhost/api/client-error",
+      { headers: { "Content-Type": "application/json" } },
+    );
+    expect((await POST(request)).status).toBe(413);
+    expect(pulled()).toBeLessThan(20);
+    expect(log).not.toHaveBeenCalled();
+  });
+});
+
+it("logs at most 60 reports a minute per instance", async () => {
+  const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+  // Later than every report above, so their minute is over.
+  vi.useFakeTimers({ now: Date.now() + 3_600_000 });
+  try {
+    const statuses: number[] = [];
+    for (let i = 0; i < 70; i++) {
+      statuses.push(
+        (await POST(request(JSON.stringify({ message: `m${i}` })))).status,
+      );
+    }
+    expect(statuses.filter((s) => s === 204)).toHaveLength(60);
+    expect(statuses.at(-1)).toBe(429);
+    expect(log).toHaveBeenCalledTimes(60);
+    vi.advanceTimersByTime(61_000);
+    expect(
+      (await POST(request(JSON.stringify({ message: "later" })))).status,
+    ).toBe(204);
+  } finally {
+    vi.useRealTimers();
+    log.mockRestore();
+  }
 });

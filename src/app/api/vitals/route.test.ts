@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from "vitest";
 import type { NextRequest } from "next/server";
+import { streamedRequest } from "~/test/streamed-request";
 import { POST } from "./route";
 
 const post = (body: unknown) =>
@@ -61,5 +62,11 @@ describe("POST /api/vitals", () => {
       (await post({ metrics: Array.from({ length: 11 }, () => metric("CLS")) }))
         .status,
     ).toBe(400);
+  });
+
+  it("stops reading a streamed body once it passes the cap", async () => {
+    const { request, pulled } = streamedRequest("https://x/api/vitals");
+    expect((await POST(request)).status).toBe(413);
+    expect(pulled()).toBeLessThan(20);
   });
 });

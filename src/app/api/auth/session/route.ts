@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { readCapped } from "~/lib/api-request";
 import { getAdminAuth, getAdminFirestore } from "~/lib/firebase/admin";
 import { AdminDataSource } from "~/lib/firebase/datasource-admin";
 import { derivedFieldsDataSource } from "~/lib/firebase/derived-fields";
@@ -23,15 +24,22 @@ import {
  * The app is invite-only: an account nobody invited gets a 403, and the
  * Firebase Auth account that Google sign-in just created is deleted.
  */
+
+/** `{ idToken }`: an ID token is a few KB at most. */
+const MAX_BODY_BYTES = 16 * 1024;
+
 export async function POST(request: NextRequest) {
-  let idToken: string | undefined;
+  const raw = await readCapped(request, MAX_BODY_BYTES);
+  if (raw === null) {
+    return NextResponse.json({ error: "too_large" }, { status: 413 });
+  }
+  let idToken: unknown;
   try {
-    const body = (await request.json()) as { idToken?: string };
-    idToken = body.idToken;
+    idToken = (JSON.parse(raw) as { idToken?: unknown } | null)?.idToken;
   } catch {
     idToken = undefined;
   }
-  if (!idToken) {
+  if (typeof idToken !== "string" || !idToken) {
     return NextResponse.json({ error: "Missing idToken" }, { status: 400 });
   }
 

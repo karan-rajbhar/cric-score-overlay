@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { readCapped } from "~/lib/api-request";
 
 /**
  * Core Web Vitals from real visits (`WebVitalsReporter`): each one is
@@ -59,8 +60,8 @@ function entryOf(body: unknown): Record<string, unknown> | null {
 }
 
 export async function POST(request: NextRequest) {
-  const raw = await request.text();
-  if (raw.length > MAX_BODY_BYTES) {
+  const raw = await readCapped(request, MAX_BODY_BYTES);
+  if (raw === null) {
     return NextResponse.json({ error: "too_large" }, { status: 413 });
   }
   let body: unknown;
