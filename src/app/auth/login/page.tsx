@@ -15,6 +15,24 @@ import { Alert, AlertDescription } from "~/components/ui/alert";
 import { AlertCircle } from "lucide-react";
 import { BrandMark, BrandWordmark } from "~/components/brand";
 
+/**
+ * Where to go after sign-in: the target's path, query and hash when it
+ * resolves to this site (invite links carry `next`), else the dashboard.
+ * Resolved the way the router will resolve it, so `/\host` or a path with a
+ * tab in it cannot lead to another site.
+ */
+function sameSitePath(target: string): string {
+  if (!target) return "/dashboard";
+  const origin = window.location.origin;
+  try {
+    const url = new URL(target, origin);
+    if (url.origin === origin) return url.pathname + url.search + url.hash;
+  } catch {
+    // Not a URL: fall through.
+  }
+  return "/dashboard";
+}
+
 function LoginPageInner() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,15 +71,9 @@ function LoginPageInner() {
   // never in render).
   useEffect(() => {
     if (user) {
-      // Only same-site paths: invite links carry `next`, so never follow
-      // an absolute or protocol-relative URL.
       const target =
         searchParams.get("redirect") ?? searchParams.get("next") ?? "";
-      const redirect =
-        target.startsWith("/") && !target.startsWith("//")
-          ? target
-          : "/dashboard";
-      router.push(redirect);
+      router.push(sameSitePath(target));
       router.refresh();
     }
   }, [user, router, searchParams]);
