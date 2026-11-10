@@ -123,6 +123,32 @@ describe("POST /api/overlay/command", () => {
     });
   });
 
+  it("stores the tournament data for the graphics", async () => {
+    const snapshots = {
+      pointsTable: {
+        title: "Group A",
+        rows: [
+          { team: "Harbour Hawks", played: 3, won: 2, lost: 1, points: 4 },
+        ],
+      },
+    };
+    const res = await POST(
+      request({
+        matchId: "match-1",
+        payload: { type: "SET_SNAPSHOTS", snapshots, id: "c3" },
+      }),
+    );
+    expect(res.status).toBe(200);
+    const [, , data, options] = set.mock.calls[0]!;
+    expect(data).toMatchObject({
+      last_command_id: "c3",
+      snapshots: {
+        pointsTable: { title: "Group A", rows: [{ team: "Harbour Hawks" }] },
+      },
+    });
+    expect(options.mergeFields).toContain("snapshots");
+  });
+
   it("refuses commands the overlay would ignore", async () => {
     for (const payload of [
       { type: "TRIGGER_STING", stingType: "<script>" },
