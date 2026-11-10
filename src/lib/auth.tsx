@@ -191,6 +191,28 @@ export function AuthProvider({
   /** Signed in locally but the server session still needs syncing. */
   const resyncUidRef = useRef<string | null>(null);
   const popupFailedRef = useRef(false);
+  /** The session request in flight, shared by the token listener and the
+   * sign-in that set it off, so one sign-in sends one request. */
+  const inflightRef = useRef<{ uid: string; done: Promise<void> } | null>(
+    null,
+  );
+
+  const syncSession = useCallback(
+    (firebaseUser: FirebaseUser): Promise<void> => {
+      const current = inflightRef.current;
+      if (current?.uid === firebaseUser.uid) return current.done;
+      const done = syncServerSession(firebaseUser)
+        .then(() => {
+          syncedUidRef.current = firebaseUser.uid;
+        })
+        .finally(() => {
+          if (inflightRef.current?.done === done) inflightRef.current = null;
+        });
+      inflightRef.current = { uid: firebaseUser.uid, done };
+      return done;
+    },
+    [],
+  );
 
   useEffect(() => {
     if (isOverlay) return;
@@ -205,8 +227,7 @@ export function AuthProvider({
     };
 
     const syncNow = async (firebaseUser: FirebaseUser) => {
-      await syncServerSession(firebaseUser);
-      syncedUidRef.current = firebaseUser.uid;
+      await syncSession(firebaseUser);
       resyncUidRef.current = null;
     };
 
@@ -283,13 +304,18 @@ export function AuthProvider({
       unsubscribe();
       window.removeEventListener("online", onOnline);
     };
-  }, [isOverlay, router]);
+  }, [isOverlay, router, syncSession]);
 
-  const finishSignIn = useCallback(async (firebaseUser: FirebaseUser) => {
-    await syncServerSession(firebaseUser);
-    syncedUidRef.current = firebaseUser.uid;
-    setUser(toAppUser(firebaseUser));
-  }, []);
+  const finishSignIn = useCallback(
+    async (firebaseUser: FirebaseUser) => {
+      // The token listener may have synced this sign-in already.
+      if (syncedUidRef.current !== firebaseUser.uid) {
+        await syncSession(firebaseUser);
+      }
+      setUser(toAppUser(firebaseUser));
+    },
+    [syncSession],
+  );
 
   // Back from a redirect sign-in: create the session cookie the same way the
   // popup path does, and keep the error (e.g. invite-only) for the login page.

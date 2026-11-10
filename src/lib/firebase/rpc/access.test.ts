@@ -412,4 +412,26 @@ describe("acceptInvitations: club invites", () => {
     ]);
     expect(all).toHaveLength(1);
   });
+
+  it("leaves one membership when two sign-ins accept at once", async () => {
+    const ds = new MemoryDataSource({
+      users: [{ id: "new-uid", full_name: "Kiran" }],
+      club_invitations: [
+        { id: "ci1", club_id: "c1", email: "kiran@gmail.com", status: "pending" },
+      ],
+    });
+    await Promise.all([
+      acceptInvitations(ds, "kiran@gmail.com", "new-uid"),
+      acceptInvitations(ds, "kiran@gmail.com", "new-uid"),
+    ]);
+    const memberships = await ds.query("club_memberships", [
+      { field: "user_id", op: "==", value: "new-uid" },
+    ]);
+    expect(memberships).toHaveLength(1);
+    expect(memberships[0]).toMatchObject({
+      club_id: "c1",
+      role: "member",
+      status: "active",
+    });
+  });
 });

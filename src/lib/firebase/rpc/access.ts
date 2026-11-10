@@ -120,9 +120,12 @@ async function acceptClubInvitations(
       { field: "user_id", op: "==", value: uid },
     ])) as unknown as ClubMembershipsRow[];
     if (!existing) {
+      // One id per club and user: two sign-ins accepting at once (the
+      // browser can send overlapping session requests) write the same
+      // document instead of two memberships.
       await dds.insert("club_memberships", [
         {
-          id: newId(),
+          id: `${invite.club_id}_${uid}`,
           club_id: invite.club_id,
           user_id: uid,
           role: "member",
