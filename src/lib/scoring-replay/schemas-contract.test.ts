@@ -120,6 +120,18 @@ describe("payloads older queues hold", () => {
     expect(parse("undoLastBall", null)).toMatchObject({ ok: true });
   });
 
+  it("keeps an End innings that names no innings (ends the current one)", () => {
+    expect(accepted("endInnings", {})).toEqual({});
+    expect(parse("endInnings", undefined)).toMatchObject({ ok: true });
+    expect(accepted("endInnings", { inningsNumber: null })).toEqual({});
+  });
+
+  it("keeps the innings an End innings names", () => {
+    expect(accepted("endInnings", { inningsNumber: 2 })).toEqual({
+      inningsNumber: 2,
+    });
+  });
+
   it("takes each simple action", () => {
     accepted("setBatsmen", { strikerId: "s", nonStrikerId: "n" });
     accepted("setBowler", { bowlerId: "b" });
@@ -164,6 +176,8 @@ describe("what stays refused", () => {
     refused("retireBatter", { playerId: "p", type: "gone" });
     refused("awardPenalty", { teamId: "t", runs: 0, reason: "", type: "penalty" });
     refused("updateBall", { ballId: "b1" });
+    refused("endInnings", { inningsNumber: 0 });
+    refused("endInnings", { inningsNumber: "1" });
   });
 
   it("runs that are not a small whole number", () => {

@@ -815,9 +815,14 @@ export async function setCurrentBowler(
   }
 }
 
+/**
+ * `inningsNumber`: the innings the scorer meant to end; once it has ended
+ * (or is not the current one) this does nothing (see `end_innings`).
+ */
 export async function endInnings(
   matchId: string,
   clientActionId?: string | null,
+  inningsNumber?: number | null,
 ): Promise<{ data: ScoringState | null; error: string | null }> {
   try {
     const db = await createServerClient();
@@ -841,6 +846,7 @@ export async function endInnings(
     const { data, error } = await db.rpc("end_innings", {
       p_match_id: matchId,
       p_client_action_id: clientActionId ?? null,
+      p_innings_number: inningsNumber ?? null,
     });
     if (error) {
       console.error("end_innings failed:", error);

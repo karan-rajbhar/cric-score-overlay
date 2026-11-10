@@ -205,6 +205,83 @@ function penaltyLocally(
     : ctx;
 }
 
+/**
+ * An innings ended on the local context (offline): the next one opens,
+ * chasing this total plus one. The end of a chase decides the match, so
+ * nothing opens after it.
+ */
+function endInningsLocally(ctx: LocalScoringContext): LocalScoringContext {
+  if (isChaseInnings(ctx.currentInnings)) return ctx;
+  return {
+    ...ctx,
+    currentInnings: (ctx.currentInnings ?? 1) + 1,
+    currentOver: 0,
+    currentBall: 0,
+    totalRuns: 0,
+    totalWickets: 0,
+    totalBalls: 0,
+    strikerId: null,
+    nonStrikerId: null,
+    bowlerId: null,
+    strikerRuns: 0,
+    strikerBalls: 0,
+    nonStrikerRuns: 0,
+    nonStrikerBalls: 0,
+    bowlerRunsConceded: 0,
+    bowlerBallsBowled: 0,
+    bowlerWickets: 0,
+    targetRuns: (ctx.totalRuns ?? 0) + 1,
+  };
+}
+
+/**
+ * The match once its current innings has ended on this device (offline):
+ * the next one opens, chasing this total plus one. The end of a chase
+ * decides the match, so nothing opens after it.
+ */
+function matchWithInningsEnded(prev: Match): Match {
+  const innings = (prev.innings ?? []).map((i) =>
+    i.innings_number === prev.current_innings ? { ...i, is_completed: true } : i,
+  );
+  if (isChaseInnings(prev.current_innings)) return { ...prev, innings };
+  const currentInn = prev.innings?.find(
+    (i) => i.innings_number === prev.current_innings,
+  );
+  const newInningsNum = (prev.current_innings ?? 1) + 1;
+  return {
+    ...prev,
+    current_innings: newInningsNum,
+    current_over: 0,
+    current_ball: 0,
+    innings: [
+      ...innings,
+      {
+        id: `local-inn-${newInningsNum}`,
+        match_id: prev.id,
+        innings_number: newInningsNum,
+        team_id:
+          currentInn?.team_id === prev.team1_id ? prev.team2_id : prev.team1_id,
+        total_runs: 0,
+        total_wickets: 0,
+        total_balls: 0,
+        total_overs: 0,
+        is_completed: false,
+        target_runs: currentInn ? (currentInn.total_runs ?? 0) + 1 : null,
+        extras_total: 0,
+        extras_byes: 0,
+        extras_leg_byes: 0,
+        extras_wides: 0,
+        extras_no_balls: 0,
+        extras_penalties: 0,
+      },
+    ],
+  };
+}
+
+/** An End innings sent with no reply: queued, and said so. */
+const END_NOT_CONFIRMED =
+  "No connection: the end of the innings is not confirmed yet. It is sent again.";
+
 /** What the over strip shows after an undo (see `scoring-undo`). */
 export interface UndoNotice {
   /**
@@ -2684,132 +2761,74 @@ export function useScoring(
     return result;
   };
 
-  const handleEndInnings = async () => {
-    clearUndone();
-    setIsProcessing(true);
+  /**
+   * An End innings queued (offline, or sent with no reply) shown on this
+   * device: the next innings opens here, as the server will open it.
+   * `unconfirmed`: it was sent and got no reply.
+   */
+  const endInningsOnDevice = (unconfirmed: boolean) => {
+    setPendingCount(getPendingCount(matchId));
+    const said = (text: string) =>
+      unconfirmed ? `${END_NOT_CONFIRMED} ${text}` : text;
 
-    if (isOfflineNow() || !(await drainQueue())) {
-      enqueueAction(matchId, "endInnings", {});
-      setPendingCount(getPendingCount(matchId));
-
-      // The end of a chase decides the match: no next innings to open here,
-      // the server settles the result once it gets the queue.
-      if (isChaseInnings(match?.current_innings)) {
-        setMatch((prev) =>
-          prev
-            ? {
-                ...prev,
-                innings: (prev.innings ?? []).map((i) =>
-                  i.innings_number === prev.current_innings
-                    ? { ...i, is_completed: true }
-                    : i,
-                ),
-              }
-            : prev,
-        );
-        setStrikerId(null);
-        setNonStrikerId(null);
-        setCurrentBowlerId(null);
-        toast.info(OFFLINE_MATCH_OVER);
-        setIsProcessing(false);
-        return { data: null, error: null };
-      }
-
-      setMatch((prev) => {
-        if (!prev) return prev;
-        const currentInn = prev.innings?.find(
-          (i) => i.innings_number === prev.current_innings,
-        );
-        const newInningsNum = (prev.current_innings ?? 1) + 1;
-        const targetRuns = currentInn ? (currentInn.total_runs ?? 0) + 1 : null;
-        return {
-          ...prev,
-          current_innings: newInningsNum,
-          current_over: 0,
-          current_ball: 0,
-          innings: [
-            ...(prev.innings ?? []).map((i) =>
-              i.innings_number === prev.current_innings
-                ? { ...i, is_completed: true }
-                : i,
-            ),
-            {
-              id: `local-inn-${newInningsNum}`,
-              match_id: prev.id,
-              innings_number: newInningsNum,
-              team_id:
-                currentInn?.team_id === prev.team1_id
-                  ? prev.team2_id
-                  : prev.team1_id,
-              total_runs: 0,
-              total_wickets: 0,
-              total_balls: 0,
-              total_overs: 0,
-              is_completed: false,
-              target_runs: targetRuns,
-              extras_total: 0,
-              extras_byes: 0,
-              extras_leg_byes: 0,
-              extras_wides: 0,
-              extras_no_balls: 0,
-              extras_penalties: 0,
-            },
-          ],
-        };
-      });
-
-      setStrikerId(null);
-      setNonStrikerId(null);
-      setCurrentBowlerId(null);
-      setLastBalls([]);
-      setRawDeliveries([]);
-
-      setBattingTeamPlayers(bowlingTeamPlayers);
-      setBowlingTeamPlayers(battingTeamPlayers);
-      playersRef.current = {
-        batting: bowlingTeamPlayers,
-        bowling: battingTeamPlayers,
-      };
-
-      if (localCtxRef.current) {
-        const newInn = (localCtxRef.current.currentInnings ?? 1) + 1;
-        const targetRuns = (localCtxRef.current.totalRuns ?? 0) + 1;
-        localCtxRef.current = {
-          ...localCtxRef.current,
-          currentInnings: newInn,
-          currentOver: 0,
-          currentBall: 0,
-          totalRuns: 0,
-          totalWickets: 0,
-          totalBalls: 0,
-          strikerId: null,
-          nonStrikerId: null,
-          bowlerId: null,
-          strikerRuns: 0,
-          strikerBalls: 0,
-          nonStrikerRuns: 0,
-          nonStrikerBalls: 0,
-          bowlerRunsConceded: 0,
-          bowlerBallsBowled: 0,
-          bowlerWickets: 0,
-          targetRuns,
-        };
-      }
-
-      toast.info(
-        "Innings break (offline): choose the openers and the bowler for the next innings.",
-      );
-      optionsRef.current?.onNeedsBatsman?.();
+    setMatch((prev) => (prev ? matchWithInningsEnded(prev) : prev));
+    setStrikerId(null);
+    setNonStrikerId(null);
+    setCurrentBowlerId(null);
+    // The end of a chase decides the match: no next innings to open here,
+    // the server settles the result once it gets the queue.
+    if (isChaseInnings(match?.current_innings)) {
+      toast.info(said(OFFLINE_MATCH_OVER));
       setIsProcessing(false);
       return { data: null, error: null };
     }
 
-    const res = await sendNow("endInnings", {});
+    setLastBalls([]);
+    setRawDeliveries([]);
+
+    setBattingTeamPlayers(bowlingTeamPlayers);
+    setBowlingTeamPlayers(battingTeamPlayers);
+    playersRef.current = {
+      batting: bowlingTeamPlayers,
+      bowling: battingTeamPlayers,
+    };
+
+    if (localCtxRef.current) {
+      localCtxRef.current = endInningsLocally(localCtxRef.current);
+    }
+
+    toast.info(
+      unconfirmed
+        ? said("Choose the openers and the bowler for the next innings.")
+        : "Innings break (offline): choose the openers and the bowler for the next innings.",
+    );
+    optionsRef.current?.onNeedsBatsman?.();
+    setIsProcessing(false);
+    return { data: null, error: null };
+  };
+
+  const handleEndInnings = async () => {
+    clearUndone();
+    setIsProcessing(true);
+    // The innings meant: once the server has ended it (the last ball did,
+    // before a queued End innings arrived), this End innings does nothing.
+    const inningsNumber = match?.current_innings;
+    const payload = inningsNumber ? { inningsNumber } : {};
+
+    if (isOfflineNow() || !(await drainQueue())) {
+      enqueueAction(matchId, "endInnings", payload);
+      return endInningsOnDevice(false);
+    }
+
+    const res = await sendNow("endInnings", payload);
     if (res.offline) {
-      setIsProcessing(false);
-      const err = "No connection: the innings was not ended. Try again.";
-      toast.error(err);
-      return { data: null, error: err };
+      // Same id, marked sent: if the server did end the innings, the
+      // retry is a duplicate (and names the innings, so it never ends the
+      // next one).
+      enqueueAction(matchId, "endInnings", payload, res.queueId, {
+        sent: true,
+      });
+      return endInningsOnDevice(true);
     }
     if (res.error) toast.error(res.error);
     else await confirmChange(res.delta);

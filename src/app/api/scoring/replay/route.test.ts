@@ -255,7 +255,7 @@ describe("POST /api/scoring/replay", () => {
           dismissalType: null,
         },
       },
-      { id: "9", type: "endInnings", payload: {} },
+      { id: "9", type: "endInnings", payload: { inningsNumber: 1 } },
       { id: "10", type: "startSuperOver", payload: {} },
     ];
     const res = await POST(request(batch(actions)));
@@ -310,7 +310,7 @@ describe("POST /api/scoring/replay", () => {
         clientActionId: "8",
       }),
     );
-    expect(mutations.endInnings).toHaveBeenCalledWith(M, "9");
+    expect(mutations.endInnings).toHaveBeenCalledWith(M, "9", 1);
     expect(mutations.startSuperOver).toHaveBeenCalledWith(M, "10");
     const callOrder = allMutations()
       .flatMap((fn) => fn.mock.invocationCallOrder.map((n) => [n, fn] as const))
@@ -537,13 +537,17 @@ describe("POST /api/scoring/replay", () => {
           },
           // An undo queued before payloads were sent at all.
           { id: "x2", type: "undoLastBall" },
+          // An End innings queued before it named its innings.
+          { id: "x3", type: "endInnings", payload: {} },
         ]),
       ),
     );
     expect((await json(res)).results).toEqual([
       { id: "x1", status: "applied" },
       { id: "x2", status: "applied" },
+      { id: "x3", status: "applied" },
     ]);
+    expect(mutations.endInnings).toHaveBeenCalledWith(M, "x3", null);
     const event = vi.mocked(mutations.recordBall).mock.calls[0]![0].event;
     expect(event).toMatchObject({
       runsScored: 0,

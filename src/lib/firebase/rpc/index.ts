@@ -132,7 +132,11 @@ export async function callRpc(
     case "update_ball":
       return updateBall(scoring, args as unknown as UpdateBallArgs);
     case "end_innings":
-      return endInnings(scoring, str(args, "p_match_id"));
+      return endInnings(
+        scoring,
+        str(args, "p_match_id"),
+        typeof args.p_innings_number === "number" ? args.p_innings_number : null,
+      );
     case "start_super_over":
       return startSuperOver(scoring, str(args, "p_match_id"));
     case "recompute_innings":

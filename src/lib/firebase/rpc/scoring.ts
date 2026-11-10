@@ -1618,9 +1618,17 @@ export async function updateBall(
 // end_innings
 // ---------------------------------------------------------------------------
 
+/**
+ * Ends the current innings. `inningsNumber`, when given, is the innings the
+ * scorer meant: once it has ended (the last ball closed it before a queued
+ * End innings arrived) or is not the current one, nothing is done and the
+ * current state is returned, so a replayed End innings never ends the next
+ * innings. Without it (actions queued by older clients), as before.
+ */
 export async function endInnings(
   ctx: ScoringContext,
   matchId: string,
+  inningsNumber?: number | null,
 ): Promise<ScoringState> {
   await requireAdmin(ctx, matchId);
   const now = new Date().toISOString();
@@ -1630,6 +1638,13 @@ export async function endInnings(
     if (!match) throw new DbQueryError("match_not_found", "22000");
     const { all, current } = await currentInningsOf(t, match);
     await guardClientAction(t, ctx, match, current);
+    if (
+      inningsNumber != null &&
+      (current?.innings_number !== inningsNumber || current.is_completed)
+    ) {
+      // Nothing written, like an action already applied.
+      throw new ActionAlreadyApplied();
+    }
     if (!current || current.is_completed)
       throw new DbQueryError("no_open_innings", "22000");
     await applyAdvance(

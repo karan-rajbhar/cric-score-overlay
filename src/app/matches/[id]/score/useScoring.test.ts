@@ -55,6 +55,8 @@ vi.mock("sonner", () => ({
   },
 }));
 
+import { toast } from "sonner";
+
 /**
  * Stands in for POST /api/scoring/replay: answers each action with
  * `answer(action)` in order, stopping at the first failure, and returns the
@@ -914,6 +916,53 @@ describe("useScoring", () => {
     expect(queued).toHaveLength(1);
     // The server may have recorded it: the replay uses the same key.
     expect(queued[0]!.queueId).toBe(sentId);
+  });
+
+  it("queues an End innings whose reply was lost under its id, and resends it as such", async () => {
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
+    const sent: ReplayBatch[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        const batch = JSON.parse(String(init.body)) as ReplayBatch;
+        sent.push(batch);
+        // The server ends the innings; its reply never arrives.
+        if (sent.length === 1) throw new TypeError("Failed to fetch");
+        const results = batch.actions.map((a) => ({ id: a.id, status: "duplicate" }));
+        return new Response(JSON.stringify({ v: 1, results, delta: null }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }),
+    );
+    const { result } = renderHook(() => useScoring(matchId));
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    let res: { error: string | null } | undefined;
+    await act(async () => {
+      res = await result.current.handleEndInnings();
+    });
+    expect(res?.error).toBeNull();
+    const first = sent[0]!.actions[0]!;
+    expect(first).toMatchObject({ type: "endInnings", payload: { inningsNumber: 1 } });
+    expect(getPendingActions(matchId)).toMatchObject([
+      { type: "endInnings", queueId: first.id, payload: { inningsNumber: 1 } },
+    ]);
+    expect(toast.info).toHaveBeenCalledWith(
+      expect.stringMatching(/^No connection: the end of the innings is not confirmed yet/),
+    );
+    expect(toast.error).not.toHaveBeenCalled();
+
+    // Sent again under the same id, marked as a resend: the server knows it.
+    await act(async () => {
+      await result.current.flushOfflineQueue();
+    });
+    expect(sent[1]!.actions).toMatchObject([
+      { id: first.id, type: "endInnings", resent: true },
+    ]);
+    expect(getPendingActions(matchId)).toHaveLength(0);
   });
 
   it("sends a new action only after the queued ones, and queues it behind them if they cannot be sent", async () => {

@@ -75,7 +75,9 @@ async function run(
     case "undoLastBall":
       return withDelta(await undoLastBall(matchId, id));
     case "endInnings":
-      return withoutDelta(await endInnings(matchId, id));
+      return withoutDelta(
+        await endInnings(matchId, id, action.payload.inningsNumber ?? null),
+      );
     case "startSuperOver":
       return withoutDelta(await startSuperOver(matchId, id));
     case "setBatsmen":

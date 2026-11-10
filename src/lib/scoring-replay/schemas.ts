@@ -68,7 +68,10 @@ export const replayPayloadSchemasV1 = {
     event: ballEvent,
   }),
   undoLastBall: empty,
-  endInnings: empty,
+  // Optional (v1 still): the innings meant; absent ends the current one.
+  endInnings: z.object({
+    inningsNumber: opt(z.number().int().min(1).max(99)),
+  }),
   startSuperOver: empty,
   setBatsmen: z.object({ strikerId: id, nonStrikerId: id }),
   setBowler: z.object({ bowlerId: id }),
