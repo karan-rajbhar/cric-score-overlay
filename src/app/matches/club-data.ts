@@ -76,14 +76,15 @@ export async function clubWithRecords(
 }
 
 /**
- * The clubs the user may put a match into (`canSetMatchClub`): those they
- * run, and, when they score the match, those they belong to.
+ * The clubs to offer for a match: the user's own when they score it, none
+ * otherwise (running a club gives no rights over a match outside it). The
+ * server also asks for the right to delete the match (`canSetMatchClub`).
  */
 export function clubsForMatch(
   clubs: readonly MyClub[],
   isMatchAdmin: boolean,
 ): MyClub[] {
-  return clubs.filter((c) => c.role === "admin" || isMatchAdmin);
+  return isMatchAdmin ? [...clubs] : [];
 }
 
 /**

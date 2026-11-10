@@ -20,13 +20,18 @@ const admin: MyClub = { id: "c1", name: "Riverside CC", role: "admin" };
 const member: MyClub = { id: "c2", name: "Hill CC", role: "member" };
 
 describe("adding a match to a club", () => {
-  it("lists every club to a scorer, only the clubs they run to anyone else", () => {
+  it("lists every club to a scorer, none to anyone else", () => {
     expect(clubsForMatch([admin, member], true)).toEqual([admin, member]);
-    expect(clubsForMatch([admin, member], false)).toEqual([admin]);
-    expect(canSetMatchClub("admin", false)).toBe(true);
-    expect(canSetMatchClub("member", true)).toBe(true);
-    expect(canSetMatchClub("member", false)).toBe(false);
-    expect(canSetMatchClub(null, true)).toBe(false);
+    expect(clubsForMatch([admin, member], false)).toEqual([]);
+  });
+
+  it("needs the right to delete the match and a place in the club it joins", () => {
+    expect(canSetMatchClub(true, "admin")).toBe(true);
+    expect(canSetMatchClub(true, "member")).toBe(true);
+    expect(canSetMatchClub(true, undefined)).toBe(true);
+    expect(canSetMatchClub(true, null)).toBe(false);
+    expect(canSetMatchClub(false, "admin")).toBe(false);
+    expect(canSetMatchClub(false, undefined)).toBe(false);
   });
 
   it("is never offered for a tournament match, nor for a club the user cannot leave", () => {

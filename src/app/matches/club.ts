@@ -5,16 +5,42 @@ import { isClubSide } from "~/lib/firebase/derive.mjs";
 import { refreshLiveState } from "~/lib/firebase/live-sync";
 import { canSetMatchClub, clubRoleOf } from "~/lib/firebase/permissions";
 import { createServerClient } from "~/lib/firebase/server";
+import type { ServerClient } from "~/lib/firebase/server-client";
 import type { ClubSide } from "~/lib/firebase/types";
 import { invalidateMatchCache } from "~/lib/match-cache";
 
+/** Why the user may not move the match from `current` to `clubId`, or null. */
+async function refusalOf(
+  db: ServerClient,
+  matchId: string,
+  userId: string,
+  current: string | null,
+  clubId: string | null,
+): Promise<string | null> {
+  const { data: canDelete } = await db.rpc<boolean>("can_delete_match", {
+    p_match_id: matchId,
+  });
+  if (canDelete !== true) {
+    return "Only the match's creator or its club's admins can change its club";
+  }
+  const joining =
+    clubId && clubId !== current
+      ? await clubRoleOf(db, clubId, userId)
+      : undefined;
+  return canSetMatchClub(true, joining)
+    ? null
+    : "You can move a match only into a club you belong to";
+}
+
 /**
  * Puts a match into a club (or another club, or none) after it was
- * created, with the side(s) whose players count for that club. Allowed for
- * the club's admins and for its members who score the match; leaving a
- * club needs the same of the club it leaves. A tournament match belongs to
- * its tournament's club. The write hooks move the match's player records,
- * the club leaderboards and the milestone totals with it.
+ * created, with the side(s) whose players count for that club. Being in a
+ * club lets its admins score and delete the match, so this needs the right
+ * to delete it already (its creator, or an admin of the club it is in) and,
+ * to move it into a club, a place in that club (`canSetMatchClub`). A
+ * tournament match belongs to its tournament's club. The write hooks move
+ * the match's player records, the club leaderboards and the milestone
+ * totals with it.
  */
 export async function setMatchClub(
   matchId: string,
@@ -46,21 +72,11 @@ export async function setMatchClub(
     return { error: null };
   }
 
-  const { data: isAdmin } = await db.rpc<boolean>("is_match_admin", {
-    p_match_id: matchId,
-  });
+  const refused = await refusalOf(db, matchId, user.id, current, clubId);
+  if (refused) return { error: refused };
   const clubs = [...new Set([current, clubId])].filter(
     (id): id is string => !!id,
   );
-  const roles = await Promise.all(
-    clubs.map((id) => clubRoleOf(db, id, user.id)),
-  );
-  if (!roles.every((role) => canSetMatchClub(role, isAdmin === true))) {
-    return {
-      error:
-        "Only the club's admins, or members who score this match, can change its club",
-    };
-  }
 
   const { error } = await db
     .from("matches")
