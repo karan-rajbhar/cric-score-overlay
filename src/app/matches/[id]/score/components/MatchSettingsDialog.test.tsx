@@ -184,6 +184,26 @@ describe("MatchSettingsDialog (Mid-Game Rules & Format Adjustment)", () => {
     expect(onSave.mock.calls[0]![0]).not.toHaveProperty("targetRuns");
   });
 
+  it("saves a match with up to 15 wickets, as the match wizard allows", () => {
+    const onSave = vi.fn();
+    render(
+      <MatchSettingsDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        match={{ ...dummyMatch, wickets_per_innings: 12 }}
+        onSave={onSave}
+        isProcessing={false}
+      />,
+    );
+    const wickets = screen.getByLabelText(/wickets per innings/i);
+    expect(wickets).toHaveValue(12);
+    expect(wickets).toBeValid();
+    fireEvent.change(wickets, { target: { value: "15" } });
+    expect(wickets).toBeValid();
+    fireEvent.change(wickets, { target: { value: "16" } });
+    expect(wickets).toBeInvalid();
+  });
+
   it("has no target to set before a chase", () => {
     render(
       <MatchSettingsDialog

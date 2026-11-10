@@ -324,7 +324,7 @@ function MatchSettingsForm({
             id="wickets-per-innings"
             type="number"
             min={1}
-            max={11}
+            max={15}
             value={wicketsPerInnings}
             onChange={(e) => setWicketsPerInnings(Number(e.target.value))}
           />
