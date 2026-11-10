@@ -8,10 +8,7 @@ import {
   loadTournament,
   TOURNAMENT_MATCH_COLUMNS,
 } from "../tournament-view";
-import {
-  attachMatchTeams,
-  MATCH_TEAM_COLUMNS,
-} from "~/lib/firebase/team-snapshot";
+import { attachMatchTeams } from "~/lib/firebase/team-snapshot";
 import { Button } from "~/components/ui/button";
 import { PageTrail } from "~/components/ds/page-trail";
 import { backLabelOf, parentOf, tournamentTrail } from "~/lib/navigation";

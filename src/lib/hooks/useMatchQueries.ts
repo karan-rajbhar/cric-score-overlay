@@ -4,7 +4,6 @@ import {
   useQuery,
   useQueryClient,
   type QueryClient,
-  type QueryKey,
 } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef } from "react";
 import { createClient, getFirebaseDb } from "~/lib/firebase/client";
@@ -38,7 +37,6 @@ import {
   applyLiveState,
   LIVE_REFETCH_DELAY_MS,
   latestLiveVersion,
-  liveScorecardViewOf,
   overChangesBetween,
   scheduleInvalidate,
   useLiveScorecard,
@@ -54,35 +52,6 @@ const MATCH_ID_RE =
 
 function isMatchId(id: string | null | undefined): id is string {
   return !!id && MATCH_ID_RE.test(id);
-}
-
-/**
- * Refetch `queryKey` once per live change (debounced, deduplicated across
- * components). Only mounted queries refetch, so data behind a closed tab
- * costs nothing. Falls back to a slow poll while the listener is in error.
- */
-function useRefetchOnLiveChange(
-  matchId: string,
-  queryKey: QueryKey,
-  enabled = true,
-) {
-  const queryClient = useQueryClient();
-  const live = useLiveState(isMatchId(matchId) ? matchId : null);
-  const keyHash = JSON.stringify(queryKey);
-
-  useOnLiveChange(live, () => {
-    if (enabled)
-      scheduleInvalidate(queryClient, JSON.parse(keyHash) as QueryKey);
-  });
-
-  useEffect(() => {
-    if (!enabled || live.status !== "error") return;
-    const poll = setInterval(
-      () => scheduleInvalidate(queryClient, JSON.parse(keyHash) as QueryKey),
-      LIVE_FALLBACK_POLL_MS,
-    );
-    return () => clearInterval(poll);
-  }, [enabled, live.status, queryClient, keyHash]);
 }
 
 /**

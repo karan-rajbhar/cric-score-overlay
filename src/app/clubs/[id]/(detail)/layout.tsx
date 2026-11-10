@@ -22,7 +22,6 @@ import { ListCard, ListRow } from "~/components/ds/list";
 import { ProfileHeader } from "~/components/ds/player-header";
 import { EntityActions } from "~/components/follow/entity-actions";
 import { ClubContacts } from "~/components/clubs/club-contacts";
-import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { ActionsSheet } from "~/components/ds/actions-sheet";
 import { PinnedTitle } from "~/components/ds/pinned-title";

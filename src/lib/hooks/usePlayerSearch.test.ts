@@ -46,7 +46,7 @@ describe("usePlayerSearch", () => {
   });
 
   it("does not show an older query's answer for a newer one", async () => {
-    let finishOld = (_: ReturnType<typeof answer>) => {};
+    let finishOld: (value: ReturnType<typeof answer>) => void = () => {};
     const search = vi
       .fn()
       .mockImplementationOnce(() => new Promise((r) => (finishOld = r)))
