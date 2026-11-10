@@ -317,7 +317,9 @@ function completedOutcome(
   match: Match,
   winner: string | undefined,
 ): CricsheetMatch["info"]["outcome"] {
-  const method = match.dls_revision ? { method: "D/L" } : {};
+  // A target and overs set by hand were not worked out by D/L.
+  const dls = match.dls_revision && !match.dls_revision.by_hand;
+  const method = dls ? { method: "D/L" } : {};
   if (match.result_type === "tie") return { result: "tie", ...method };
   if (!winner) return undefined;
   // Settled by a super over: a tie with an eliminator, in Cricsheet's terms.

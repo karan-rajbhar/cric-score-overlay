@@ -73,22 +73,20 @@ describe("updateMatchSettings and the chase's target", () => {
       success: true,
       error: null,
     });
-    expect(match().dls_revision).toEqual({
+    const revision = {
       innings_number: 2,
       target_runs: 5,
       overs: 1,
-    });
+      by_hand: false,
+    };
+    expect(match().dls_revision).toEqual(revision);
 
     // The dialog's payload: the target it was opened with, unchanged.
     expect(
       await updateMatchSettings("M", { freeHit: false, targetRuns: 5 }),
     ).toEqual({ success: true, error: null });
     expect(match().free_hit).toBe(false);
-    expect(match().dls_revision).toEqual({
-      innings_number: 2,
-      target_runs: 5,
-      overs: 1,
-    });
+    expect(match().dls_revision).toEqual(revision);
     expect(innings(2)!.target_runs).toBe(5);
 
     // Nothing about the target at all: the same.
@@ -255,10 +253,12 @@ describe("updateTargetRuns (Revise target / overs)", () => {
     ).toEqual({ success: true, error: null });
     expect(innings(2)!.target_runs).toBe(9);
     expect(match().overs_per_innings).toBe(2);
+    // Marked as set by hand: viewers do not read it as a DLS target.
     expect(match().dls_revision).toEqual({
       innings_number: 2,
       target_runs: 9,
       overs: 1,
+      by_hand: true,
     });
     // The engine ends the chase at the revised over.
     for (let i = 0; i < 6; i += 1) await replay.step(ball(1));

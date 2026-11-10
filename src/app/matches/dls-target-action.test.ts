@@ -56,7 +56,13 @@ describe("updateDlsTarget", () => {
       {
         table: "matches",
         patch: {
-          dls_revision: { innings_number: 2, target_runs: 98, overs: 12 },
+          // A DLS revision, even over one set by hand before it.
+          dls_revision: {
+            innings_number: 2,
+            target_runs: 98,
+            overs: 12,
+            by_hand: false,
+          },
         },
       },
     ]);

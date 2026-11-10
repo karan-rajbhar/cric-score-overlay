@@ -245,6 +245,11 @@ export interface DlsRevision {
   innings_number: number;
   target_runs: number;
   overs: number;
+  /**
+   * Set with "Revise target / overs" rather than by the DLS calculator:
+   * shown as a revised target, never as DLS. Absent: DLS.
+   */
+  by_hand?: boolean;
 }
 
 export interface TeamPlayersRow {

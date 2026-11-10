@@ -16,7 +16,7 @@ import { ensureUserProfile } from "~/lib/firebase/user-profile";
 import { teamSnapshot } from "~/lib/firebase/team-snapshot";
 import { isClubSide } from "~/lib/firebase/derive.mjs";
 import { isSuperOverInnings } from "~/lib/firebase/scoring/result";
-import type { ClubSide } from "~/lib/firebase/types";
+import type { ClubSide, DlsRevision } from "~/lib/firebase/types";
 import { refreshLiveMatchesFor } from "~/lib/firebase/live-sync";
 import { invalidateMatchCache } from "~/lib/match-cache";
 import { afterDeleteHref } from "~/lib/match-delete";
@@ -1052,6 +1052,9 @@ export async function updateDlsTarget(
         innings_number: innings.innings_number,
         target_runs: targetRuns,
         overs: revisedOvers,
+        // Written out: an update merges into the stored map, so a mark
+        // left by a revision set by hand would otherwise stay.
+        by_hand: false,
       },
     })
     .eq("id", matchId);
@@ -1868,8 +1871,8 @@ export async function retirePlayer(
 
 interface ChaseRevision {
   inningsId: string;
-  /** The match's `dls_revision`: null at the full overs. */
-  revision: { innings_number: number; target_runs: number; overs: number } | null;
+  /** The match's `dls_revision`, set by hand: null at the full overs. */
+  revision: DlsRevision | null;
 }
 
 /**
@@ -1912,7 +1915,12 @@ async function planChaseRevision(
   return {
     inningsId: chase.id,
     revision: overs
-      ? { innings_number: chase.innings_number, target_runs: target, overs }
+      ? {
+          innings_number: chase.innings_number,
+          target_runs: target,
+          overs,
+          by_hand: true,
+        }
       : null,
   };
 }

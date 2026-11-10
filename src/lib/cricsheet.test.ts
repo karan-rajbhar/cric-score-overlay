@@ -564,6 +564,16 @@ describe("Cricsheet match info", () => {
     expect(json.innings[1]!.target).toEqual({ runs: 9, overs: 6 });
   });
 
+  it("names no method for a target and overs set by hand", () => {
+    const json = buildCricsheetJson({
+      ...match,
+      dls_revision: { innings_number: 2, target_runs: 9, overs: 6, by_hand: true },
+      result_description: "The Nineties XI won by 12 runs (revised target)",
+    });
+    expect(json.info.outcome).not.toHaveProperty("method");
+    expect(json.innings[1]!.target).toEqual({ runs: 9, overs: 6 });
+  });
+
 });
 
 describe("Cricsheet match info: abandoned, date and toss", () => {
