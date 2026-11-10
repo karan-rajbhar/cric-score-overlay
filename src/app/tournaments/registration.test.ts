@@ -122,6 +122,48 @@ describe("registerTeamForTournament", () => {
   });
 });
 
+describe("updateRegistrationStatus", () => {
+  it("lets only the registration's own organisers confirm or reject it", async () => {
+    // "plr" organises a tournament of their own, and the captain's request
+    // waits in Summer Cup.
+    await ds.insert("tournaments", [
+      { id: "other", name: "Other Cup", created_by: "plr", club_id: null },
+    ]);
+    signIn("cap");
+    await registerTeamForTournament("tour", "lions");
+    const reg = await registrationOf("lions");
+
+    signIn("plr");
+    for (const status of ["confirmed", "rejected"] as const) {
+      expect(
+        await updateRegistrationStatus(reg!.id as string, "other", status),
+      ).toEqual({
+        error: "Only tournament organizers can approve or reject registrations.",
+      });
+    }
+    expect(await registrationOf("lions")).toMatchObject({
+      status: "pending",
+      tournament_id: "tour",
+    });
+    expect((await registrationOf("lions"))!.approved_by ?? null).toBeNull();
+  });
+
+  it("refuses a status other than confirmed or rejected", async () => {
+    signIn("cap");
+    await registerTeamForTournament("tour", "lions");
+    const reg = await registrationOf("lions");
+    signIn("org");
+    expect(
+      await updateRegistrationStatus(
+        reg!.id as string,
+        "tour",
+        "withdrawn" as "confirmed",
+      ),
+    ).toEqual({ error: "Unknown registration status" });
+    expect(await registrationOf("lions")).toMatchObject({ status: "pending" });
+  });
+});
+
 describe("tournament rules", () => {
   it("stores the overs chosen when the tournament is created", async () => {
     signIn("org");

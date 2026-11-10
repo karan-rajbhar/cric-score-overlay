@@ -286,9 +286,14 @@ export async function overridePointsTableEntry(
   return { success: true };
 }
 
+/**
+ * Confirm or reject a registration. The organiser check runs against the
+ * tournament the registration belongs to; `_tournamentId` (what the page
+ * sent) is not trusted for it.
+ */
 export async function updateRegistrationStatus(
   registrationId: string,
-  tournamentId: string,
+  _tournamentId: string,
   status: "confirmed" | "rejected",
 ) {
   const db = await createServerClient();
@@ -298,11 +303,20 @@ export async function updateRegistrationStatus(
 
   if (!user) return { error: "You must be logged in" };
 
-  const isTournAdmin = await checkTournamentAdminAuth(
-    db,
-    tournamentId,
-    user.id,
-  );
+  if (status !== "confirmed" && status !== "rejected") {
+    return { error: "Unknown registration status" };
+  }
+
+  const { data: registration } = await db
+    .from("tournament_registrations")
+    .select("tournament_id")
+    .eq("id", registrationId)
+    .maybeSingle();
+  const tournamentId = registration?.tournament_id as string | undefined;
+
+  const isTournAdmin =
+    !!tournamentId &&
+    (await checkTournamentAdminAuth(db, tournamentId, user.id));
   if (!isTournAdmin) {
     return {
       error: "Only tournament organizers can approve or reject registrations.",
