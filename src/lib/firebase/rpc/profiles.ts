@@ -260,13 +260,14 @@ const ONE_ROW_PER_USER: Partial<Record<string, string>> = {
 /**
  * Points everything in `USER_REFERENCES`, and follows of the player, at
  * `newId`. `merge`: `newId` is an existing player, so a squad or club
- * holding both keeps one row.
+ * holding both keeps one row. `except`: a squad row (team_players id) the
+ * caller moves itself.
  */
 export async function rewriteUserReferences(
   ds: DataSource,
   oldId: string,
   newId: string,
-  { merge = false }: { merge?: boolean } = {},
+  { merge = false, except }: { merge?: boolean; except?: string } = {},
 ): Promise<void> {
   for (const ref of USER_REFERENCES) {
     if (ref.array) {
@@ -283,9 +284,9 @@ export async function rewriteUserReferences(
       }
       continue;
     }
-    const rows = await ds.query(ref.table, [
-      { field: ref.column, op: "==", value: oldId },
-    ]);
+    const rows = (
+      await ds.query(ref.table, [{ field: ref.column, op: "==", value: oldId }])
+    ).filter((row) => ref.table !== "team_players" || row.id !== except);
     const group = merge ? ONE_ROW_PER_USER[ref.table] : undefined;
     for (const row of rows) {
       if (group && ref.column === "user_id") {

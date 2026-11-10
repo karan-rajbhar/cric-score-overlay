@@ -22,7 +22,7 @@ import { DbQueryError } from "../query-builder";
 import { USER_REFERENCES } from "../schema";
 import { CAREER_COLLECTION } from "../stats.mjs";
 import { PLAYER_MATCHES_COLLECTION } from "../scorecard";
-import type { DataSource } from "../datasource";
+import type { DataSource, Doc } from "../datasource";
 import type { UsersRow } from "../types";
 import { getUserPrivate, USERS_PRIVATE } from "../user-private";
 import {
@@ -99,6 +99,8 @@ interface MergeArgs {
   to: string;
 }
 
+const NOT_IN_TEAM = "player_not_in_team";
+
 async function checkMerge(
   ds: DataSource,
   uid: string | null,
@@ -110,9 +112,8 @@ async function checkMerge(
   }
   await assertMayAddPlayers(ds, uid, teamId, null);
   const duplicate = await placeholderOf(ds, from);
-  if (!(await squadRow(ds, teamId, from))) {
-    throw new DbQueryError("player_not_in_team", "22000");
-  }
+  const anchor = await squadRow(ds, teamId, from);
+  if (!anchor) throw new DbQueryError(NOT_IN_TEAM, "22000");
   // Not a squad the caller put them in: every team that has them.
   await assertMayActForPlaceholder(ds, uid, from, {
     every: true,
@@ -127,6 +128,7 @@ async function checkMerge(
   const theirs = new Set(toMatches);
   return {
     duplicate,
+    anchor,
     fromMatches,
     together: fromMatches.filter((id) => theirs.has(id)).length,
   };
@@ -151,7 +153,19 @@ export async function mergePlayer(
   args: MergeArgs,
 ): Promise<{ moved: number; remaining: number; done: boolean }> {
   const { from, to } = args;
-  const { fromMatches, together } = await checkMerge(ctx.ds, ctx.uid, args);
+  const checked = await checkMerge(ctx.ds, ctx.uid, args).catch(
+    async (err: unknown) => {
+      // Stopped after its last squad move: only the profile was left.
+      const stopped =
+        err instanceof DbQueryError &&
+        err.message === NOT_IN_TEAM &&
+        (await finishStoppedMerge(ctx.ds, ctx.uid, args));
+      if (stopped) return null;
+      throw err;
+    },
+  );
+  if (!checked) return { moved: 0, remaining: 0, done: true };
+  const { anchor, fromMatches, together } = checked;
   if (together > 0) {
     throw new DbQueryError("players_played_together", "22000");
   }
@@ -165,14 +179,62 @@ export async function mergePlayer(
   const remaining = fromMatches.length - batch.length;
   if (remaining > 0) return { moved: batch.length, remaining, done: false };
 
-  await rewriteUserReferences(ctx.ds, from, to, { merge: true });
-  await removeProfile(ctx.ds, from);
+  // The squad row the merge is allowed by moves last but one, so a merge
+  // that stops before it passes the checks again and carries on, and one
+  // that stops after it has left only the profile (`finishStoppedMerge`).
+  await rewriteUserReferences(ctx.ds, from, to, {
+    merge: true,
+    except: anchor.id,
+  });
+  await removeProfile(ctx.ds, from, () => moveSquadRow(ctx.ds, anchor, to));
   return { moved: batch.length, remaining: 0, done: true };
 }
 
-async function removeProfile(ds: DataSource, userId: string): Promise<void> {
+/** Gives a squad row to `to`, or drops it when they have one there. */
+async function moveSquadRow(ds: DataSource, row: Doc, to: string) {
+  if (await squadRow(ds, String(row.team_id), to)) {
+    await ds.delete("team_players", row.id);
+  } else {
+    await ds.update("team_players", row.id, { user_id: to });
+  }
+}
+
+/**
+ * Finishes a merge into `to` that stopped after moving its last squad row:
+ * removes the duplicate's profile when the keeper is in the squad and
+ * nothing else names the duplicate (no squad, record or reference). False:
+ * not such a merge.
+ */
+async function finishStoppedMerge(
+  ds: DataSource,
+  uid: string | null,
+  { teamId, from, to }: MergeArgs,
+): Promise<boolean> {
+  if (!uid) return false;
+  await assertMayAddPlayers(ds, uid, teamId, null);
+  await placeholderOf(ds, from);
+  const [keeper, squads, records] = await Promise.all([
+    squadRow(ds, teamId, to),
+    ds.query("team_players", [{ field: "user_id", op: "==", value: from }], {
+      limit: 1,
+    }),
+    recordedMatches(ds, from),
+  ]);
+  if (!keeper || squads.length || records.length) return false;
+  if (await stillReferenced(ds, from)) return false;
+  await removeProfile(ds, from);
+  return true;
+}
+
+/** `beforeProfile`: the last step before the profile itself goes. */
+async function removeProfile(
+  ds: DataSource,
+  userId: string,
+  beforeProfile?: () => Promise<void>,
+): Promise<void> {
   await ds.delete(USERS_PRIVATE, userId);
   await ds.delete(CAREER_COLLECTION, userId);
+  await beforeProfile?.();
   await ds.delete("users", userId);
 }
 

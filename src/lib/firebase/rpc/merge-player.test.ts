@@ -11,7 +11,7 @@ import { stage2Driver } from "../scoring/__fixtures__/stage2";
 import { canonicalJson } from "../derive.mjs";
 import { OVERS_COLLECTION, type PlayerMatchesRow } from "../scorecard";
 import { rebuildStats } from "../stats.mjs";
-import type { Doc } from "../datasource";
+import type { DataSource, Doc } from "../datasource";
 import type { BattingPerformancesRow, InningsRow } from "../types";
 import { addTeamPlayer } from "./profiles";
 import {
@@ -163,6 +163,48 @@ describe("merge_player", () => {
     expect(mentioned(dup.user_id)).toBe(false);
     expect(mentioned(KEEPER)).toBe(true);
     expect(await ds.getById("users", dup.user_id)).toBeNull();
+  });
+
+  describe("carries on after stopping in its last step", () => {
+    /** `ds` whose delete of one document fails, once. */
+    const failingOnce = (ds: DataSource, table: string, id: string) => {
+      let armed = true;
+      return new Proxy(ds, {
+        get(target, prop) {
+          if (prop === "delete") {
+            return async (t: string, i: string) => {
+              if (armed && t === table && i === id) {
+                armed = false;
+                throw new Error("deadline exceeded");
+              }
+              return target.delete(t, i);
+            };
+          }
+          const value = Reflect.get(target, prop, target);
+          return typeof value === "function" ? value.bind(target) : value;
+        },
+      });
+    };
+
+    for (const table of ["users_private", "users"]) {
+      it(`stopped deleting ${table}`, async () => {
+        const { ds, ctx, args, dup, mentioned } = await played(true);
+        const flaky = { ...ctx, ds: failingOnce(ds, table, dup.user_id) };
+        await expect(mergePlayer(flaky, args)).rejects.toThrow("deadline");
+
+        await expect(mergePlayer(ctx, args)).resolves.toMatchObject({
+          done: true,
+        });
+        expect(await ds.getById("users", dup.user_id)).toBeNull();
+        expect(await ds.getById("users_private", dup.user_id)).toBeNull();
+        expect(mentioned(dup.user_id)).toBe(false);
+        expect(
+          ds.all("team_players").filter(
+            (r) => r.team_id === args.teamId && r.user_id === KEEPER,
+          ),
+        ).toHaveLength(1);
+      });
+    }
   });
 
   it("works in batches, and keeps the profile until the last one", async () => {
