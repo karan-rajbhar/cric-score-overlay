@@ -86,7 +86,7 @@ export function playerMatches(
   const handle = typedHandle(query);
   if (handle !== null) return Boolean(player.username?.includes(handle));
   const raw = query.trim().toLowerCase().replace(/\s+/g, " ");
-  // Compared as typed too: `normalizeText` keeps Latin letters only.
+  // Compared as typed too: `normalizeText` drops punctuation and accents.
   if (raw && player.name.toLowerCase().includes(raw)) return true;
   const texts = [player.name, player.username];
   const typed = normalizeText(query);
