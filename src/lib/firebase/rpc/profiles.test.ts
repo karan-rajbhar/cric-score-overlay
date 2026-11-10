@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { AppUser } from "../auth-types";
-import { MemoryDataSource } from "../datasource";
-import { addTeamPlayer, createTeamPlayer, ensureOwnProfile } from "./profiles";
+import { MemoryDataSource, type Doc, type NativeFilter } from "../datasource";
+import { derivedFieldsDataSource } from "../derived-fields";
+import {
+  addTeamPlayer,
+  createTeamPlayer,
+  ensureOwnProfile,
+  updateOwnUsername,
+  USERNAMES_COLLECTION,
+} from "./profiles";
 
 function googleUser(id: string, email: string | null, name = "Ann"): AppUser {
   return {
@@ -286,5 +293,113 @@ describe("addTeamPlayer for a placeholder in no squad", () => {
     await addTeamPlayer(ds, "owner", "t1", "bat");
     await addTeamPlayer(ds, "owner", "t3", "bowl");
     expect(await squads()).toEqual(["t1:bat", "t3:bowl"]);
+  });
+});
+
+/**
+ * Just enough of an Admin Firestore over a memory data source for the
+ * transactions `runScoringTransaction` runs, serializable like Firestore's
+ * (one transaction at a time), which the memory data source alone is not.
+ */
+function serializableFirestore(ds: MemoryDataSource) {
+  type Ref = { table: string; id: string };
+  type Query = { table: string; filters: NativeFilter[]; where: unknown };
+  const query = (table: string, filters: NativeFilter[]): Query => ({
+    table,
+    filters,
+    where: (field: string, op: NativeFilter["op"], value: unknown) =>
+      query(table, [...filters, { field, op, value }]),
+  });
+  const snap = (doc: Doc | null, id: string) => ({
+    exists: !!doc,
+    id,
+    data: () => (doc ? { ...doc, id: undefined } : undefined),
+  });
+  let queue: Promise<unknown> = Promise.resolve();
+  return {
+    collection: (table: string) => ({
+      doc: (id: string): Ref => ({ table, id }),
+      ...query(table, []),
+    }),
+    runTransaction<R>(fn: (tx: unknown) => Promise<R>): Promise<R> {
+      const run = queue.then(async () => {
+        const writes: (() => Promise<void>)[] = [];
+        const tx = {
+          get: async (target: Ref | Query) =>
+            "id" in target
+              ? snap(await ds.getById(target.table, target.id), target.id)
+              : {
+                  docs: (await ds.query(target.table, target.filters)).map(
+                    (d) => snap(d, d.id),
+                  ),
+                },
+          getAll: async (...refs: Ref[]) =>
+            Promise.all(refs.map(async (r) => snap(await ds.getById(r.table, r.id), r.id))),
+          set: (ref: Ref, data: Doc, opts?: { merge?: boolean }) =>
+            writes.push(async () => {
+              const before = opts?.merge ? await ds.getById(ref.table, ref.id) : null;
+              await ds.insert(ref.table, [{ ...before, ...data, id: ref.id }]);
+            }),
+          delete: (ref: Ref) => writes.push(() => ds.delete(ref.table, ref.id)),
+        };
+        const result = await fn(tx);
+        for (const write of writes) await write();
+        return result;
+      });
+      queue = run.catch(() => {});
+      return run;
+    },
+  };
+}
+
+describe("updateOwnUsername", () => {
+  const people = () =>
+    new MemoryDataSource({
+      users: [
+        { id: "u1", full_name: "Karan One", username: "karan_one" },
+        { id: "u2", full_name: "Karan Two", username: "karan_two" },
+      ],
+    });
+
+  it("gives a handle saved by two people at once to one of them", async () => {
+    const ds = people();
+    Object.assign(ds, { firestore: serializableFirestore(ds) });
+    const results = await Promise.all([
+      updateOwnUsername(ds, "u1", "karan"),
+      updateOwnUsername(ds, "u2", "karan"),
+    ]);
+    expect(results.filter((r) => r.ok)).toHaveLength(1);
+    expect(results.find((r) => !r.ok)).toEqual({
+      ok: false,
+      error: "This username is already taken",
+    });
+    const holders = ds.all("users").filter((u) => u.username === "karan");
+    expect(holders).toHaveLength(1);
+    expect(await ds.getById(USERNAMES_COLLECTION, "karan")).toMatchObject({
+      user_id: holders[0]!.id,
+    });
+  });
+
+  it("frees the old handle and keeps search keys on the new one", async () => {
+    const ds = people();
+    const session = derivedFieldsDataSource(ds);
+    expect(await updateOwnUsername(session, "u1", "karan")).toEqual({
+      ok: true,
+      username: "karan",
+    });
+    expect(await updateOwnUsername(session, "u1", "karan_r")).toMatchObject({
+      ok: true,
+    });
+    expect(await ds.getById(USERNAMES_COLLECTION, "karan")).toBeNull();
+    expect(await updateOwnUsername(session, "u2", "karan")).toMatchObject({
+      ok: true,
+    });
+    expect(await updateOwnUsername(session, "u1", "karan")).toEqual({
+      ok: false,
+      error: "This username is already taken",
+    });
+    expect((await ds.getById("users", "u1"))!.search_prefixes).toContain(
+      "karan_r",
+    );
   });
 });

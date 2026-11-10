@@ -102,11 +102,12 @@ export interface UsernameValidationResult {
 }
 
 /**
- * Strips leading '@', trims whitespace, and converts to lowercase.
+ * Strips leading '@' (or its URL-encoded "%40"), trims whitespace, and
+ * converts to lowercase.
  */
 export function cleanHandle(input: string | null | undefined): string {
   if (!input) return "";
-  return input.trim().replace(/^[@%40]+/, "").toLowerCase();
+  return input.trim().replace(/^(?:@|%40)+/i, "").toLowerCase();
 }
 
 /**

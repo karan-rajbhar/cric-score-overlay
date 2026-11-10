@@ -13,6 +13,17 @@ describe("username.ts - Handle Formatting and Validation", () => {
       expect(cleanHandle("%40karan")).toBe("karan");
     });
 
+    it("keeps handles that start with 4 or 0", () => {
+      expect(cleanHandle("007bond")).toBe("007bond");
+      expect(cleanHandle("42karan")).toBe("42karan");
+      expect(cleanHandle("@4040")).toBe("4040");
+      expect(cleanHandle("%404karan")).toBe("4karan");
+      expect(validateUsername("007bond")).toEqual({
+        isValid: true,
+        cleanUsername: "007bond",
+      });
+    });
+
     it("converts uppercase characters to lowercase", () => {
       expect(cleanHandle("@KaranRajbhar")).toBe("karanrajbhar");
     });

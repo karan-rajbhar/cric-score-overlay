@@ -19,6 +19,7 @@ import {
 import { followKey, renameFollowTarget } from "~/lib/follows/store";
 import { PLAYER_MATCHES_COLLECTION, type PlayerMatchesRow } from "../scorecard";
 import { refreshLiveScorecards, remapScorecardUserId } from "../scorecard-sync";
+import { runScoringTransaction } from "../scoring/tx";
 import { isClubAdmin, isMatchAdmin } from "./auth-helpers";
 
 export const RESERVED_USERNAMES = new Set([
@@ -186,6 +187,14 @@ export async function checkUsernameAvailable(
   return { available: true, username: norm };
 }
 
+/**
+ * `usernames/{handle}`: the document a username save claims, in the same
+ * transaction as the profile write, so two saves of one handle contend on
+ * it and only one commits. Whether a handle is taken is still decided by
+ * the profiles holding it (handles from before claims have none).
+ */
+export const USERNAMES_COLLECTION = "usernames";
+
 export async function updateOwnUsername(
   ds: DataSource,
   uid: string | null,
@@ -195,10 +204,25 @@ export async function updateOwnUsername(
   const norm = (username ?? "").trim().toLowerCase();
   const check = await checkUsernameAvailable(ds, norm, uid);
   if (!check.available) return { ok: false, error: check.error };
-  await ds.update("users", uid, {
-    username: norm,
-    updated_at: new Date().toISOString(),
+  const now = new Date().toISOString();
+  const claimed = await runScoringTransaction({ ds }, async (t) => {
+    const [me, , holders] = await Promise.all([
+      t.getById("users", uid),
+      t.getById(USERNAMES_COLLECTION, norm),
+      t.query("users", [{ field: "username", op: "==", value: norm }]),
+    ]);
+    if (!me) throw new DbQueryError("player_not_found", "22000");
+    if (holders.some((u) => u.id !== uid)) return false;
+    if (typeof me.username === "string" && me.username !== norm) {
+      t.delete(USERNAMES_COLLECTION, me.username);
+    }
+    t.put(USERNAMES_COLLECTION, norm, { user_id: uid, created_at: now });
+    t.patch("users", uid, { username: norm, updated_at: now });
+    return true;
   });
+  if (!claimed) return { ok: false, error: "This username is already taken" };
+  // Through the data source too: search keys and name copies follow it.
+  await ds.update("users", uid, { username: norm, updated_at: now });
   return { ok: true, username: norm };
 }
 
