@@ -85,6 +85,11 @@ function optStr(args: Args, key: string): string | null {
   return typeof value === "string" && value ? value : null;
 }
 
+function optNum(args: Args, key: string): number | null {
+  const value = args[key];
+  return typeof value === "number" ? value : null;
+}
+
 /** Procedures that can answer with a {@link ScoringDelta}. */
 const WITH_DELTA = new Set([
   "record_ball",
@@ -135,7 +140,7 @@ export async function callRpc(
       return endInnings(
         scoring,
         str(args, "p_match_id"),
-        typeof args.p_innings_number === "number" ? args.p_innings_number : null,
+        optNum(args, "p_innings_number"),
       );
     case "start_super_over":
       return startSuperOver(scoring, str(args, "p_match_id"));
