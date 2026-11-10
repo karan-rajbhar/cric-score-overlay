@@ -6,7 +6,7 @@
  */
 
 import type { Match, BallEvent } from "./match-types";
-import { fieldingCreditOf } from "./cricket";
+import { fieldingCreditOf, inningsOvers } from "./cricket";
 import { noBallByesOf } from "./firebase/scoring/recompute";
 
 export interface CricsheetDelivery {
@@ -79,7 +79,8 @@ export interface CricsheetMatch {
     overs: number;
     team_type?: "club" | "international";
     teams: [string, string];
-    toss: {
+    /** Absent when no toss was recorded. */
+    toss?: {
       winner: string;
       decision: "bat" | "field";
     };
@@ -257,69 +258,74 @@ function eventOf(match: Match): CricsheetMatch["info"]["event"] {
   return name ? { name, match_number: match.title } : undefined;
 }
 
+/** The toss, when one was recorded. */
 function tossOf(match: Match, sides: Sides): CricsheetMatch["info"]["toss"] {
+  const winner = sideName(match, sides, match.toss_winner_team_id);
+  if (!winner) return undefined;
   return {
-    winner:
-      match.toss_winner_team_id === match.team2_id ? sides.team2 : sides.team1,
+    winner,
     decision: match.toss_decision === "bowl" ? "field" : "bat",
   };
 }
 
-/** The winning margin: stored, or read from the result's wording. */
+/** The name of the side `teamId` is, or undefined. */
+function sideName(
+  match: Match,
+  sides: Sides,
+  teamId: string | null | undefined,
+): string | undefined {
+  if (!teamId) return undefined;
+  if (teamId === match.team1_id) return sides.team1;
+  return teamId === match.team2_id ? sides.team2 : undefined;
+}
+
+/** The winning margin, as the engine stored it. */
 function marginOf(
   match: Match,
 ): { runs?: number; wickets?: number } | undefined {
-  if (match.win_margin_type === "runs" && match.win_margin) {
-    return { runs: match.win_margin };
-  }
-  if (match.win_margin_type === "wickets" && match.win_margin) {
+  if (!match.win_margin) return undefined;
+  if (match.win_margin_type === "runs") return { runs: match.win_margin };
+  if (match.win_margin_type === "wickets") {
     return { wickets: match.win_margin };
   }
-  const desc = match.result_description;
-  const runs = desc?.match(/by\s+(\d+)\s+runs?/i)?.[1];
-  if (runs) return { runs: parseInt(runs, 10) };
-  const wickets = desc?.match(/by\s+(\d+)\s+wickets?/i)?.[1];
-  if (wickets) return { wickets: parseInt(wickets, 10) };
   return undefined;
 }
 
-/** A completed match's result (before any D/L method). */
-function completedOutcome(
-  match: Match,
-  sides: Sides,
-  desc: string,
-): CricsheetMatch["info"]["outcome"] {
-  const isTie =
-    match.result_type === "tie" ||
-    desc.includes("tie") ||
-    desc.includes("tied");
-  const isSuperOver =
-    desc.includes("super over") || desc.includes("eliminator");
-  const winnerName =
-    match.winning_team_id === match.team1_id ? sides.team1 : sides.team2;
-  if (isTie && isSuperOver && match.winning_team_id) {
-    return { winner: winnerName, result: "tie", eliminator: winnerName };
-  }
-  if (isTie) return { result: "tie" };
-  if (!match.winning_team_id) return undefined;
-  const by = marginOf(match);
-  return { winner: winnerName, ...(by ? { by } : {}) };
-}
-
+/**
+ * The result, from what the engine stored (`status`, `result_type`,
+ * `winning_team_id`, the margin and `dls_revision`), never from the
+ * wording of `result_description`, which team names can contain.
+ */
 function outcomeOf(
   match: Match,
   sides: Sides,
 ): CricsheetMatch["info"]["outcome"] {
-  if (match.status === "completed") {
-    const desc = match.result_description?.toLowerCase() ?? "";
-    const outcome = completedOutcome(match, sides, desc);
-    const dl = ["d/l", "dls", "duckworth"].some((w) => desc.includes(w));
-    return dl ? { ...outcome, method: "D/L" } : outcome;
+  const winner = sideName(match, sides, match.winning_team_id);
+  if (match.status === "abandoned") {
+    // Abandoned, and awarded to a side.
+    return match.result_type === "win" && winner
+      ? { winner, method: "Awarded" }
+      : { result: "no result" };
   }
-  if (match.status === "abandoned" || match.result_type === "no_result") {
-    return { result: "no result" };
+  if (match.result_type === "no_result") return { result: "no result" };
+  return match.status === "completed"
+    ? completedOutcome(match, winner)
+    : undefined;
+}
+
+function completedOutcome(
+  match: Match,
+  winner: string | undefined,
+): CricsheetMatch["info"]["outcome"] {
+  const method = match.dls_revision ? { method: "D/L" } : {};
+  if (match.result_type === "tie") return { result: "tie", ...method };
+  if (!winner) return undefined;
+  // Settled by a super over: a tie with an eliminator, in Cricsheet's terms.
+  if ((match.innings ?? []).some((i) => i.innings_number > 2)) {
+    return { result: "tie", eliminator: winner };
   }
-  return undefined;
+  const by = marginOf(match);
+  return { winner, ...(by ? { by } : {}), ...method };
 }
 
 const CRICSHEET_EXTRAS = new Map<
@@ -433,6 +439,130 @@ function byOverThenSeq(a: BallEvent, b: BallEvent): number {
   return a.ball_number - b.ball_number;
 }
 
+/** The side a fielding-side penalty event was awarded to, or null. */
+function penaltyTeamOf(b: BallEvent): string | null {
+  return (b as { penalty_team_id?: string | null }).penalty_team_id ?? null;
+}
+
+const isRunsAward = (b: BallEvent) =>
+  b.extra_type === "penalty" || b.extra_type === "bonus";
+
+/**
+ * Whether a log entry is a ball bowled (legal, a wide or a no-ball, as the
+ * engine counts them), not an event: a retirement, or penalty / bonus runs.
+ */
+function isDelivery(b: BallEvent): boolean {
+  return !!b.bowler_id && !penaltyTeamOf(b) && !isRunsAward(b);
+}
+
+/**
+ * Folds an event into a ball of the innings: penalty or bonus runs to the
+ * batting side as `extras.penalty` (Cricsheet has no bonus), a retirement
+ * as a wicket, the way Cricsheet records them.
+ */
+function foldEvent(
+  d: CricsheetDelivery,
+  e: BallEvent,
+  people: People,
+  side: { batting: string; bowling: string },
+): void {
+  if (isRunsAward(e)) {
+    const runs = e.extras ?? 0;
+    if (runs <= 0) return;
+    d.extras = { ...d.extras, penalty: (d.extras?.penalty ?? 0) + runs };
+    d.runs.extras += runs;
+    d.runs.total += runs;
+    return;
+  }
+  if (!e.is_wicket) return;
+  const batter = nameOn(people, e.batsman, e.batsman_id) ?? "";
+  d.wickets = [...(d.wickets ?? []), wicketOf(e, batter, people, side)];
+}
+
+/** An innings' log turned into deliveries, as it is read in order. */
+interface InningsLog {
+  inn: Innings;
+  people: People;
+  side: { batting: string; bowling: string };
+  overs: Map<number, CricsheetDelivery[]>;
+  penalties: { pre: number; post: number };
+  last: CricsheetDelivery | null;
+  /** Events before the innings' first ball, which go on that ball. */
+  waiting: BallEvent[];
+}
+
+/**
+ * One log entry: a delivery, an event folded into the ball before it, or
+ * penalty runs awarded to this side while it was fielding (logged here
+ * before its first ball, carried from an earlier innings, or after its
+ * last, once it had batted). A penalty awarded to the other side is left
+ * out: it counts in that side's innings.
+ */
+function readEntry(log: InningsLog, b: BallEvent): void {
+  const team = penaltyTeamOf(b);
+  if (team) {
+    if (team === log.inn.team_id) {
+      log.penalties[log.last ? "post" : "pre"] += b.extras ?? 0;
+    }
+    return;
+  }
+  if (!isDelivery(b)) {
+    if (log.last) foldEvent(log.last, b, log.people, log.side);
+    else log.waiting.push(b);
+    return;
+  }
+  const delivery = deliveryOf(b, log.inn, log.people, log.side);
+  log.last = delivery;
+  log.overs.set(b.over_number, [...(log.overs.get(b.over_number) ?? []), delivery]);
+  for (const e of log.waiting.splice(0)) {
+    foldEvent(delivery, e, log.people, log.side);
+  }
+}
+
+/** The innings' deliveries by over, and the penalty runs before / after. */
+function oversAndPenaltiesOf(
+  inn: Innings,
+  rawBalls: readonly BallEvent[],
+  people: People,
+  side: { batting: string; bowling: string },
+) {
+  const log: InningsLog = {
+    inn,
+    people,
+    side,
+    overs: new Map(),
+    penalties: { pre: 0, post: 0 },
+    last: null,
+    waiting: [],
+  };
+  for (const b of [...rawBalls].sort(byOverThenSeq)) readEntry(log, b);
+  // No ball to put them on: runs awarded before any was bowled.
+  for (const e of log.waiting) {
+    if (isRunsAward(e)) log.penalties.pre += e.extras ?? 0;
+  }
+  const overs: CricsheetOver[] = Array.from(log.overs.entries())
+    .sort(([o1], [o2]) => o1 - o2)
+    .map(([over, deliveries]) => ({ over, deliveries }));
+  return { overs, penalties: log.penalties };
+}
+
+/** The chase's target: a super over has one over, a DLS revision its own. */
+function targetOf(match: Match, inn: Innings): CricsheetInnings["target"] {
+  if (!inn.target_runs) return undefined;
+  const overs =
+    inn.innings_number > 2 ? 1 : inningsOvers(match, inn.innings_number);
+  return { runs: inn.target_runs, ...(overs > 0 ? { overs } : {}) };
+}
+
+function penaltyRunsOf(penalties: {
+  pre: number;
+  post: number;
+}): CricsheetInnings["penalty_runs"] {
+  const { pre, post } = penalties;
+  if (pre <= 0 && post <= 0) return undefined;
+  return { ...(pre > 0 ? { pre } : {}), ...(post > 0 ? { post } : {}) };
+}
+
 /** One innings: its balls by over (embedded, or else the external ones). */
 function inningsOf(
   match: Match,
@@ -444,42 +574,61 @@ function inningsOf(
   const side = sides.of(inn);
   const rawBalls =
     inn.ball_by_ball && inn.ball_by_ball.length > 0 ? inn.ball_by_ball : balls;
-  const oversMap = new Map<number, CricsheetDelivery[]>();
-  for (const b of [...rawBalls].sort(byOverThenSeq)) {
-    const delivery = deliveryOf(b, inn, people, side);
-    const over = oversMap.get(b.over_number) ?? [];
-    over.push(delivery);
-    oversMap.set(b.over_number, over);
-  }
-  const overs: CricsheetOver[] = Array.from(oversMap.entries())
-    .sort(([o1], [o2]) => o1 - o2)
-    .map(([over, deliveries]) => ({ over, deliveries }));
-
-  const innObj: CricsheetInnings = {
+  const { overs, penalties } = oversAndPenaltiesOf(inn, rawBalls, people, side);
+  const target = targetOf(match, inn);
+  const penaltyRuns = penaltyRunsOf(penalties);
+  return {
     team: side.batting,
     ...(inn.innings_number > 2 ? { super_over: true } : {}),
+    ...(target ? { target } : {}),
+    ...(penaltyRuns ? { penalty_runs: penaltyRuns } : {}),
     overs,
   };
-  if (inn.target_runs) {
-    innObj.target = { runs: inn.target_runs, overs: match.overs_per_innings };
-  }
-  if (inn.extras_penalties && inn.extras_penalties > 0) {
-    innObj.penalty_runs = { post: inn.extras_penalties };
-  }
-  return innObj;
+}
+
+/**
+ * "YYYY-MM-DD": the day `iso` falls on in `timeZone`, by default where the
+ * export runs, the zone the match's times were entered in.
+ */
+function localDayOf(iso: string, timeZone?: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso.slice(0, 10);
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const part = (type: string) => parts.find((p) => p.type === type)?.value;
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+/** The day the match was played and the day this file was made. */
+function daysOf(match: Match, timeZone?: string) {
+  const now = new Date().toISOString();
+  const started = match.actual_start_time || match.scheduled_at || now;
+  return {
+    played: localDayOf(started, timeZone),
+    created: localDayOf(now, timeZone),
+  };
+}
+
+const ballsPerOverOf = (match: Match) =>
+  match.balls_per_over && match.balls_per_over > 0 ? match.balls_per_over : 6;
+
+export interface CricsheetOptions {
+  /** The time zone for the match's date (tests); default: the device's. */
+  timeZone?: string;
 }
 
 export function buildCricsheetJson(
   match: Match,
   externalBalls?: BallEvent[],
+  options: CricsheetOptions = {},
 ): CricsheetMatch {
   const sides = sidesOf(match);
   const people = peopleOf(sides.team1, sides.team2);
-  const dateStr = (
-    match.actual_start_time ||
-    match.scheduled_at ||
-    new Date().toISOString()
-  ).split("T")[0]!;
+  const days = daysOf(match, options.timeZone);
 
   registerSquads(match, people, sides);
   const officials = officialsOf(match, people);
@@ -501,12 +650,12 @@ export function buildCricsheetJson(
   return {
     meta: {
       data_version: "1.2.0",
-      created: dateStr,
+      created: days.created,
       revision: 1,
     },
     info: {
-      balls_per_over: 6,
-      dates: [dateStr],
+      balls_per_over: ballsPerOverOf(match),
+      dates: [days.played],
       event: eventOf(match),
       gender: "male",
       match_type: match.match_format ? match.match_format.toUpperCase() : "T20",
