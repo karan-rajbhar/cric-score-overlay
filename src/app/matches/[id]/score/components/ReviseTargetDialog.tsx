@@ -18,7 +18,10 @@ interface ReviseTargetDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   currentTarget?: number | null;
+  /** The overs the chase has now (a revision's, else the match's). */
   currentOvers?: number | null;
+  /** The match's overs: a revision can only shorten the chase. */
+  maxOvers?: number | null;
   onConfirm: (params: {
     targetRuns: number | null;
     overs?: number | null;
@@ -26,40 +29,41 @@ interface ReviseTargetDialogProps {
   isProcessing?: boolean;
 }
 
+type ReviseTargetFormProps = Omit<
+  ReviseTargetDialogProps,
+  "open" | "onOpenChange"
+> & { onCancel: () => void };
+
+/** A whole number from 1 to `max`, or null when it is not one. */
+function wholeNumber(text: string, max: number): number | null {
+  const n = Number(text);
+  return text.trim() !== "" && Number.isInteger(n) && n >= 1 && n <= max
+    ? n
+    : null;
+}
+
 function ReviseTargetForm({
   currentTarget,
   currentOvers,
+  maxOvers,
   onConfirm,
   onCancel,
   isProcessing,
-}: {
-  currentTarget?: number | null;
-  currentOvers?: number | null;
-  onConfirm: (params: {
-    targetRuns: number | null;
-    overs?: number | null;
-  }) => Promise<void> | void;
-  onCancel: () => void;
-  isProcessing?: boolean;
-}) {
+}: ReviseTargetFormProps) {
   const [targetRuns, setTargetRuns] = useState<string>(
     currentTarget != null ? String(currentTarget) : "",
   );
   const [overs, setOvers] = useState<string>(
     currentOvers != null ? String(currentOvers) : "",
   );
+  const oversLimit = maxOvers ?? 100;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const runsNum = targetRuns.trim() !== "" ? parseInt(targetRuns, 10) : null;
-    const oversNum = overs.trim() !== "" ? parseFloat(overs) : null;
-
-    if (runsNum !== null && (isNaN(runsNum) || runsNum < 0)) {
-      return;
-    }
-    if (oversNum !== null && (isNaN(oversNum) || oversNum < 1 || oversNum > 100)) {
-      return;
-    }
+    const runsNum = wholeNumber(targetRuns, 9999);
+    const oversNum = wholeNumber(overs, oversLimit);
+    if (runsNum === null) return;
+    if (overs.trim() !== "" && oversNum === null) return;
 
     await onConfirm({
       targetRuns: runsNum,
@@ -78,7 +82,8 @@ function ReviseTargetForm({
           <DialogTitle>Revise target / overs</DialogTitle>
         </div>
         <DialogDescription>
-          Adjust the 2nd innings target runs or revised overs due to rain, DLS, or custom match rules.
+          Set the chase&apos;s target and the overs it has, after rain or a
+          delay. The first innings keeps its overs.
         </DialogDescription>
       </DialogHeader>
 
@@ -90,8 +95,9 @@ function ReviseTargetForm({
           <Input
             id="targetRuns"
             type="number"
-            min="0"
-            max="999"
+            min="1"
+            max="9999"
+            step="1"
             placeholder="e.g. 145"
             value={targetRuns}
             onChange={(e) => setTargetRuns(e.target.value)}
@@ -111,15 +117,15 @@ function ReviseTargetForm({
             id="overs"
             type="number"
             min="1"
-            max="100"
+            max={oversLimit}
             step="1"
-            placeholder={currentOvers ? String(currentOvers) : "e.g. 15"}
+            placeholder={maxOvers ? String(maxOvers) : "e.g. 15"}
             value={overs}
             onChange={(e) => setOvers(e.target.value)}
             className="font-mono text-base"
           />
           <p className="text-2xs text-muted-foreground">
-            Leave empty to retain the current match innings length.
+            Leave empty for the match&apos;s full overs.
           </p>
         </div>
 
@@ -153,6 +159,7 @@ export function ReviseTargetDialog({
   onOpenChange,
   currentTarget,
   currentOvers,
+  maxOvers,
   onConfirm,
   isProcessing = false,
 }: ReviseTargetDialogProps) {
@@ -164,6 +171,7 @@ export function ReviseTargetDialog({
             key={`${currentTarget}-${currentOvers}-${open}`}
             currentTarget={currentTarget}
             currentOvers={currentOvers}
+            maxOvers={maxOvers}
             onConfirm={onConfirm}
             onCancel={() => onOpenChange(false)}
             isProcessing={isProcessing}

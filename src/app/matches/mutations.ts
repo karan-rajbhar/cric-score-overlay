@@ -1353,10 +1353,7 @@ export async function updateMatchSettings(
       };
     }
 
-    if (
-      settings.targetRuns != null &&
-      (!Number.isInteger(settings.targetRuns) || settings.targetRuns < 1)
-    ) {
+    if (settings.targetRuns != null && !isTargetRuns(settings.targetRuns)) {
       return { success: false, error: "The target must be at least 1 run" };
     }
 
@@ -1792,6 +1789,88 @@ export async function retirePlayer(
   }
 }
 
+interface ChaseRevision {
+  inningsId: string;
+  /** The match's `dls_revision`: null at the full overs. */
+  revision: { innings_number: number; target_runs: number; overs: number } | null;
+}
+
+/**
+ * What "Revise target / overs" writes. It applies to the open chase of the
+ * main match (a super over keeps its one over), with a target of at least
+ * 1 run and whole overs the chase can still play, up to the match's.
+ * Fewer overs are the chase's own revision, so the first innings keeps its
+ * quota; at the full overs a target set by hand replaces any revision.
+ */
+async function planChaseRevision(
+  db: Awaited<ReturnType<typeof createServerClient>>,
+  matchId: string,
+  params: { targetRuns: number | null; overs?: number | null },
+): Promise<ChaseRevision | { error: string }> {
+  const target = params.targetRuns;
+  if (!isTargetRuns(target)) {
+    return { error: "The target must be at least 1 run" };
+  }
+  const { data: match } = await db
+    .from("matches")
+    .select("current_innings, overs_per_innings, balls_per_over")
+    .eq("id", matchId)
+    .single();
+  const { data: chase } = await db
+    .from("innings")
+    .select("id, innings_number, total_balls, is_completed")
+    .eq("match_id", matchId)
+    .eq("innings_number", match?.current_innings ?? 1)
+    .maybeSingle();
+  const refusal = chaseRefusal(chase as SettingsInnings | null);
+  if (refusal || !match || !chase) {
+    return { error: refusal ?? "A target can be set only during a chase" };
+  }
+  const overs = revisedOvers(
+    match as SettingsMatch,
+    chase as SettingsInnings,
+    params.overs,
+  );
+  if (typeof overs === "string") return { error: overs };
+  return {
+    inningsId: chase.id,
+    revision: overs
+      ? { innings_number: chase.innings_number, target_runs: target, overs }
+      : null,
+  };
+}
+
+function isTargetRuns(runs: number | null | undefined): runs is number {
+  return runs != null && Number.isInteger(runs) && runs >= 1;
+}
+
+function chaseRefusal(chase: SettingsInnings | null): string | null {
+  if (!chase || chase.is_completed || chase.innings_number % 2 !== 0) {
+    return "A target can be set only during a chase";
+  }
+  if (isSuperOverInnings(chase.innings_number)) {
+    return "A super over's target cannot be revised";
+  }
+  return null;
+}
+
+/** The chase's revised overs (null: the full overs), or why not. */
+function revisedOvers(
+  match: SettingsMatch,
+  chase: SettingsInnings,
+  requested: number | null | undefined,
+): number | null | string {
+  const full = match.overs_per_innings ?? 20;
+  const overs = requested ?? full;
+  if (!Number.isInteger(overs) || overs < 1 || overs > full) {
+    return `The revised overs must be a whole number from 1 to ${full}`;
+  }
+  if (overs * (match.balls_per_over || 6) <= (chase.total_balls ?? 0)) {
+    return "The revised overs must be more than the overs already bowled";
+  }
+  return overs < full ? overs : null;
+}
+
 export async function updateTargetRuns(
   matchId: string,
   params: {
@@ -1817,30 +1896,25 @@ export async function updateTargetRuns(
       };
     }
 
-    const { data: match } = await db
-      .from("matches")
-      .select("current_innings")
-      .eq("id", matchId)
-      .single();
-
-    const currentInningsNum = match?.current_innings ?? 2;
+    const plan = await planChaseRevision(db, matchId, params);
+    if ("error" in plan) return { success: false, error: plan.error };
 
     const { error: innErr } = await db
       .from("innings")
       .update({ target_runs: params.targetRuns })
-      .eq("match_id", matchId)
-      .eq("innings_number", currentInningsNum);
-
+      .eq("id", plan.inningsId)
+      .eq("match_id", matchId);
     if (innErr) {
       return { success: false, error: friendlyError(innErr.message) };
     }
 
-    // A target set by hand replaces any DLS revision.
-    const matchPatch: Record<string, unknown> = { dls_revision: null };
-    if (params.overs !== undefined && params.overs !== null && params.overs > 0) {
-      matchPatch.overs_per_innings = params.overs;
+    const { error: matchErr } = await db
+      .from("matches")
+      .update({ dls_revision: plan.revision })
+      .eq("id", matchId);
+    if (matchErr) {
+      return { success: false, error: friendlyError(matchErr.message) };
     }
-    await db.from("matches").update(matchPatch).eq("id", matchId);
 
     await refreshLiveState(db, matchId);
     invalidateMatchCache(matchId);

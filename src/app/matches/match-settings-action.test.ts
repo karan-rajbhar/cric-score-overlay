@@ -25,7 +25,11 @@ import {
 } from "~/lib/firebase/scoring/__fixtures__/golden";
 import { stage2Driver } from "~/lib/firebase/scoring/__fixtures__/stage2";
 import { serverClientFor } from "~/lib/firebase/server-client";
-import { updateDlsTarget, updateMatchSettings } from "./mutations";
+import {
+  updateDlsTarget,
+  updateMatchSettings,
+  updateTargetRuns,
+} from "./mutations";
 
 const ball = (runs: number, extra: BallSpec = {}): Step => ({
   kind: "ball",
@@ -240,5 +244,66 @@ describe("updateMatchSettings changing the rules mid-match", () => {
       (await updateMatchSettings("M", { oversPerInnings: 4 })).error,
     ).toBeNull();
     expect(match().overs_per_innings).toBe(4);
+  });
+});
+
+describe("updateTargetRuns (Revise target / overs)", () => {
+  it("revises the chase's overs and leaves the first innings' alone", async () => {
+    const { match, innings, replay } = await matchAfter(firstInnings(1));
+    expect(
+      await updateTargetRuns("M", { targetRuns: 9, overs: 1 }),
+    ).toEqual({ success: true, error: null });
+    expect(innings(2)!.target_runs).toBe(9);
+    expect(match().overs_per_innings).toBe(2);
+    expect(match().dls_revision).toEqual({
+      innings_number: 2,
+      target_runs: 9,
+      overs: 1,
+    });
+    // The engine ends the chase at the revised over.
+    for (let i = 0; i < 6; i += 1) await replay.step(ball(1));
+    expect(match()).toMatchObject({ status: "completed", winning_team_id: "TA" });
+  });
+
+  it("takes a target at the full overs as one set by hand", async () => {
+    const { match, innings } = await matchAfter(firstInnings(1));
+    await updateDlsTarget("M", innings(2)!.id, 9, 1);
+    expect(
+      await updateTargetRuns("M", { targetRuns: 15, overs: 2 }),
+    ).toEqual({ success: true, error: null });
+    expect(innings(2)!.target_runs).toBe(15);
+    expect(match().dls_revision).toBeNull();
+    expect(match().overs_per_innings).toBe(2);
+  });
+
+  it("refuses the first innings", async () => {
+    const { match, innings } = await matchAfter([ball(1)]);
+    expect((await updateTargetRuns("M", { targetRuns: 75 })).error).toBe(
+      "A target can be set only during a chase",
+    );
+    expect(innings(1)!.target_runs).toBeNull();
+    expect(match().dls_revision ?? null).toBeNull();
+  });
+
+  it("refuses a target below 1 run and overs it cannot play to", async () => {
+    const { match, innings } = await matchAfter([
+      ...firstInnings(1),
+      ...Array.from({ length: 7 }, () => ball(0)),
+    ]);
+    const cases: Array<[number | null, number | null | undefined, string]> = [
+      [0, null, "The target must be at least 1 run"],
+      [-5, null, "The target must be at least 1 run"],
+      [null, 1, "The target must be at least 1 run"],
+      [10, 2.5, "The revised overs must be a whole number from 1 to 2"],
+      [10, 3, "The revised overs must be a whole number from 1 to 2"],
+      [10, 1, "The revised overs must be more than the overs already bowled"],
+    ];
+    for (const [targetRuns, overs, error] of cases) {
+      expect((await updateTargetRuns("M", { targetRuns, overs })).error).toBe(
+        error,
+      );
+    }
+    expect(innings(2)!.target_runs).toBe(13);
+    expect(match().dls_revision ?? null).toBeNull();
   });
 });

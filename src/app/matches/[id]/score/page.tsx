@@ -223,6 +223,7 @@ import {
   deliveryKind,
   deliveryLabel,
   economyRate,
+  inningsOvers,
   matchFormatName,
 } from "~/lib/cricket";
 import { useMatchShare } from "~/components/matches/use-match-share";
@@ -1421,6 +1422,7 @@ function MatchToolsMenu({ s }: { s: LoadedScreen }) {
     isScorer,
     setShowMatchSettingsDialog,
     match,
+    isChase,
     setShowReviseTargetDialog,
     strikerDisplay,
     setRetireTarget,
@@ -1505,7 +1507,11 @@ function MatchToolsMenu({ s }: { s: LoadedScreen }) {
               </Link>
             </DropdownMenuItem>
           )}
-          {match.status === "live" && isScorer && (
+          {/* The main match's chase only (updateTargetRuns refuses others). */}
+          {match.status === "live" &&
+            isScorer &&
+            isChase &&
+            !isSuperOverInnings(match.current_innings ?? 1) && (
             <DropdownMenuItem
               onClick={() => setShowReviseTargetDialog(true)}
               className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
@@ -3188,7 +3194,8 @@ function ScoringDialogs({ s }: { s: LoadedScreen }) {
         open={showReviseTargetDialog}
         onOpenChange={setShowReviseTargetDialog}
         currentTarget={currentInnings?.target_runs}
-        currentOvers={match.overs_per_innings}
+        currentOvers={inningsOvers(match, match.current_innings ?? 1)}
+        maxOvers={match.overs_per_innings}
         onConfirm={handleReviseTargetConfirm}
         isProcessing={isProcessing}
       />
