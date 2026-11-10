@@ -1114,6 +1114,82 @@ describe("useScoring offline reload", () => {
     expect(getPendingActions(matchId)).toHaveLength(2);
   });
 
+  it("offline, undoes the last of three balls from the saved score, once", async () => {
+    const { result } = renderHook(() => useScoring(matchId));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    for (let i = 0; i < 3; i += 1) {
+      await act(async () => {
+        await result.current.handleScore("u3", "u1", "u2", { runsScored: 2 });
+      });
+    }
+    const inn = () => result.current.match!.innings![0]!;
+    expect([inn().total_runs, inn().total_balls]).toEqual([16, 3]);
+
+    await act(async () => {
+      await result.current.handleUndo();
+    });
+    expect(getPendingActions(matchId)).toHaveLength(2);
+    expect([inn().total_runs, inn().total_balls]).toEqual([14, 2]);
+    expect(result.current.undoBusy).toBe(false);
+    expect(result.current.undoNotice).toMatchObject({ label: "2", pending: false });
+
+    // The next ball builds on that.
+    await act(async () => {
+      await result.current.handleScore("u3", "u1", "u2", { runsScored: 1 });
+    });
+    expect([inn().total_runs, inn().total_balls]).toEqual([15, 3]);
+  });
+
+  it("offline, undoes a ball of the next innings after End innings", async () => {
+    const { result } = renderHook(() => useScoring(matchId));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    await act(async () => {
+      await result.current.handleEndInnings();
+    });
+    await act(async () => {
+      await result.current.handleConfirmBatsmen("u3", "u4");
+    });
+    await act(async () => {
+      await result.current.handleConfirmBowler("u1");
+    });
+    for (let i = 0; i < 2; i += 1) {
+      await act(async () => {
+        await result.current.handleScore("u1", "u3", "u4", { runsScored: 2 });
+      });
+    }
+    await act(async () => {
+      await result.current.handleUndo();
+    });
+    const m = result.current.match!;
+    expect(m.current_innings).toBe(2);
+    expect(m.innings!.find((i) => i.innings_number === 2)).toMatchObject({
+      total_runs: 2,
+      total_balls: 1,
+      target_runs: 11,
+    });
+    expect(getPendingActions(matchId).map((a) => a.type)).toEqual([
+      "endInnings",
+      "setBatsmen",
+      "setBowler",
+      "recordBall",
+    ]);
+    expect(result.current.undoBusy).toBe(false);
+  });
+
+  it("frees Undo when there is nothing on the device to undo offline", async () => {
+    const { result } = renderHook(() => useScoring(matchId));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    await act(async () => {
+      await result.current.handleUndo();
+    });
+    expect(toast.error).toHaveBeenCalledWith("No offline deliveries in queue to undo");
+    expect(result.current.undoBusy).toBe(false);
+    expect(result.current.undoNotice).toBeNull();
+  });
+
   it("falls back to the device copy when the server cannot be reached", async () => {
     const first = renderHook(() => useScoring(matchId));
     await waitFor(() => expect(first.result.current.loading).toBe(false));

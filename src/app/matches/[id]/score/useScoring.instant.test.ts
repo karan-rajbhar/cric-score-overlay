@@ -990,6 +990,50 @@ describe("useScoring: instant scoring", () => {
     }
   });
 
+  it("offline, undoes a ball scored after an action it could not predict, once", async () => {
+    const { result } = await open();
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    const ball = async () => {
+      await act(async () => {
+        await result.current.handleScore("b1", "p1", "p2", { runsScored: 2 });
+      });
+    };
+    await ball();
+    await ball();
+    // Penalty runs to the fielding side: queued, not predicted; what
+    // follows is scored in offline mode.
+    await act(async () => {
+      await result.current.handleAwardPenalty({
+        teamId: T2,
+        runs: 5,
+        reason: "Damaging the pitch",
+        type: "penalty",
+      });
+    });
+    await ball();
+    await ball();
+    expect(currentInnings(result.current.match)).toMatchObject({
+      total_runs: 8,
+      total_balls: 4,
+    });
+
+    await act(async () => {
+      await result.current.handleUndo();
+    });
+    expect(currentInnings(result.current.match)).toMatchObject({
+      total_runs: 6,
+      total_balls: 3,
+    });
+    expect(result.current.undoBusy).toBe(false);
+    expect(result.current.undoNotice).toMatchObject({ pending: false });
+
+    await ball();
+    expect(currentInnings(result.current.match)).toMatchObject({
+      total_runs: 8,
+      total_balls: 4,
+    });
+  });
+
   it("waits for the server when it has no documents to predict from", async () => {
     vi.mocked(getScoringState).mockImplementation(
       async () => ({ ...server.state(), base: null }) as never,
