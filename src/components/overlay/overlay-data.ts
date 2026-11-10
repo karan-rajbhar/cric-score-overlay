@@ -249,20 +249,43 @@ export function showsScorecard(
 }
 
 /**
+ * `value`, each change shown `delayMs` later (the first one at once, and
+ * the first after nothing). For a stream whose video runs behind the
+ * scoring (`?delay=`).
+ */
+export function useDelayed<T>(value: T, delayMs: number): T {
+  const [shown, setShown] = useState(value);
+  const none = (v: T) => v === null || v === undefined;
+  if (delayMs > 0 && none(shown) && !none(value)) setShown(value);
+  useEffect(() => {
+    const id = setTimeout(() => setShown(value), Math.max(0, delayMs));
+    return () => {
+      // Each change gets its own timer: none is dropped by the next one.
+      if (delayMs <= 0) clearTimeout(id);
+    };
+  }, [value, delayMs]);
+  return delayMs > 0 ? shown : value;
+}
+
+/**
  * The page's match with the live scorecard applied while a scorecard
  * graphic is on air (the overlay and the control room's preview alike).
+ * With `delayMs` (`?delay=`) each change of the scorecard is held that
+ * long, like the score; the first one read shows at once.
  */
 export function useStageMatch(
   matchId: string,
   match: Match | null,
   onAir: { view: string | null | undefined; card: string | null | undefined },
+  delayMs = 0,
 ): Match | null {
   const scorecard = useLiveScorecard(matchId, {
     enabled: isLiveMatchId(matchId) && showsScorecard(onAir.view, onAir.card),
   });
+  const doc = useDelayed(scorecard.doc, delayMs);
   return useMemo(
-    () => (match ? applyLiveScorecard(match, scorecard.doc) : null),
-    [match, scorecard.doc],
+    () => (match ? applyLiveScorecard(match, doc) : null),
+    [match, doc],
   );
 }
 

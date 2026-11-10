@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createObsBridge } from "~/components/overlay/obs-bridge";
 import {
+  useDelayed,
   useFreshMatch,
   useStageMatch,
 } from "~/components/overlay/overlay-data";
@@ -43,22 +44,6 @@ interface OverlayClientProps {
   showSafeZone?: boolean;
   /** The link names no match. */
   notFound?: boolean;
-}
-
-/**
- * `value`, each change shown `delayMs` later (the first one at once). For a
- * stream whose video runs behind the scoring.
- */
-export function useDelayed<T>(value: T, delayMs: number): T {
-  const [shown, setShown] = useState(value);
-  useEffect(() => {
-    const id = setTimeout(() => setShown(value), Math.max(0, delayMs));
-    return () => {
-      // Each change gets its own timer: none is dropped by the next one.
-      if (delayMs <= 0) clearTimeout(id);
-    };
-  }, [value, delayMs]);
-  return delayMs > 0 ? shown : value;
 }
 
 /**
@@ -125,11 +110,14 @@ export function OverlayClient({
   }, []);
   const ready = !isRealMatch || producer.loaded || waited;
 
-  // Scorecards follow the live scorecard while one is on air.
-  const currentMatch = useStageMatch(matchId, freshMatch, {
-    view: layers.view,
-    card: layers.card,
-  });
+  // Scorecards follow the live scorecard while one is on air, held for
+  // `?delay=` like the score.
+  const currentMatch = useStageMatch(
+    matchId,
+    freshMatch,
+    { view: layers.view, card: layers.card },
+    delayMs,
+  );
 
   // Interact (OBS) or keyboard: Escape takes one-off graphics off here, G
   // shows the safe-zone guides for lining the source up.

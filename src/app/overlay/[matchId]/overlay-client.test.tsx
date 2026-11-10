@@ -31,6 +31,7 @@ vi.mock("~/components/overlay/sound-effects", () => ({
 }));
 
 import { playSixExplosion } from "~/components/overlay/sound-effects";
+import { buildLiveScorecard } from "~/lib/firebase/live-scorecard";
 import { OverlayClient } from "./overlay-client";
 import {
   DEMO_MATCH_DETAILS,
@@ -224,6 +225,35 @@ describe("OverlayClient", () => {
     expect(screen.queryByText(scoreOf(175))).toBeNull();
     act(() => vi.advanceTimersByTime(10_000));
     expect(screen.getByText(scoreOf(175))).toBeInTheDocument();
+  });
+
+  it("holds scorecard changes for ?delay= seconds too", () => {
+    renderOverlay({ delaySeconds: 10 });
+    // The producer puts the first innings' batting card up.
+    act(() =>
+      watchOf("overlay_state").next({ version: 1, scene: { view: "2" } }),
+    );
+    const first = DEMO_MATCH_DETAILS.innings!.find(
+      (i) => i.innings_number === 1,
+    )!;
+    const card = (runs: number, version: number) =>
+      buildLiveScorecard({
+        matchId: DEMO_MATCH_DETAILS.id,
+        innings: [{ ...first, total_runs: runs, batting: [], bowling: [] }] as never,
+        nameOf: () => null,
+        version,
+        now: "2026-11-10T00:00:00.000Z",
+      });
+    const scorecard = () => watchOf("live_scorecard");
+    act(() => scorecard().next(card(150, 1) as never));
+    const score = (runs: number) => `${runs}/${first.total_wickets}`;
+    expect(screen.getByText(score(150))).toBeInTheDocument();
+
+    // A correction to the scorecard waits as long as the score does.
+    act(() => scorecard().next(card(154, 2) as never));
+    expect(screen.queryByText(score(154))).toBeNull();
+    act(() => vi.advanceTimersByTime(10_000));
+    expect(screen.getByText(score(154))).toBeInTheDocument();
   });
 
   it("says when the link names no match, instead of a blank source", () => {
