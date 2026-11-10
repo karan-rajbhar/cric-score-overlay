@@ -47,8 +47,17 @@ function MatchSettingsForm({
   onOpenAbandon?: () => void;
   isProcessing: boolean;
 }) {
-  const secondInnings = match.innings?.find((i) => i.innings_number === 2);
-  const currentTarget = secondInnings?.target_runs ?? null;
+  const currentInnings = match.innings?.find(
+    (i) => i.innings_number === (match.current_innings ?? 1),
+  );
+  // Only a chase in play (innings 2, a super over's 4, ...) has a target.
+  const isChase = Boolean(
+    currentInnings &&
+      currentInnings.innings_number % 2 === 0 &&
+      !currentInnings.is_completed,
+  );
+  const shownTarget =
+    currentInnings?.target_runs != null ? String(currentInnings.target_runs) : "";
 
   const [title, setTitle] = useState(match.title || "");
   const [matchFormat, setMatchFormat] = useState(match.match_format || "T20");
@@ -75,9 +84,7 @@ function MatchSettingsForm({
   const [noballExtrasToBatsman, setNoballExtrasToBatsman] = useState<boolean>(
     Boolean(match.noball_extras_to_batsman),
   );
-  const [targetRuns, setTargetRuns] = useState<string>(
-    currentTarget !== null ? String(currentTarget) : "",
-  );
+  const [targetRuns, setTargetRuns] = useState<string>(shownTarget);
   const [wicketsPerInnings, setWicketsPerInnings] = useState<number>(
     match.wickets_per_innings || 10,
   );
@@ -94,6 +101,14 @@ function MatchSettingsForm({
     match.club_side ?? "both",
   );
 
+  // Sent only when edited: the server treats a target as set by hand,
+  // which replaces a DLS revision.
+  const target = targetRuns.trim();
+  const targetPatch: MatchSettingsUpdate =
+    isChase && target !== "" && target !== shownTarget
+      ? { targetRuns: Number(target) }
+      : {};
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const updatePayload: MatchSettingsUpdate = {
@@ -109,7 +124,7 @@ function MatchSettingsForm({
       noBallCountsAsBallFaced,
       wideRunsToBatsman,
       noballExtrasToBatsman,
-      targetRuns: targetRuns.trim() !== "" ? Number(targetRuns) : null,
+      ...targetPatch,
       wicketsPerInnings: Number(wicketsPerInnings) || 10,
       lastManStands,
       goldenBall,
@@ -277,25 +292,28 @@ function MatchSettingsForm({
           </p>
         </div>
 
-        {/* Target Runs (if 2nd innings or revised target) */}
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="target-runs" className="text-sm font-medium">
-              Target runs
-            </Label>
-            <span className="text-xs text-muted-foreground">
-              (Rain / DLS revised target)
-            </span>
+        {/* Target runs: the chase in play only */}
+        {isChase && (
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="target-runs" className="text-sm font-medium">
+                Target runs
+              </Label>
+              <span className="text-xs text-muted-foreground">
+                (Rain / DLS revised target)
+              </span>
+            </div>
+            <Input
+              id="target-runs"
+              type="number"
+              min={1}
+              step={1}
+              placeholder="e.g. 165"
+              value={targetRuns}
+              onChange={(e) => setTargetRuns(e.target.value)}
+            />
           </div>
-          <Input
-            id="target-runs"
-            type="number"
-            min={1}
-            placeholder="e.g. 165 (Leave empty if 1st innings)"
-            value={targetRuns}
-            onChange={(e) => setTargetRuns(e.target.value)}
-          />
-        </div>
+        )}
 
         {/* Wickets Per Innings */}
         <div className="space-y-1.5">

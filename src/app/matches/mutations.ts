@@ -1097,6 +1097,72 @@ export interface MatchSettingsUpdate {
   clubSide?: ClubSide;
 }
 
+/** The match fields a settings save writes as they are. */
+function matchSettingsPatch(
+  settings: MatchSettingsUpdate,
+): Record<string, unknown> {
+  const fields: Array<[keyof MatchSettingsUpdate, string]> = [
+    ["matchFormat", "match_format"],
+    ["oversPerInnings", "overs_per_innings"],
+    ["wicketsPerInnings", "wickets_per_innings"],
+    ["lastManStands", "last_man_stands"],
+    ["goldenBall", "golden_ball"],
+    ["freeHit", "free_hit"],
+    ["title", "title"],
+    ["ballsPerOver", "balls_per_over"],
+    ["maxBallsPerOver", "max_balls_per_over"],
+    ["wideCountsAsBallFaced", "wide_counts_as_ball_faced"],
+    ["noBallCountsAsBallFaced", "noball_counts_as_ball_faced"],
+    ["wideRunsToBatsman", "wide_runs_to_batsman"],
+    ["noballExtrasToBatsman", "noball_extras_to_batsman"],
+  ];
+  const patch: Record<string, unknown> = {};
+  for (const [key, column] of fields) {
+    if (settings[key] !== undefined) patch[column] = settings[key];
+  }
+  // The write hooks move the records and milestone totals with it.
+  if (settings.clubSide !== undefined)
+    patch.club_side = settings.clubSide === "both" ? null : settings.clubSide;
+  return patch;
+}
+
+interface SettingsPlan {
+  /** A chase target typed by hand that differs from the stored one. */
+  target: { inningsId: string; runs: number } | null;
+}
+
+/**
+ * Checks a settings save against the match as it stands. A target counts
+ * only for the chase in play, and only when it changed: the dialog sends
+ * back the target it showed, which must not undo a DLS revision.
+ */
+async function planSettingsSave(
+  db: Awaited<ReturnType<typeof createServerClient>>,
+  matchId: string,
+  settings: MatchSettingsUpdate,
+): Promise<SettingsPlan | { error: string }> {
+  if (settings.targetRuns == null) return { target: null };
+  const [{ data: match }, { data: innings }] = await Promise.all([
+    db.from("matches").select("current_innings").eq("id", matchId).single(),
+    db
+      .from("innings")
+      .select("id, innings_number, target_runs, is_completed")
+      .eq("match_id", matchId),
+  ]);
+  const current = (innings ?? []).find(
+    (i) => i.innings_number === (match?.current_innings ?? 1),
+  );
+  if (!current || current.innings_number % 2 !== 0 || current.is_completed) {
+    return { error: "A target can be set only during a chase" };
+  }
+  return {
+    target:
+      current.target_runs === settings.targetRuns
+        ? null
+        : { inningsId: current.id, runs: settings.targetRuns },
+  };
+}
+
 export async function updateMatchSettings(
   matchId: string,
   settings: MatchSettingsUpdate,
@@ -1129,6 +1195,13 @@ export async function updateMatchSettings(
       };
     }
 
+    if (
+      settings.targetRuns != null &&
+      (!Number.isInteger(settings.targetRuns) || settings.targetRuns < 1)
+    ) {
+      return { success: false, error: "The target must be at least 1 run" };
+    }
+
     const db = await createServerClient();
     const {
       data: { user },
@@ -1150,39 +1223,25 @@ export async function updateMatchSettings(
       };
     }
 
-    const matchUpdates: Record<string, unknown> = {};
-    if (settings.matchFormat !== undefined)
-      matchUpdates.match_format = settings.matchFormat;
-    if (settings.oversPerInnings !== undefined)
-      matchUpdates.overs_per_innings = settings.oversPerInnings;
-    if (settings.wicketsPerInnings !== undefined)
-      matchUpdates.wickets_per_innings = settings.wicketsPerInnings;
-    if (settings.lastManStands !== undefined)
-      matchUpdates.last_man_stands = settings.lastManStands;
-    if (settings.goldenBall !== undefined)
-      matchUpdates.golden_ball = settings.goldenBall;
-    if (settings.freeHit !== undefined)
-      matchUpdates.free_hit = settings.freeHit;
-    if (settings.title !== undefined) matchUpdates.title = settings.title;
-    if (settings.ballsPerOver !== undefined)
-      matchUpdates.balls_per_over = settings.ballsPerOver;
-    if (settings.maxBallsPerOver !== undefined)
-      matchUpdates.max_balls_per_over = settings.maxBallsPerOver;
-    if (settings.wideCountsAsBallFaced !== undefined)
-      matchUpdates.wide_counts_as_ball_faced = settings.wideCountsAsBallFaced;
-    if (settings.noBallCountsAsBallFaced !== undefined)
-      matchUpdates.noball_counts_as_ball_faced =
-        settings.noBallCountsAsBallFaced;
-    if (settings.wideRunsToBatsman !== undefined)
-      matchUpdates.wide_runs_to_batsman = settings.wideRunsToBatsman;
-    if (settings.noballExtrasToBatsman !== undefined)
-      matchUpdates.noball_extras_to_batsman = settings.noballExtrasToBatsman;
-    // The write hooks move the records and milestone totals with it.
-    if (settings.clubSide !== undefined)
-      matchUpdates.club_side =
-        settings.clubSide === "both" ? null : settings.clubSide;
+    const plan = await planSettingsSave(db, matchId, settings);
+    if ("error" in plan) return { success: false, error: plan.error };
+    const revisedTarget = plan.target;
+
+    if (revisedTarget) {
+      const { error: innErr } = await db
+        .from("innings")
+        .update({ target_runs: revisedTarget.runs })
+        .eq("id", revisedTarget.inningsId)
+        .eq("match_id", matchId);
+      if (innErr) {
+        console.error("updateMatchSettings failed on the target:", innErr);
+        return { success: false, error: friendlyError(innErr.message) };
+      }
+    }
+
+    const matchUpdates = matchSettingsPatch(settings);
     // A target set by hand replaces any DLS revision.
-    if (settings.targetRuns !== undefined) matchUpdates.dls_revision = null;
+    if (revisedTarget) matchUpdates.dls_revision = null;
 
     if (Object.keys(matchUpdates).length > 0) {
       const { error: matchErr } = await db
@@ -1192,28 +1251,6 @@ export async function updateMatchSettings(
       if (matchErr) {
         console.error("updateMatchSettings failed on matches:", matchErr);
         return { success: false, error: friendlyError(matchErr.message) };
-      }
-    }
-
-    if (settings.targetRuns !== undefined) {
-      const { data: matchData } = await db
-        .from("matches")
-        .select("current_innings")
-        .eq("id", matchId)
-        .single();
-
-      const currentInningsNum = matchData?.current_innings ?? 2;
-      const { error: innErr } = await db
-        .from("innings")
-        .update({ target_runs: settings.targetRuns })
-        .eq("match_id", matchId)
-        .eq("innings_number", currentInningsNum);
-
-      if (innErr) {
-        console.error(
-          "updateMatchSettings failed on innings target_runs:",
-          innErr,
-        );
       }
     }
 
