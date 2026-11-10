@@ -205,7 +205,7 @@ export function WorldEventRunRates(p: OverlayElementProps["runRates"]) {
   const series = useSeries(p.state, p.match);
   if (!series || !series.some((s) => s.table.length)) return null;
   const maxOvers = chartOvers(p.state.overs_per_innings, series.map((s) => s.table));
-  const bySeries = series.map((s) => phaseRates(s.table, maxOvers));
+  const bySeries = series.map((s) => phaseRates(s.table, maxOvers, ballsPerOverOf(p.match)));
   const phases = bySeries[0] ?? [];
   const max = Math.max(...bySeries.flat().map((r) => r.runRate ?? 0), 1);
   return (

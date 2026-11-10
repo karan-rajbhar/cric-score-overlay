@@ -10,7 +10,7 @@
 import { useMemo, type CSSProperties } from "react";
 import type { Innings, Match } from "~/lib/match-types";
 import { cn } from "~/lib/utils";
-import { eyebrowOf } from "../../overlay-kit";
+import { ballsPerOverOf, eyebrowOf } from "../../overlay-kit";
 import { scoreOf } from "../../scorecard-cards";
 import type { LiveMatchState } from "../../types";
 import {
@@ -211,7 +211,8 @@ function RunRates(p: OverlayElementProps["runRates"]) {
   const shown = series.slice(0, 2);
   const overs = maxOversOf(p.state, shown);
   // Each side's phases, from the shared phase maths.
-  const bySide = new Map(shown.map((sr) => [sr.innings.id, phaseRates(sr.table, overs)]));
+  const bpo = ballsPerOverOf(p.match);
+  const bySide = new Map(shown.map((sr) => [sr.innings.id, phaseRates(sr.table, overs, bpo)]));
   const phases = phaseRates([], overs);
   const rate = (sr: Series, index: number) => {
     const ph = bySide.get(sr.innings.id)?.[index];

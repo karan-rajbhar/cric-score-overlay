@@ -1,4 +1,5 @@
 import { isWicketFall } from "./cricket";
+import { isLegalDelivery } from "./firebase/scoring/recompute";
 import type { BallEvent, Innings } from "./match-types";
 
 /** Report-parity palette — teal vs amber distinguishes innings at a glance. */
@@ -14,6 +15,8 @@ export interface OverPoint {
   wickets: number;
   cumulativeRuns: number;
   cumulativeWickets: number;
+  /** Legal deliveries in the over (fewer in a part-bowled one). */
+  balls: number;
 }
 
 /** Group balls by over_number → per-over + cumulative totals. */
@@ -35,6 +38,7 @@ export function buildOverTable(balls: BallEvent[]): OverPoint[] {
       0,
     );
     const wickets = list.filter(isWicketFall).length;
+    const legal = list.filter(isLegalDelivery).length;
     cumRuns += runs;
     cumWkts += wickets;
     return {
@@ -44,6 +48,7 @@ export function buildOverTable(balls: BallEvent[]): OverPoint[] {
       wickets,
       cumulativeRuns: cumRuns,
       cumulativeWickets: cumWkts,
+      balls: legal,
     };
   });
 }

@@ -68,19 +68,24 @@ export interface PhaseRate {
   /** First and last over (1-based). */
   from: number;
   to: number;
-  /** Overs of it bowled so far. */
+  /** Overs of it bowled so far (a part-bowled one included). */
   overs: number;
   runs: number;
   wickets: number;
-  /** Runs an over; null before its first over. */
+  /** Runs an over of `ballsPerOver`, by the balls bowled; null before its first ball. */
   runRate: number | null;
 }
 
 /**
  * Run rates by phase (powerplay, middle, death; one phase for short
- * games), over the overs bowled so far.
+ * games), over the balls bowled so far: a part-bowled over counts its
+ * balls, not a whole over.
  */
-export function phaseRates(table: readonly OverPoint[], maxOvers: number): PhaseRate[] {
+export function phaseRates(
+  table: readonly OverPoint[],
+  maxOvers: number,
+  ballsPerOver = 6,
+): PhaseRate[] {
   const bounds = phaseBoundaries(maxOvers);
   const phases: Array<Pick<PhaseRate, "label" | "from" | "to">> = bounds
     ? [
@@ -93,12 +98,13 @@ export function phaseRates(table: readonly OverPoint[], maxOvers: number): Phase
     const overs = table.filter((o) => o.overNumber >= p.from && o.overNumber <= p.to);
     const runs = overs.reduce((n, o) => n + o.runs, 0);
     const wickets = overs.reduce((n, o) => n + o.wickets, 0);
+    const balls = overs.reduce((n, o) => n + o.balls, 0);
     return {
       ...p,
       overs: overs.length,
       runs,
       wickets,
-      runRate: overs.length ? runs / overs.length : null,
+      runRate: balls > 0 ? (runs * ballsPerOver) / balls : null,
     };
   });
 }

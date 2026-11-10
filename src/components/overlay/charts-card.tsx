@@ -22,7 +22,13 @@ import { buildOverTable, type OverPoint } from "~/lib/match-charts";
 import type { Innings, Match } from "~/lib/match-types";
 import { cn } from "~/lib/utils";
 import { useInningsBallLog, useScorecardInnings } from "./overlay-data";
-import { CardShell, eyebrowOf, OV, type OverlayThemeProps } from "./overlay-kit";
+import {
+  ballsPerOverOf,
+  CardShell,
+  eyebrowOf,
+  OV,
+  type OverlayThemeProps,
+} from "./overlay-kit";
 import { inningsTeamName } from "./scorecard-cards";
 import type { LiveMatchState } from "./types";
 
@@ -70,7 +76,15 @@ function useSeries(
 
 const CHART_WIDTH = 1180;
 
-function PhaseRates({ series, maxOvers }: { series: Series[]; maxOvers: number }) {
+function PhaseRates({
+  series,
+  maxOvers,
+  ballsPerOver,
+}: {
+  series: Series[];
+  maxOvers: number;
+  ballsPerOver: number;
+}) {
   const bounds = phaseBoundaries(maxOvers);
   const phases = bounds
     ? [
@@ -81,10 +95,12 @@ function PhaseRates({ series, maxOvers }: { series: Series[]; maxOvers: number }
     : [{ label: "Innings", from: 1, to: maxOvers }];
   const rate = (s: Series, from: number, to: number) => {
     const overs = s.table.filter((o) => o.overNumber >= from && o.overNumber <= to);
-    if (!overs.length) return null;
+    const balls = overs.reduce((n, o) => n + o.balls, 0);
+    if (!balls) return null;
     const runs = overs.reduce((n, o) => n + o.runs, 0);
     const wkts = overs.reduce((n, o) => n + o.wickets, 0);
-    return { rr: (runs / overs.length).toFixed(2), runs, wkts };
+    // By balls: a part-bowled over is not a whole one.
+    return { rr: ((runs * ballsPerOver) / balls).toFixed(2), runs, wkts };
   };
   return (
     <table className="w-full text-lg">
@@ -199,7 +215,13 @@ export function ChartCard({
           }))}
         />
       )}
-      {kind === "run_rate" && <PhaseRates series={shown} maxOvers={maxOvers} />}
+      {kind === "run_rate" && (
+        <PhaseRates
+          series={shown}
+          maxOvers={maxOvers}
+          ballsPerOver={ballsPerOverOf(match)}
+        />
+      )}
     </CardShell>
   );
 }

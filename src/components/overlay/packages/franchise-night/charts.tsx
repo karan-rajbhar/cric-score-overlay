@@ -9,7 +9,7 @@
 
 import { cn } from "~/lib/utils";
 import { withAlpha } from "../../overlay-themes";
-import { teamCode } from "../../overlay-kit";
+import { ballsPerOverOf, teamCode } from "../../overlay-kit";
 import type { OverlayElementProps } from "../types";
 import {
   axisMax,
@@ -191,8 +191,8 @@ function Worm({ series, maxOvers }: { series: Drawn[]; maxOvers: number }) {
   );
 }
 
-function PhaseRates({ series, maxOvers }: { series: Drawn[]; maxOvers: number }) {
-  const rates = series.map((s) => phaseRates(s.table, maxOvers));
+function PhaseRates({ series, maxOvers, bpo }: { series: Drawn[]; maxOvers: number; bpo: number }) {
+  const rates = series.map((s) => phaseRates(s.table, maxOvers, bpo));
   const phases = rates[0] ?? [];
   const top = Math.max(12, ...rates.flat().map((r) => r.runRate ?? 0));
   return (
@@ -275,7 +275,7 @@ export function ChartElement(p: OverlayElementProps["runsPerOver"] & { kind: Cha
       {p.kind !== "run_rate" && <Legend series={shown} />}
       {p.kind === "manhattan" && <Manhattan series={shown} maxOvers={maxOvers} />}
       {p.kind === "worm" && <Worm series={shown} maxOvers={maxOvers} />}
-      {p.kind === "run_rate" && <PhaseRates series={shown} maxOvers={maxOvers} />}
+      {p.kind === "run_rate" && <PhaseRates series={shown} maxOvers={maxOvers} bpo={ballsPerOverOf(p.match)} />}
     </CardFrame>
   );
 }
