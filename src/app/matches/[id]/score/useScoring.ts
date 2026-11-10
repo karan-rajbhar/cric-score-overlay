@@ -596,34 +596,22 @@ export function useScoring(
         (bowlingResult.data as Player[]) || []
       ).filter((p) => p && p.team_id === bowlingTeamId);
 
+      // The squads as the server has them now: a player removed in the
+      // Squads dialog leaves the lists (nothing held here is merged back).
       const battingUserIds = new Set(fetchedBatting.map((p) => p.user_id));
-
-      const battingMap = new Map(fetchedBatting.map((p) => [p.user_id, p]));
-      for (const p of playersRef.current.batting) {
-        if (p.user_id && p.team_id === battingTeamId && !battingMap.has(p.user_id)) {
-          battingMap.set(p.user_id, p);
-        }
-      }
-      const updatedBatting = Array.from(battingMap.values());
+      const updatedBatting = Array.from(
+        new Map(fetchedBatting.map((p) => [p.user_id, p])).values(),
+      );
       playersRef.current.batting = updatedBatting;
       setBattingTeamPlayers(updatedBatting);
 
-      const bowlingMap = new Map(
-        fetchedBowling
-          .filter((p) => !battingUserIds.has(p.user_id))
-          .map((p) => [p.user_id, p]),
+      const updatedBowling = Array.from(
+        new Map(
+          fetchedBowling
+            .filter((p) => !battingUserIds.has(p.user_id))
+            .map((p) => [p.user_id, p]),
+        ).values(),
       );
-      for (const p of playersRef.current.bowling) {
-        if (
-          p.user_id &&
-          p.team_id === bowlingTeamId &&
-          !battingUserIds.has(p.user_id) &&
-          !bowlingMap.has(p.user_id)
-        ) {
-          bowlingMap.set(p.user_id, p);
-        }
-      }
-      const updatedBowling = Array.from(bowlingMap.values());
       playersRef.current.bowling = updatedBowling;
       setBowlingTeamPlayers(updatedBowling);
 

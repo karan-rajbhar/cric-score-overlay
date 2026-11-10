@@ -205,6 +205,35 @@ describe("useScoring", () => {
     });
   });
 
+  it("drops a player removed from a squad when the squads are read again", async () => {
+    const squads: Record<string, unknown[]> = {
+      "team-1": [
+        { id: "tp1", team_id: "team-1", user_id: "u1", user: { id: "u1", full_name: "A" } },
+        { id: "tp2", team_id: "team-1", user_id: "u2", user: { id: "u2", full_name: "B" } },
+      ],
+      "team-2": [
+        { id: "tp3", team_id: "team-2", user_id: "u3", user: { id: "u3", full_name: "C" } },
+        { id: "tp4", team_id: "team-2", user_id: "u4", user: { id: "u4", full_name: "D" } },
+      ],
+    };
+    vi.mocked(getTeamPlayers).mockImplementation(async (teamId: string) => ({
+      data: (squads[teamId] ?? []) as never,
+      error: null,
+    }));
+    const { result } = renderHook(() => useScoring(matchId));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.battingTeamPlayers.map((p) => p.user_id)).toEqual(["u1", "u2"]);
+
+    // Removed in the Squads dialog, which then reads the squads again.
+    squads["team-1"] = squads["team-1"]!.slice(0, 1);
+    squads["team-2"] = squads["team-2"]!.slice(1);
+    await act(async () => {
+      await result.current.loadPlayers(result.current.match!);
+    });
+    expect(result.current.battingTeamPlayers.map((p) => p.user_id)).toEqual(["u1"]);
+    expect(result.current.bowlingTeamPlayers.map((p) => p.user_id)).toEqual(["u4"]);
+  });
+
   it("handleConfirmBatsmen rejects selecting opposing team players or current bowler", async () => {
     const team1Players = [
       { id: "tp1", team_id: "team-1", user_id: "u1", user: { id: "u1", full_name: "T1 P1" } },
