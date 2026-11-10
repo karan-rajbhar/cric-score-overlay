@@ -492,7 +492,7 @@ function LiveBar({
   const { batting, bowling } = sidesOf(state);
   const tokens = overTokens(state);
   const limit = inningsBalls(state, bpo);
-  const econ = economyText(state.bowler_runs, state.bowler_balls);
+  const econ = economyText(state.bowler_runs, state.bowler_balls, bpo);
   const chip = tokens.length > 6 ? { size: 34, gap: 5 } : { size: 40, gap: 8 };
   return (
     <BarShell

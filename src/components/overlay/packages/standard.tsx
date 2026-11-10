@@ -11,7 +11,7 @@ import type { ReactNode } from "react";
 import { ChartCard } from "../charts-card";
 import { CornerWatermark } from "../corner-watermark";
 import { NewsTicker } from "../news-ticker";
-import { FullScreen, OverlayFrame } from "../overlay-kit";
+import { ballsPerOverOf, FullScreen, OverlayFrame } from "../overlay-kit";
 import {
   OverSummaryCard,
   PartnershipCard,
@@ -85,6 +85,7 @@ function Strap({
       layout={p.layout}
       theme={p.theme}
       customColors={p.customColors}
+      ballsPerOver={ballsPerOverOf(p.match)}
     />
   );
 }
@@ -110,7 +111,11 @@ export const STANDARD_ELEMENTS: PackageElements = {
       />
     ) : (
       <Lower p={p}>
-        <InningsFiguresCard state={p.state} slot={p.slot} />
+        <InningsFiguresCard
+          state={p.state}
+          slot={p.slot}
+          ballsPerOver={ballsPerOverOf(p.match)}
+        />
       </Lower>
     ),
   bowlerLowerThird: (p) =>
@@ -118,7 +123,11 @@ export const STANDARD_ELEMENTS: PackageElements = {
       <Strap p={p} strap={p.strap} type="bowler" />
     ) : (
       <Lower p={p}>
-        <InningsFiguresCard state={p.state} slot="bowler" />
+        <InningsFiguresCard
+          state={p.state}
+          slot="bowler"
+          ballsPerOver={ballsPerOverOf(p.match)}
+        />
       </Lower>
     ),
   newBatter: (p) => <Strap p={p} strap={p.strap} type="new_batter" />,
@@ -141,7 +150,10 @@ export const STANDARD_ELEMENTS: PackageElements = {
       <Strap p={p} strap={p.strap} type="over_end" />
     ) : (
       <Full p={p}>
-        <OverSummaryCard state={p.state} />
+        <OverSummaryCard
+          state={p.state}
+          ballsPerOver={ballsPerOverOf(p.match)}
+        />
       </Full>
     ),
   sting: (p) => (
@@ -154,6 +166,7 @@ export const STANDARD_ELEMENTS: PackageElements = {
         innings={p.innings}
         teamName={p.teamName}
         kind={p.full ? "full" : "batting"}
+        ballsPerOver={ballsPerOverOf(p.match)}
       />
     </Full>
   ),
@@ -164,6 +177,7 @@ export const STANDARD_ELEMENTS: PackageElements = {
         innings={p.innings}
         teamName={p.teamName}
         kind="bowling"
+        ballsPerOver={ballsPerOverOf(p.match)}
       />
     </Full>
   ),
@@ -253,7 +267,10 @@ export const STANDARD_ELEMENTS: PackageElements = {
       <Strap p={p} strap={p.strap} type="win_predictor" />
     ) : (
       <Full p={p}>
-        <WinPredictorCard state={p.state} />
+        <WinPredictorCard
+          state={p.state}
+          ballsPerOver={ballsPerOverOf(p.match)}
+        />
       </Full>
     ),
   projectedScore: (p) =>
@@ -261,7 +278,10 @@ export const STANDARD_ELEMENTS: PackageElements = {
       <Strap p={p} strap={p.strap} type="win_predictor" />
     ) : (
       <Full p={p}>
-        <WinPredictorCard state={p.state} />
+        <WinPredictorCard
+          state={p.state}
+          ballsPerOver={ballsPerOverOf(p.match)}
+        />
       </Full>
     ),
   breakStrap: (p) =>

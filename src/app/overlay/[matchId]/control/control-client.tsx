@@ -22,6 +22,7 @@ import {
   broadcastViewAvailable,
 } from "~/components/overlay/broadcast-suite-overlay";
 import { strapAvailable } from "~/components/overlay/lower-third-straps";
+import { ballsPerOverOf, oversText } from "~/components/overlay/overlay-kit";
 import { useStageMatch } from "~/components/overlay/overlay-data";
 import { OverlayPreview } from "~/components/overlay/overlay-preview";
 import {
@@ -181,11 +182,6 @@ const HOLDS: Array<{ id: HoldMode; label: string; hint: string }> = [
 const RULE_SECONDS = [3, 4, 5, 6, 8, 10, 15, 20, 30, 45];
 
 const STRAP_SECONDS = [5, 8, 10, 15];
-
-function oversText(balls: number | null | undefined): string {
-  if (!balls) return "0.0";
-  return `${Math.floor(balls / 6)}.${balls % 6}`;
-}
 
 function Panel({
   title,
@@ -370,12 +366,14 @@ export function ControlClient({
   // What is on air: the overlay state (one listener), as the overlay sees it.
   const producer = useOverlayProducer(matchId, isDemo);
   const { doc, send, last } = producer;
+  const bpo = ballsPerOverOf(pageMatch);
   const layers = useOverlayLayers({
     doc,
     loaded: producer.loaded,
     state,
     serverNow,
     muted: true,
+    ballsPerOver: bpo,
   });
   const { scene } = layers;
   const listening = producer.status === "connected";
@@ -638,7 +636,7 @@ export function ControlClient({
                 {team1} v {team2}
                 <span className="ml-2 font-score tabular-nums text-slate-200">
                   {state.total_runs ?? 0}/{state.total_wickets ?? 0} (
-                  {oversText(state.total_balls)} ov)
+                  {oversText(state.total_balls, bpo)} ov)
                 </span>
               </p>
             </div>

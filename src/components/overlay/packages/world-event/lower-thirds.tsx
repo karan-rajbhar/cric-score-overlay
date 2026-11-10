@@ -15,7 +15,7 @@ import type { PlayerCareerStatsRow } from "~/lib/firebase/types";
 import { cn } from "~/lib/utils";
 import { winPredictorFromLive } from "~/lib/win-predictor";
 import { usePlayerProfile } from "../../overlay-data";
-import { economyText, overTokens, oversText, strikeRateText } from "../../overlay-kit";
+import { ballsPerOverOf, economyText, overTokens, oversText, strikeRateText } from "../../overlay-kit";
 import { inningsStats, playerInSlot, type PlayerSlot } from "../../profile-card";
 import { strapText } from "../../strap-views";
 import type { ActiveLowerThirdStrap, LayoutMode, LiveMatchState, SeriesFigures } from "../../types";
@@ -157,15 +157,17 @@ function FiguresLowerThird({
   slot,
   tab,
   testId,
+  bpo = 6,
 }: {
   state: LiveMatchState;
   layout: LayoutMode;
   slot: PlayerSlot;
   tab?: string;
   testId: string;
+  bpo?: number;
 }) {
   const who = playerInSlot(state, slot);
-  const figures = inningsStats(state, slot);
+  const figures = inningsStats(state, slot, bpo);
   if (!who.name || !figures) return null;
   const { bat, bowl } = battingAndBowling(state);
   const team = slot === "bowler" ? bowl : bat;
@@ -206,6 +208,7 @@ function TextLowerThird({
   team,
   testId,
   tabTone,
+  bpo = 6,
 }: {
   state: LiveMatchState;
   layout: LayoutMode;
@@ -213,8 +216,9 @@ function TextLowerThird({
   team: SideInfo | null;
   testId: string;
   tabTone?: LowerThirdProps["tabTone"];
+  bpo?: number;
 }) {
-  const text = strapText(strap, state);
+  const text = strapText(strap, state, bpo);
   if (!text?.title) return null;
   const details = text.detail ? text.detail.split(" · ") : [];
   return (
@@ -258,9 +262,9 @@ export function WorldEventBatterLowerThird(p: OverlayElementProps["batterLowerTh
 
 export function WorldEventBowlerLowerThird(p: OverlayElementProps["bowlerLowerThird"]) {
   if (p.variant === "strap" && p.strap?.title) {
-    return <TextLowerThird state={p.state} layout={p.layout} strap={p.strap} team={battingAndBowling(p.state).bowl} testId="we-bowler" />;
+    return <TextLowerThird state={p.state} layout={p.layout} strap={p.strap} team={battingAndBowling(p.state).bowl} testId="we-bowler" bpo={ballsPerOverOf(p.match)} />;
   }
-  return <FiguresLowerThird state={p.state} layout={p.layout} slot="bowler" testId="we-bowler" />;
+  return <FiguresLowerThird state={p.state} layout={p.layout} slot="bowler" testId="we-bowler" bpo={ballsPerOverOf(p.match)} />;
 }
 
 /** A new batter in: name, when they came in. */
@@ -301,7 +305,8 @@ export function WorldEventNewBowler(p: OverlayElementProps["newBowler"]) {
   const { bowl } = battingAndBowling(p.state);
   const s = p.state;
   const current = s.current_bowler_name === text.title && (s.bowler_balls ?? 0) > 0;
-  const econ = current ? economyText(s.bowler_runs, s.bowler_balls) : null;
+  const bpo = ballsPerOverOf(p.match);
+  const econ = current ? economyText(s.bowler_runs, s.bowler_balls, bpo) : null;
   return (
     <LowerThird
       state={s}
@@ -315,7 +320,7 @@ export function WorldEventNewBowler(p: OverlayElementProps["newBowler"]) {
       stats={
         current
           ? [
-              { label: "Overs", value: oversText(s.bowler_balls) },
+              { label: "Overs", value: oversText(s.bowler_balls, bpo) },
               { label: "Maidens", value: s.bowler_maidens ?? 0 },
               ...(econ ? [{ label: "Econ", value: econ }] : []),
             ]
@@ -379,16 +384,17 @@ export function SplitBar({
 }
 
 export function WorldEventChase(p: OverlayElementProps["chase"]) {
-  const chase = chaseLine(p.state);
+  const bpo = ballsPerOverOf(p.match);
+  const chase = chaseLine(p.state, bpo);
   if (!chase) {
     return p.strap?.title ? (
       <TextLowerThird state={p.state} layout={p.layout} strap={p.strap} team={battingAndBowling(p.state).bat} testId="we-chase" />
     ) : null;
   }
   const { bat, bowl } = battingAndBowling(p.state);
-  const est = winPredictorFromLive(p.state);
+  const est = winPredictorFromLive(p.state, { ballsPerOver: bpo });
   const max = Math.max(chase.requiredRate ?? 0, chase.currentRate ?? 0);
-  const atRate = finishAtCurrentRate(p.state, chase);
+  const atRate = finishAtCurrentRate(p.state, chase, bpo);
   return (
     <LowerFrame state={p.state} layout={p.layout} width={1240} testId="we-chase">
       <div className="relative z-10 ml-[150px]">
@@ -450,7 +456,17 @@ export function WorldEventChase(p: OverlayElementProps["chase"]) {
 
 // ---- end of over, partnership, predictor straps -------------------------------
 
-export function WorldEventThisOverStrap({ state, layout, strap }: { state: LiveMatchState; layout: LayoutMode; strap: ActiveLowerThirdStrap | null }) {
+export function WorldEventThisOverStrap({
+  state,
+  layout,
+  strap,
+  bpo = 6,
+}: {
+  state: LiveMatchState;
+  layout: LayoutMode;
+  strap: ActiveLowerThirdStrap | null;
+  bpo?: number;
+}) {
   const tokens = overTokens(state);
   if (!tokens.length && !strap?.title) return null;
   const { bat, bowl } = battingAndBowling(state);
@@ -464,7 +480,7 @@ export function WorldEventThisOverStrap({ state, layout, strap }: { state: LiveM
       title={
         <Balls tokens={tokens} size={56} stagger={360} className="py-1.5" />
       }
-      subtitle={state.current_bowler_name ? `${state.current_bowler_name}  ${state.bowler_wickets ?? 0}-${state.bowler_runs ?? 0} (${oversText(state.bowler_balls)})` : undefined}
+      subtitle={state.current_bowler_name ? `${state.current_bowler_name}  ${state.bowler_wickets ?? 0}-${state.bowler_runs ?? 0} (${oversText(state.bowler_balls, bpo)})` : undefined}
       figure={<Fig value={runs} />}
       figureLabel={runs === 1 ? "Run this over" : "Runs this over"}
       strip={
@@ -533,12 +549,22 @@ export function WorldEventPartnershipStrap({ state, layout, strap }: { state: Li
   );
 }
 
-export function WorldEventWinStrap({ state, layout, strap }: { state: LiveMatchState; layout: LayoutMode; strap: ActiveLowerThirdStrap | null }) {
-  const est = winPredictorFromLive(state);
-  if (!est) return strap?.title ? <TextLowerThird state={state} layout={layout} strap={strap} team={null} testId="we-win-strap" /> : null;
+export function WorldEventWinStrap({
+  state,
+  layout,
+  strap,
+  bpo = 6,
+}: {
+  state: LiveMatchState;
+  layout: LayoutMode;
+  strap: ActiveLowerThirdStrap | null;
+  bpo?: number;
+}) {
+  const est = winPredictorFromLive(state, { ballsPerOver: bpo });
+  if (!est) return strap?.title ? <TextLowerThird state={state} layout={layout} strap={strap} team={null} testId="we-win-strap" bpo={bpo} /> : null;
   const { bat, bowl } = battingAndBowling(state);
   if (est.kind === "projection") {
-    const rows = projectedTotals(state);
+    const rows = projectedTotals(state, bpo);
     return (
       <LowerThird
         state={state}
@@ -548,7 +574,7 @@ export function WorldEventWinStrap({ state, layout, strap }: { state: LiveMatchS
         title={`${est.low} to ${est.high}`}
         subtitle="Estimate from the runs, overs and wickets so far"
         figure={scoreText(state.total_runs, state.total_wickets)}
-        figureLabel={`${oversText(state.total_balls)} overs`}
+        figureLabel={`${oversText(state.total_balls, bpo)} overs`}
         stats={rows.map((r) => ({ label: r.current ? `At ${fixed2(r.rate)}` : `At ${r.rate}`, value: r.total }))}
         testId="we-projected-strap"
       />
@@ -583,15 +609,15 @@ const BREAK_TAB: Record<BreakKind, string> = {
 };
 
 /** The score and the chase or rate, for break straps and cards. */
-function scoreStrip(state: LiveMatchState) {
+function scoreStrip(state: LiveMatchState, bpo: number) {
   if (state.total_runs === null) return undefined;
   const { bat } = battingAndBowling(state);
-  const chase = chaseLine(state);
+  const chase = chaseLine(state, bpo);
   return (
     <span className="we-label flex items-baseline gap-8 px-6 text-[20px]">
       <span>
         {bat.code} <span className="we-fig text-[28px]">{scoreText(state.total_runs, state.total_wickets)}</span>{" "}
-        <span className="we-muted">({oversText(state.total_balls)} ov)</span>
+        <span className="we-muted">({oversText(state.total_balls, bpo)} ov)</span>
       </span>
       {chase ? (
         <span className="text-[#bdf7e8]">
@@ -606,7 +632,8 @@ function scoreStrip(state: LiveMatchState) {
 
 export function WorldEventBreakStrap(p: OverlayElementProps["breakStrap"]) {
   const strap = p.strap ?? { id: `we-${p.kind}`, type: p.kind, title: "" };
-  const text = strapText(strap, p.state);
+  const bpo = ballsPerOverOf(p.match);
+  const text = strapText(strap, p.state, bpo);
   if (!text?.title) return null;
   const { bat } = battingAndBowling(p.state);
   const card = p.variant === "card";
@@ -620,8 +647,8 @@ export function WorldEventBreakStrap(p: OverlayElementProps["breakStrap"]) {
       title={text.title}
       subtitle={text.subtitle || undefined}
       figure={card && p.state.total_runs !== null ? scoreText(p.state.total_runs, p.state.total_wickets) : undefined}
-      figureLabel={card ? `${oversText(p.state.total_balls)} overs` : undefined}
-      strip={scoreStrip(p.state)}
+      figureLabel={card ? `${oversText(p.state.total_balls, bpo)} overs` : undefined}
+      strip={scoreStrip(p.state, bpo)}
       width={card ? 1240 : 1100}
       testId={`we-break-${p.kind}`}
     />

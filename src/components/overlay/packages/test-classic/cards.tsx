@@ -268,7 +268,7 @@ function BowlingTable({ innings, bpo }: { innings: Innings; bpo: number }) {
               <Fig className="text-[1.5rem]">{b.wickets_taken}</Fig>
             </td>
             <td className={cn(TD, "font-medium")} style={{ ...FIGS, color: TC.inkMuted }}>
-              {economyText(b.runs_conceded, b.balls_bowled) ?? "–"}
+              {economyText(b.runs_conceded, b.balls_bowled, bpo) ?? "–"}
             </td>
             <td className={cn(TD, "font-medium")} style={{ ...FIGS, color: TC.inkMuted }}>{b.wides}</td>
             <td className={cn(TD, "font-medium")} style={{ ...FIGS, color: TC.inkMuted }}>{b.no_balls}</td>
@@ -518,7 +518,7 @@ function StandHalf({
 
 export function PartnershipCard(p: P<"partnership">) {
   const { state, match } = p;
-  const stand = partnershipOf(state, match?.innings ?? []);
+  const stand = partnershipOf(state, match?.innings ?? [], ballsPerOverOf(match));
   if (!stand) return null;
   const { runs, balls } = stand;
   const innings = match?.innings?.find((i) => i.innings_number === state.innings_number);
@@ -1061,7 +1061,7 @@ function sideLines(state: LiveMatchState, match: Match | null, innings: Innings[
   });
 }
 
-function Leaders({ innings, d = 400 }: { innings: Innings; d?: number }) {
+function Leaders({ innings, d = 400, bpo = 6 }: { innings: Innings; d?: number; bpo?: number }) {
   const { batters: bat, bowlers: bowl } = inningsLeaders(innings, 3, 3);
   const line = (key: string, name: string, fig: ReactNode, note: string, i: number) => (
     <li
@@ -1087,7 +1087,7 @@ function Leaders({ innings, d = 400 }: { innings: Innings; d?: number }) {
       </ul>
       <ul>
         {bowl.map((b, i) =>
-          line(b.id, b.user?.full_name ?? "", `${b.wickets_taken}-${b.runs_conceded}`, `(${oversText(b.balls_bowled)})`, i + 3),
+          line(b.id, b.user?.full_name ?? "", `${b.wickets_taken}-${b.runs_conceded}`, `(${oversText(b.balls_bowled, bpo)})`, i + 3),
         )}
       </ul>
     </div>
@@ -1122,7 +1122,7 @@ function InningsBlock({
           ({oversText(innings.total_balls, bpo)} ov)
         </span>
       </div>
-      <Leaders innings={innings} d={d + 120} />
+      <Leaders innings={innings} d={d + 120} bpo={bpo} />
     </section>
   );
 }
@@ -1271,7 +1271,7 @@ export function InningsBreakCard(p: P<"inningsBreak">) {
         <p className="tc-a-fade mb-4 text-[1.25rem]" style={{ color: TC.inkMuted, ...FIGS, ...delay(250) }}>
           {totalDetail(done, bpo)} · Extras {done.extras_total ?? 0}
         </p>
-        <Leaders innings={done} d={320} />
+        <Leaders innings={done} d={320} bpo={bpo} />
       </CardShell>
     </Card>
   );
@@ -1281,7 +1281,7 @@ export function InningsBreakCard(p: P<"inningsBreak">) {
 
 export function WinPredictorCard(p: P<"winPredictor">) {
   const { state } = p;
-  const est = estimateOf(state);
+  const est = estimateOf(state, ballsPerOverOf(p.match));
   if (!est || est.kind !== "chase") return null;
   const bat = state.batting_team_name ?? "Batting side";
   const bowl = state.bowling_team_name ?? "Bowling side";
@@ -1321,7 +1321,8 @@ export function WinPredictorCard(p: P<"winPredictor">) {
 
 export function ProjectedCard(p: P<"projectedScore">) {
   const { state } = p;
-  const est = estimateOf(state);
+  const bpo = ballsPerOverOf(p.match);
+  const est = estimateOf(state, bpo);
   if (!est || est.kind !== "projection") return null;
   const lo = Math.min(est.low, state.total_runs ?? est.low);
   const span = Math.max(1, est.high - lo);
@@ -1365,7 +1366,7 @@ export function ProjectedCard(p: P<"projectedScore">) {
         </div>
         <p className="tc-a-fade mt-8 text-[1.375rem]" style={{ color: TC.ink, ...delay(500) }}>
           {state.batting_team_name} are{" "}
-          <strong>{scoreText(state.total_runs, state.total_wickets)}</strong> after {oversText(state.total_balls)} overs. At this
+          <strong>{scoreText(state.total_runs, state.total_wickets)}</strong> after {oversText(state.total_balls, bpo)} overs. At this
           rate, with the overs and wickets left, they would most likely finish around <strong>{est.mid}</strong>.
         </p>
       </CardShell>
@@ -1379,9 +1380,9 @@ export function ProjectedCard(p: P<"projectedScore">) {
 export function BreakCard(p: P<"breakStrap">) {
   const { state, match } = p;
   const strap = p.strap ?? { id: `tc-${p.kind}`, type: p.kind, title: "" };
-  const text = strapText(strap, state);
-  if (!text?.title) return null;
   const bpo = ballsPerOverOf(match);
+  const text = strapText(strap, state, bpo);
+  if (!text?.title) return null;
   const inPlay = state.total_runs !== null && state.total_runs !== undefined && (state.total_balls ?? 0) > 0;
   return (
     <TcRoot data-strap-type={p.kind} className="fixed inset-x-0 z-30 flex justify-center" style={{ bottom: 226 }}>

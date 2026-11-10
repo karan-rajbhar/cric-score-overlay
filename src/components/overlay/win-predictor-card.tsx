@@ -19,8 +19,11 @@ import {
 import type { LiveMatchState } from "./types";
 
 /** The estimate for this row, or null (no innings in play, super over). */
-export function winEstimateOf(state: LiveMatchState): WinEstimate | null {
-  return winPredictorFromLive(state);
+export function winEstimateOf(
+  state: LiveMatchState,
+  ballsPerOver = 6,
+): WinEstimate | null {
+  return winPredictorFromLive(state, { ballsPerOver });
 }
 
 export function winPredictorAvailable(state: LiveMatchState): boolean {
@@ -29,8 +32,9 @@ export function winPredictorAvailable(state: LiveMatchState): boolean {
 
 export function WinPredictorCard({
   state,
-}: OverlayThemeProps & { state: LiveMatchState }) {
-  const est = winEstimateOf(state);
+  ballsPerOver = 6,
+}: OverlayThemeProps & { state: LiveMatchState; ballsPerOver?: number }) {
+  const est = winEstimateOf(state, ballsPerOver);
   if (!est) return null;
   const bat = teamCode(state.batting_team_short_name, state.batting_team_name);
   const bowl = teamCode(state.bowling_team_short_name, state.bowling_team_name);

@@ -6,6 +6,7 @@ import {
   useFreshMatch,
   useStageMatch,
 } from "~/components/overlay/overlay-data";
+import { ballsPerOverOf } from "~/components/overlay/overlay-kit";
 import { OverlayStage } from "~/components/overlay/overlay-stage";
 import type { LiveMatchState } from "~/components/overlay/types";
 import {
@@ -94,6 +95,9 @@ export function OverlayClient({
   );
 
   const producer = useOverlayStateDoc(matchId, isRealMatch);
+  // The match read again when it or a squad changes (player of the
+  // match, Playing XI, settings such as balls per over).
+  const freshMatch = useFreshMatch(matchId, match, live);
   // Replays through OBS (the browser source's API; nothing elsewhere).
   const replayScene = producer.doc?.scene.replayScene;
   const bridge = useMemo(
@@ -107,6 +111,7 @@ export function OverlayClient({
     params,
     state,
     serverNow,
+    ballsPerOver: ballsPerOverOf(freshMatch),
     onReplay: (item: ReplayRequest) =>
       void bridge.replay({ seconds: item.durationMs / 1000 }),
   });
@@ -120,10 +125,7 @@ export function OverlayClient({
   }, []);
   const ready = !isRealMatch || producer.loaded || waited;
 
-  // The match read again when it or a squad changes (player of the
-  // match, Playing XI, settings); scorecards follow the live scorecard
-  // while one is on air.
-  const freshMatch = useFreshMatch(matchId, match, live);
+  // Scorecards follow the live scorecard while one is on air.
   const currentMatch = useStageMatch(matchId, freshMatch, {
     view: layers.view,
     card: layers.card,

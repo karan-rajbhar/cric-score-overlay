@@ -106,18 +106,18 @@ export function BatterLowerThird(p: P<"batterLowerThird">) {
   const { state, layout } = p;
   if (p.slot === "last_out") {
     if (p.variant === "strap" && p.strap?.title) {
-      return <TextStrap strap={p.strap} state={state} layout={layout} stripe={TC.claret} />;
+      return <TextStrap strap={p.strap} state={state} ballsPerOver={ballsPerOverOf(p.match)} layout={layout} stripe={TC.claret} />;
     }
     return <LastOut state={state} layout={layout} figures={p.variant === "figures"} />;
   }
   if (p.variant === "strap" && p.strap?.title) {
-    return <TextStrap strap={p.strap} state={state} layout={layout} stripe={sideColour(state, true)} />;
+    return <TextStrap strap={p.strap} state={state} ballsPerOver={ballsPerOverOf(p.match)} layout={layout} stripe={sideColour(state, true)} />;
   }
   const striker = p.slot === "striker";
   const f = batterNow(state, p.slot);
   if (!f) return null;
   const stand =
-    p.variant === "figures" ? partnershipOf(state, p.match?.innings ?? []) : null;
+    p.variant === "figures" ? partnershipOf(state, p.match?.innings ?? [], ballsPerOverOf(p.match)) : null;
   const share = stand?.split ? stand.batters[striker ? 0 : 1] : null;
   const partner = stand?.batters[striker ? 1 : 0]?.name;
   const { batting } = sidesOf(state);
@@ -162,7 +162,7 @@ export function BatterLowerThird(p: P<"batterLowerThird">) {
 export function BowlerLowerThird(p: P<"bowlerLowerThird">) {
   const { state, layout, match } = p;
   if (p.variant === "strap" && p.strap?.title) {
-    return <TextStrap strap={p.strap} state={state} layout={layout} stripe={sideColour(state, false)} />;
+    return <TextStrap strap={p.strap} state={state} ballsPerOver={ballsPerOverOf(p.match)} layout={layout} stripe={sideColour(state, false)} />;
   }
   const bpo = ballsPerOverOf(match);
   const b = bowlerNow(state, bpo);
@@ -254,7 +254,7 @@ export function NewBowler(p: P<"newBowler">) {
 export function PartnershipStrap(p: P<"partnership">) {
   const { state } = p;
   if (p.strap?.title) {
-    return <TextStrap strap={p.strap} state={state} layout={p.layout} stripe={sideColour(state, true)} />;
+    return <TextStrap strap={p.strap} state={state} ballsPerOver={ballsPerOverOf(p.match)} layout={p.layout} stripe={sideColour(state, true)} />;
   }
   if (
     state.partnership_runs === null ||
@@ -269,7 +269,7 @@ export function PartnershipStrap(p: P<"partnership">) {
     { label: "Runs", value: state.partnership_runs },
     { label: "Balls", value: balls },
   ];
-  const rate = economyText(state.partnership_runs, balls);
+  const rate = economyText(state.partnership_runs, balls, ballsPerOverOf(p.match));
   if (rate) cells.push({ label: "Run rate", value: rate });
   return (
     <NameStrap
@@ -288,7 +288,7 @@ export function PartnershipStrap(p: P<"partnership">) {
 export function ChaseStrap(p: P<"chase">) {
   const { state } = p;
   if (p.strap?.title) {
-    return <TextStrap strap={p.strap} state={state} layout={p.layout} stripe={sideColour(state, true)} />;
+    return <TextStrap strap={p.strap} state={state} ballsPerOver={ballsPerOverOf(p.match)} layout={p.layout} stripe={sideColour(state, true)} />;
   }
   const standing = standingOf(state, p.match);
   if (standing?.kind !== "chase") return null;
@@ -373,7 +373,7 @@ export function ChanceBar({
 
 export function WinPredictorStrap(p: P<"winPredictor">) {
   const { state } = p;
-  const est = estimateOf(state);
+  const est = estimateOf(state, ballsPerOverOf(p.match));
   if (!est || est.kind !== "chase") return null;
   const bat = teamCode(state.batting_team_short_name, state.batting_team_name);
   const bowl = teamCode(state.bowling_team_short_name, state.bowling_team_name);
@@ -402,7 +402,8 @@ export function WinPredictorStrap(p: P<"winPredictor">) {
 
 export function ProjectedStrap(p: P<"projectedScore">) {
   const { state } = p;
-  const est = estimateOf(state);
+  const bpo = ballsPerOverOf(p.match);
+  const est = estimateOf(state, bpo);
   if (!est || est.kind !== "projection") return null;
   return (
     <NameStrap
@@ -411,7 +412,7 @@ export function ProjectedStrap(p: P<"projectedScore">) {
       label="Projected score · Estimate"
       name={`${est.low} to ${est.high}`}
       headline={scoreText(state.total_runs, state.total_wickets)}
-      headlineNote={`${oversText(state.total_balls)} overs`}
+      headlineNote={`${oversText(state.total_balls, bpo)} overs`}
       sub={`${state.batting_team_name ?? "The batting side"} at this rate, with the overs and wickets left`}
       stripe={sideColour(state, true)}
     />
@@ -421,14 +422,14 @@ export function ProjectedStrap(p: P<"projectedScore">) {
 // ---- stoppages and messages ----------------------------------------------------
 
 /** The score as a stoppage shows it: side, score, overs, the stand. */
-function stoppageCells(state: LiveMatchState): Cell[] {
+function stoppageCells(state: LiveMatchState, bpo: number): Cell[] {
   if (state.total_runs === null || state.total_runs === undefined) return [];
   const cells: Cell[] = [
     {
       label: teamCode(state.batting_team_short_name, state.batting_team_name),
       value: scoreText(state.total_runs, state.total_wickets),
     },
-    { label: "Overs", value: oversText(state.total_balls) },
+    { label: "Overs", value: oversText(state.total_balls, bpo) },
   ];
   if (state.partnership_runs && state.striker_name) {
     cells.push({
@@ -451,7 +452,7 @@ export function BreakStrapView(p: P<"breakStrap">) {
       layout={p.layout}
       label={text.badge || " "}
       name={text.title}
-      cells={withScore ? stoppageCells(state) : undefined}
+      cells={withScore ? stoppageCells(state, ballsPerOverOf(p.match)) : undefined}
       sub={
         withScore
           ? text.detail || (p.kind === "drinks" ? undefined : text.subtitle) || undefined
@@ -628,7 +629,7 @@ export function PlayerOfTheMatch(p: P<"playerOfTheMatch">) {
     .filter((b) => b.user_id === potm.id && b.balls_bowled > 0);
   const lines: ReactNode[] = [
     ...bat.map((b) => `${b.runs_scored}${b.is_out ? "" : "*"} (${b.balls_faced})`),
-    ...bowl.map((b) => `${b.wickets_taken}-${b.runs_conceded} (${oversText(b.balls_bowled)} ov)`),
+    ...bowl.map((b) => `${b.wickets_taken}-${b.runs_conceded} (${oversText(b.balls_bowled, ballsPerOverOf(p.match))} ov)`),
   ];
   return (
     <NameStrap

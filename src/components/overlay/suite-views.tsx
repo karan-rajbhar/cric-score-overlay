@@ -10,6 +10,7 @@
 import type { Innings, Match } from "~/lib/match-types";
 import { cn } from "~/lib/utils";
 import {
+  ballsPerOverOf,
   CardShell,
   eyebrowOf,
   OV,
@@ -65,7 +66,13 @@ export function TeamListCard({
 }
 
 /** Best batters and bowlers of an innings, for summaries. */
-export function Leaders({ innings }: { innings: Innings }) {
+export function Leaders({
+  innings,
+  ballsPerOver = 6,
+}: {
+  innings: Innings;
+  ballsPerOver?: number;
+}) {
   const bat = [...(innings.batting_performances ?? [])]
     .filter((b) => b.balls_faced > 0)
     .sort((a, b) => b.runs_scored - a.runs_scored)
@@ -96,7 +103,7 @@ export function Leaders({ innings }: { innings: Innings }) {
               <span className="font-bold">
                 {b.wickets_taken}-{b.runs_conceded}
               </span>{" "}
-              <span className={OV.cardMuted}>({oversText(b.balls_bowled)})</span>
+              <span className={OV.cardMuted}>({oversText(b.balls_bowled, ballsPerOver)})</span>
             </span>
           </li>
         ))}
@@ -123,11 +130,11 @@ function InningsSummaryRow({
         <span className="text-[1.75rem] font-bold tabular-nums">
           {scoreOf(innings)}
           <span className={cn("ml-2 text-lg font-normal", OV.cardMuted)}>
-            ({oversText(innings.total_balls)} ov)
+            ({oversText(innings.total_balls, ballsPerOverOf(match))} ov)
           </span>
         </span>
       </div>
-      <Leaders innings={innings} />
+      <Leaders innings={innings} ballsPerOver={ballsPerOverOf(match)} />
     </div>
   );
 }
@@ -323,7 +330,7 @@ export function PlayerOfTheMatch({
   const bowl = innings.flatMap((i) => i.bowling_performances ?? []).find((b) => b.user_id === potm.id);
   const figures = [
     bat && bat.balls_faced > 0 && `${bat.runs_scored}${bat.is_out ? "" : "*"} (${bat.balls_faced})`,
-    bowl && bowl.balls_bowled > 0 && `${bowl.wickets_taken}-${bowl.runs_conceded} (${oversText(bowl.balls_bowled)})`,
+    bowl && bowl.balls_bowled > 0 && `${bowl.wickets_taken}-${bowl.runs_conceded} (${oversText(bowl.balls_bowled, ballsPerOverOf(match))})`,
   ].filter(Boolean);
   return (
     <div className={cn("flex w-full max-w-[64rem] overflow-hidden rounded-lg", OV.shadow)}>

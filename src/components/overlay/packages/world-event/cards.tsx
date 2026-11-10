@@ -12,7 +12,7 @@ import type { ReactNode } from "react";
 import { formatFowOvers } from "~/lib/cricket";
 import type { BattingPerformance, Innings, Match } from "~/lib/match-types";
 import { cn } from "~/lib/utils";
-import { economyText, overTokens, oversText, strikeRateText } from "../../overlay-kit";
+import { ballsPerOverOf, economyText, overTokens, oversText, strikeRateText } from "../../overlay-kit";
 import { tossWinnerName } from "../../presentation-card-views";
 import { inningsLabel } from "../../scorecard-cards";
 import type { LiveMatchState } from "../../types";
@@ -64,12 +64,12 @@ function eyebrow(state: LiveMatchState, label: string): string {
 }
 
 /** The total in the event's highlighted box. */
-function TotalBox({ innings, label = "Total" }: { innings: Innings; label?: string }) {
+function TotalBox({ innings, label = "Total", bpo }: { innings: Innings; label?: string; bpo: number }) {
   return (
     <span className="we-accent we-sheen relative flex items-baseline gap-3 px-6 py-2">
       <span className="we-label">{label}</span>
       <span className="we-fig text-[34px] leading-none">{scoreText(innings.total_runs, innings.total_wickets)}</span>
-      <span className="we-figl text-[20px] opacity-85">({oversText(innings.total_balls)} ov)</span>
+      <span className="we-figl text-[20px] opacity-85">({oversText(innings.total_balls, bpo)} ov)</span>
     </span>
   );
 }
@@ -121,7 +121,7 @@ function BattingRows({ innings, start = 300 }: { innings: Innings; start?: numbe
   );
 }
 
-function BowlingRows({ innings, start = 300 }: { innings: Innings; start?: number }) {
+function BowlingRows({ innings, start = 300, bpo }: { innings: Innings; start?: number; bpo: number }) {
   const rows = (innings.bowling_performances ?? []).filter((b) => b.balls_bowled > 0 || b.is_current_bowler);
   return (
     <table className="w-full border-collapse">
@@ -139,11 +139,11 @@ function BowlingRows({ innings, start = 300 }: { innings: Innings; start?: numbe
         {rows.map((b, i) => (
           <tr key={b.id} className={cn("we-a-rise", b.is_current_bowler && "we-row-hl")} style={delay(start + i * 40)}>
             <td className="we-name we-trunc max-w-[300px] px-3 py-2 text-left text-[23px]">{b.user?.full_name ?? ""}</td>
-            <td className={cn(TD, "we-figl")}>{oversText(b.balls_bowled)}</td>
+            <td className={cn(TD, "we-figl")}>{oversText(b.balls_bowled, bpo)}</td>
             <td className={cn(TD, "we-figl")}>{b.maidens}</td>
             <td className={cn(TD, "we-figl")}>{b.runs_conceded}</td>
             <td className={cn(TD, "text-[28px]")}>{b.wickets_taken}</td>
-            <td className={cn(TD, "we-figl")}>{economyText(b.runs_conceded, b.balls_bowled) ?? "–"}</td>
+            <td className={cn(TD, "we-figl")}>{economyText(b.runs_conceded, b.balls_bowled, bpo) ?? "–"}</td>
           </tr>
         ))}
       </tbody>
@@ -203,7 +203,7 @@ export function WorldEventScorecard(p: OverlayElementProps["scorecard"]) {
             </span>
           )}
           <span className="ml-auto shrink-0">
-            <TotalBox innings={p.innings} />
+            <TotalBox innings={p.innings} bpo={ballsPerOverOf(p.match)} />
           </span>
         </>
       }
@@ -212,7 +212,7 @@ export function WorldEventScorecard(p: OverlayElementProps["scorecard"]) {
         <div className="grid grid-cols-[1.55fr_1fr] gap-8">
           <BattingRows innings={p.innings} />
           <div className="border-l pl-8 we-hair-ink">
-            <BowlingRows innings={p.innings} start={420} />
+            <BowlingRows innings={p.innings} start={420} bpo={ballsPerOverOf(p.match)} />
           </div>
         </div>
       ) : (
@@ -238,12 +238,12 @@ export function WorldEventBowlingCard(p: OverlayElementProps["bowlingCard"]) {
         <>
           <span className="we-figl we-muted text-[20px]">{extrasLine(p.innings)}</span>
           <span className="ml-auto">
-            <TotalBox innings={p.innings} label={batting.code} />
+            <TotalBox innings={p.innings} label={batting.code} bpo={ballsPerOverOf(p.match)} />
           </span>
         </>
       }
     >
-      <BowlingRows innings={p.innings} />
+      <BowlingRows innings={p.innings} bpo={ballsPerOverOf(p.match)} />
     </CardFrame>
   );
 }
@@ -530,7 +530,7 @@ function SideScore({ state, innings, match, won, start }: { state: LiveMatchStat
       <span className="we-name we-trunc flex-1 text-[30px]">{team.name}</span>
       {won && <span className="we-gold we-label px-3 py-1 text-[15px]">Won</span>}
       <span className="we-fig text-[44px]">{scoreText(innings.total_runs, innings.total_wickets)}</span>
-      <span className="we-figl we-ink-muted w-[110px] text-[22px]">({oversText(innings.total_balls)} ov)</span>
+      <span className="we-figl we-ink-muted w-[110px] text-[22px]">({oversText(innings.total_balls, ballsPerOverOf(match))} ov)</span>
     </div>
   );
 }
@@ -570,7 +570,7 @@ export function WorldEventResult(p: OverlayElementProps["result"]) {
   );
 }
 
-function LeaderList({ innings, start }: { innings: Innings; start: number }) {
+function LeaderList({ innings, start, bpo }: { innings: Innings; start: number; bpo: number }) {
   const { batters, bowlers } = inningsLeaders(innings, 3, 3);
   const row = "we-a-rise flex h-[46px] items-center gap-3 px-5";
   return (
@@ -594,7 +594,7 @@ function LeaderList({ innings, start }: { innings: Innings; start: number }) {
             <span className="we-fig text-[26px]">
               {b.wickets_taken}-{b.runs_conceded}
             </span>
-            <span className="we-figl we-ink-muted w-[64px] text-[19px]">({oversText(b.balls_bowled)})</span>
+            <span className="we-figl we-ink-muted w-[64px] text-[19px]">({oversText(b.balls_bowled, bpo)})</span>
           </li>
         ))}
       </ol>
@@ -610,9 +610,9 @@ function InningsBand({ state, innings, match, start }: { state: LiveMatchState; 
         <Crest n={team.n} logo={team.logo} code={team.code} name={team.name} size={44} />
         <span className="we-x we-trunc flex-1 text-[26px]">{team.name}</span>
         <span className="we-fig text-[34px]">{scoreText(innings.total_runs, innings.total_wickets)}</span>
-        <span className="we-figl text-[20px] opacity-85">({oversText(innings.total_balls)} ov)</span>
+        <span className="we-figl text-[20px] opacity-85">({oversText(innings.total_balls, ballsPerOverOf(match))} ov)</span>
       </div>
-      <LeaderList innings={innings} start={start + 120} />
+      <LeaderList innings={innings} start={start + 120} bpo={ballsPerOverOf(match)} />
     </div>
   );
 }
@@ -665,7 +665,7 @@ export function WorldEventInningsBreak(p: OverlayElementProps["inningsBreak"]) {
       aside={
         <span className="flex items-baseline gap-3">
           <span className="we-fig text-[50px] leading-none">{scoreText(first.total_runs, first.total_wickets)}</span>
-          <span className="we-figl we-muted text-[22px]">({oversText(first.total_balls)} ov)</span>
+          <span className="we-figl we-muted text-[22px]">({oversText(first.total_balls, ballsPerOverOf(p.match))} ov)</span>
         </span>
       }
       width={1500}
@@ -684,7 +684,7 @@ export function WorldEventInningsBreak(p: OverlayElementProps["inningsBreak"]) {
         </span>
       }
     >
-      <LeaderList innings={first} start={320} />
+      <LeaderList innings={first} start={320} bpo={ballsPerOverOf(p.match)} />
     </CardFrame>
   );
 }
@@ -737,12 +737,12 @@ export function WorldEventPartnershipCard(p: OverlayElementProps["partnership"])
           <span>
             Stand run rate{" "}
             <span className="we-fig text-[26px]">
-              {s.partnership_balls ? fixed2((s.partnership_runs * 6) / s.partnership_balls) : "–"}
+              {s.partnership_balls ? fixed2((s.partnership_runs * ballsPerOverOf(p.match)) / s.partnership_balls) : "–"}
             </span>
           </span>
           <span className="ml-auto">
             {bat.code} <span className="we-fig text-[26px]">{scoreText(s.total_runs, s.total_wickets)}</span>{" "}
-            <span className="we-muted">({oversText(s.total_balls)} ov)</span>
+            <span className="we-muted">({oversText(s.total_balls, ballsPerOverOf(p.match))} ov)</span>
           </span>
         </span>
       }
@@ -768,12 +768,12 @@ export function WorldEventPartnershipCard(p: OverlayElementProps["partnership"])
   );
 }
 
-export function WorldEventThisOverCard({ state }: { state: LiveMatchState }) {
+export function WorldEventThisOverCard({ state, bpo }: { state: LiveMatchState; bpo: number }) {
   const tokens = overTokens(state);
   if (!tokens.length) return null;
   const { bat, bowl } = battingAndBowling(state);
   const over = (state.current_over ?? 0) + (state.current_ball ? 1 : 0);
-  const econ = economyText(state.bowler_runs, state.bowler_balls);
+  const econ = economyText(state.bowler_runs, state.bowler_balls, bpo);
   const runs = state.this_over_runs ?? 0;
   return (
     <CardFrame
@@ -797,14 +797,14 @@ export function WorldEventThisOverCard({ state }: { state: LiveMatchState }) {
               {state.bowler_wickets ?? 0}-{state.bowler_runs ?? 0}
             </span>
             <span className="we-figl we-muted text-[22px]">
-              ({oversText(state.bowler_balls)}){econ ? `  ·  econ ${econ}` : ""}
+              ({oversText(state.bowler_balls, bpo)}){econ ? `  ·  econ ${econ}` : ""}
             </span>
           </span>
         ) : undefined
       }
     >
       <div className="flex justify-center py-6">
-        <Balls tokens={tokens} slots={6} size={96} stagger={320} />
+        <Balls tokens={tokens} slots={bpo} size={96} stagger={320} />
       </div>
     </CardFrame>
   );
@@ -828,7 +828,7 @@ export function WorldEventPlayerOfTheMatch(p: OverlayElementProps["playerOfTheMa
     cells.push({ label: "Batting", value: `${bat.runs_scored}${bat.is_out ? "" : "*"} (${bat.balls_faced})` });
   }
   if (bowl && bowl.balls_bowled > 0) {
-    cells.push({ label: "Bowling", value: `${bowl.wickets_taken}-${bowl.runs_conceded} (${oversText(bowl.balls_bowled)})` });
+    cells.push({ label: "Bowling", value: `${bowl.wickets_taken}-${bowl.runs_conceded} (${oversText(bowl.balls_bowled, ballsPerOverOf(p.match))})` });
   }
   return (
     <Root state={p.state} data-testid="we-potm" className="flex flex-col items-start" style={{ ...lowerThirdAnchor(BUG_HEIGHT, 34), width: 1240 }}>

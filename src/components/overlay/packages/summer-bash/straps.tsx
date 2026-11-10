@@ -13,6 +13,7 @@ import { formatDismissalType } from "~/lib/cricket";
 import { cn } from "~/lib/utils";
 import { winPredictorFromLive } from "~/lib/win-predictor";
 import {
+  ballsPerOverOf,
   economyText,
   overTokens,
   oversText,
@@ -366,8 +367,8 @@ const small = (v: ReactNode) => (
 
 // ---- batters and bowlers -----------------------------------------------------
 
-function textOf(strap: ActiveLowerThirdStrap, state: LiveMatchState): StrapText | null {
-  const text = strapText(strap, state);
+function textOf(strap: ActiveLowerThirdStrap, state: LiveMatchState, bpo = 6): StrapText | null {
+  const text = strapText(strap, state, bpo);
   return text && text.title ? text : null;
 }
 
@@ -444,9 +445,10 @@ export function BatterLowerThird(p: OverlayElementProps["batterLowerThird"]) {
 
 export function BowlerLowerThird(p: OverlayElementProps["bowlerLowerThird"]) {
   const { state, layout } = p;
+  const bpo = ballsPerOverOf(p.match);
   if (p.variant === "figures") {
     const who = playerInSlot(state, "bowler");
-    const figures = inningsStats(state, "bowler");
+    const figures = inningsStats(state, "bowler", bpo);
     if (!who.name || !figures) return null;
     return (
       <Lower state={state} layout={layout} type="figures">
@@ -463,10 +465,10 @@ export function BowlerLowerThird(p: OverlayElementProps["bowlerLowerThird"]) {
       </Lower>
     );
   }
-  const text = textOf(p.strap ?? { id: "sb-bowler", type: "bowler", title: "" }, state);
+  const text = textOf(p.strap ?? { id: "sb-bowler", type: "bowler", title: "" }, state, bpo);
   if (!text) return null;
   const own = text.title === state.current_bowler_name;
-  const econ = economyText(state.bowler_runs, state.bowler_balls);
+  const econ = economyText(state.bowler_runs, state.bowler_balls, bpo);
   return (
     <Lower state={state} layout={layout} type="bowler">
       <PlayerStrap
@@ -480,7 +482,7 @@ export function BowlerLowerThird(p: OverlayElementProps["bowlerLowerThird"]) {
         details={
           own
             ? [
-                `${oversText(state.bowler_balls)} overs`,
+                `${oversText(state.bowler_balls, bpo)} overs`,
                 state.bowler_maidens != null && `Maidens ${state.bowler_maidens}`,
                 econ && `Econ ${econ}`,
               ].filter(Boolean)
@@ -709,13 +711,15 @@ export function WinPredictorStrap({
   state,
   layout,
   strap,
+  bpo = 6,
 }: {
   state: LiveMatchState;
   layout: LayoutMode;
   strap: ActiveLowerThirdStrap | null;
+  bpo?: number;
 }) {
-  const est = winPredictorFromLive(state);
-  const text = textOf(strap ?? { id: "sb-win", type: "win_predictor", title: "" }, state);
+  const est = winPredictorFromLive(state, { ballsPerOver: bpo });
+  const text = textOf(strap ?? { id: "sb-win", type: "win_predictor", title: "" }, state, bpo);
   if (!est || !text) return null;
   if (est.kind === "projection") {
     return (

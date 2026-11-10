@@ -121,6 +121,8 @@ export interface OverlayLayersOptions {
   serverNow?: number;
   /** Never play sounds (previews). */
   muted?: boolean;
+  /** The match's balls per over (`ballsPerOverOf`), for automatic straps. */
+  ballsPerOver?: number;
   /** Replays the automatic rules ask for (the OBS overlay only). */
   onReplay?: (item: ReplayRequest) => void;
 }
@@ -137,6 +139,7 @@ export function useOverlayLayers({
   state,
   serverNow,
   muted = false,
+  ballsPerOver = 6,
   onReplay,
 }: OverlayLayersOptions): OverlayLayersResult {
   const scene = sceneOf(params, doc?.scene);
@@ -184,9 +187,11 @@ export function useOverlayLayers({
   const rules = autoRulesIn(doc);
   const rulesRef = useRef(rules);
   const onReplayRef = useRef(onReplay);
+  const ballsPerOverRef = useRef(ballsPerOver);
   useEffect(() => {
     rulesRef.current = rules;
     onReplayRef.current = onReplay;
+    ballsPerOverRef.current = ballsPerOver;
   });
   const [auto, setAuto] = useState<AutoOnAir>(NO_AUTO);
   const prevRow = useRef<LiveMatchState | null>(null);
@@ -209,7 +214,12 @@ export function useOverlayLayers({
     if (!state) return;
     const prev = prevRow.current;
     prevRow.current = state;
-    const items = autoGraphics(prev, state, rulesRef.current);
+    const items = autoGraphics(
+      prev,
+      state,
+      rulesRef.current,
+      ballsPerOverRef.current,
+    );
     if (!items.length) return;
     for (const q of queued.current) clearTimeout(q.timer);
     queued.current = items.map((item) => ({

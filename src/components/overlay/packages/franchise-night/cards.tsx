@@ -202,7 +202,7 @@ function BowlingTable({ innings, bpo, compact }: { innings: Innings; bpo: number
               {b.wickets_taken}
             </td>
             <td className={cn(FIGURE, TD)} style={{ fontSize: "1.25rem", fontWeight: 600, color: FN.muted }}>
-              {economyText(b.runs_conceded, b.balls_bowled) ?? "-"}
+              {economyText(b.runs_conceded, b.balls_bowled, bpo) ?? "-"}
             </td>
           </tr>
         ))}
@@ -798,7 +798,7 @@ function ToneStat({ label, value, tone }: { label: string; value: ReactNode; ton
 
 export function PartnershipCard(p: OverlayElementProps["partnership"]) {
   const s = p.state;
-  const stand = partnershipOf(s, p.match?.innings ?? []);
+  const stand = partnershipOf(s, p.match?.innings ?? [], ballsPerOverOf(p.match));
   if (!stand) return null;
   const tones = matchTones(s);
   const tone = tones.bat;
@@ -888,7 +888,7 @@ export function ThisOverCard(p: OverlayElementProps["thisOver"]) {
           </span>
           <Stat label="Figures" value={`${s.bowler_wickets ?? 0}-${s.bowler_runs ?? 0}`} />
           <Stat label="Overs" value={oversText(s.bowler_balls, bpo)} />
-          <Stat label="Economy" value={economyText(s.bowler_runs, s.bowler_balls) ?? "-"} />
+          <Stat label="Economy" value={economyText(s.bowler_runs, s.bowler_balls, bpo) ?? "-"} />
         </div>
       )}
     </CardFrame>
@@ -897,7 +897,7 @@ export function ThisOverCard(p: OverlayElementProps["thisOver"]) {
 
 /** The win predictor (a chase) or the projected score (a first innings). */
 export function EstimateCard({ state, bpo }: { state: LiveMatchState; bpo: number }) {
-  const est = winPredictorFromLive(state);
+  const est = winPredictorFromLive(state, { ballsPerOver: bpo });
   const tones = matchTones(state);
   const { batting, bowling } = sidesOf(state);
   if (est?.kind === "chase") {

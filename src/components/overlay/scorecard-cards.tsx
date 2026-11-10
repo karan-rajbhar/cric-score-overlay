@@ -134,7 +134,13 @@ export function BattingTable({ innings }: { innings: Innings }) {
   );
 }
 
-export function BowlingTable({ innings }: { innings: Innings }) {
+export function BowlingTable({
+  innings,
+  ballsPerOver = 6,
+}: {
+  innings: Innings;
+  ballsPerOver?: number;
+}) {
   const rows = (innings.bowling_performances ?? []).filter(
     (b) => b.balls_bowled > 0 || b.is_current_bowler,
   );
@@ -156,12 +162,12 @@ export function BowlingTable({ innings }: { innings: Innings }) {
             <td className="max-w-[16rem] truncate px-3 py-2 text-lg font-medium">
               {b.user?.full_name ?? ""}
             </td>
-            <td className={TD}>{oversText(b.balls_bowled)}</td>
+            <td className={TD}>{oversText(b.balls_bowled, ballsPerOver)}</td>
             <td className={TD}>{b.maidens}</td>
             <td className={TD}>{b.runs_conceded}</td>
             <td className={cn(TD, "font-bold")}>{b.wickets_taken}</td>
             <td className={TD}>
-              {economyText(b.runs_conceded, b.balls_bowled) ?? "–"}
+              {economyText(b.runs_conceded, b.balls_bowled, ballsPerOver) ?? "–"}
             </td>
           </tr>
         ))}
@@ -206,11 +212,13 @@ export function InningsCard({
   innings,
   teamName,
   kind,
+  ballsPerOver = 6,
 }: {
   state: LiveMatchState;
   innings: Innings;
   teamName: string;
   kind: "batting" | "bowling" | "full";
+  ballsPerOver?: number;
 }) {
   const title =
     kind === "bowling" ? `${teamName} bowling` : `${teamName} batting`;
@@ -225,7 +233,7 @@ export function InningsCard({
             {scoreOf(innings)}
           </span>
           <span className={cn("block text-lg tabular-nums", OV.barMuted)}>
-            {oversText(innings.total_balls)} overs
+            {oversText(innings.total_balls, ballsPerOver)} overs
           </span>
         </span>
       }
@@ -237,7 +245,7 @@ export function InningsCard({
             <ExtrasLine innings={innings} />
           </div>
           <div className="min-w-0">
-            <BowlingTable innings={innings} />
+            <BowlingTable innings={innings} ballsPerOver={ballsPerOver} />
           </div>
           <div className="col-span-2">
             <FallOfWicketsLine innings={innings} />
@@ -250,7 +258,7 @@ export function InningsCard({
           <FallOfWicketsLine innings={innings} />
         </div>
       ) : (
-        <BowlingTable innings={innings} />
+        <BowlingTable innings={innings} ballsPerOver={ballsPerOver} />
       )}
     </CardShell>
   );

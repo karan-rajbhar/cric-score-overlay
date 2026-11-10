@@ -18,6 +18,7 @@ import {
 } from "./obs-bridge";
 import { cn } from "~/lib/utils";
 import { ChannelPicker } from "~/components/streaming/channel-picker";
+import { ballsPerOverOf } from "./overlay-kit";
 import { OverlayPreview } from "./overlay-preview";
 import { OVERLAY_THEMES, resolveOverlayTheme } from "./overlay-themes";
 import type { LiveMatchState } from "./types";
@@ -170,6 +171,7 @@ export function StreamSetup({
     state,
     serverNow,
     muted: true,
+    ballsPerOver: ballsPerOverOf(match),
   });
   const theme = resolveOverlayTheme(layers.scene.theme);
   const automatic = isAutomatic(doc);

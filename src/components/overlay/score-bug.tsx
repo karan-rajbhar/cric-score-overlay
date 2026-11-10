@@ -19,6 +19,7 @@ import type { Match } from "~/lib/match-types";
 import { cn } from "~/lib/utils";
 import {
   BallTrack,
+  ballsPerOverOf,
   battingSide,
   economyText,
   OV,
@@ -121,9 +122,7 @@ export function oversLimitOf(state: LiveMatchState): number | null {
   return state.dls_overs ?? state.overs_per_innings ?? null;
 }
 
-/** Legal deliveries per over (live_state does not carry it; the match does). */
-export const ballsPerOverOf = (match: Match | null | undefined) =>
-  match?.balls_per_over && match.balls_per_over > 0 ? match.balls_per_over : 6;
+export { ballsPerOverOf };
 
 /** "Riverside won the toss and chose to bat", when both are known. */
 export function tossLineOf(
@@ -376,7 +375,7 @@ function BottomBar({
   const { batting, bowling } = sidesOf(state);
   const logo =
     side === 1 ? state.team1_logo_url : side === 2 ? state.team2_logo_url : null;
-  const bowlerEcon = economyText(state.bowler_runs, state.bowler_balls);
+  const bowlerEcon = economyText(state.bowler_runs, state.bowler_balls, bpo);
   const inPlay = phase === "live";
   const context = inPlay || phase === "break" ? contextLine(state, phase) : [];
   if (phase === "done") {

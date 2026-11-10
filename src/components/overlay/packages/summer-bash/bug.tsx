@@ -458,7 +458,7 @@ function ScoreSeg({ state, bpo, index }: { state: LiveMatchState; bpo: number; i
 }
 
 function BottomLive({ state, bpo, sponsor }: BugProps) {
-  const econ = economyText(state.bowler_runs, state.bowler_balls);
+  const econ = economyText(state.bowler_runs, state.bowler_balls, bpo);
   const left = ribbonItems(state, "live");
   const lastOut = state.last_wicket?.name
     ? `Last out ${state.last_wicket.name} ${state.last_wicket.runs} (${state.last_wicket.balls})`
@@ -531,7 +531,7 @@ function BottomLive({ state, bpo, sponsor }: BugProps) {
   );
 }
 
-function BottomBreak({ state, match, sponsor }: BugProps) {
+function BottomBreak({ state, match, bpo, sponsor }: BugProps) {
   const side = battingKey(state);
   const { batting } = sidesOf(state);
   const first = mainInnings(state, match).find((i) => i.inn.innings_number === 1);
@@ -564,7 +564,7 @@ function BottomBreak({ state, match, sponsor }: BugProps) {
         left={
           first ? (
             <span className="truncate">
-              {first.name} {scoreOf(first.inn)} ({oversText(first.inn.total_balls)} ov)
+              {first.name} {scoreOf(first.inn)} ({oversText(first.inn.total_balls, bpo)} ov)
             </span>
           ) : null
         }
@@ -599,7 +599,7 @@ function InningsScores({
             {scoreOf(inn)}
           </span>
           <span className={cn(s.figures, "text-[1rem] text-[color:var(--sb-mist)]")} style={{ fontWeight: 500 }}>
-            ({oversText(inn.total_balls)})
+            ({oversText(inn.total_balls, ballsPerOverOf(match))})
           </span>
         </span>
       ))}

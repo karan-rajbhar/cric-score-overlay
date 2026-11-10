@@ -37,7 +37,10 @@ const join = (...parts: (string | null | undefined | false)[]) =>
 
 /** Each strap type's text from the live score; null when it has no data. */
 const STRAP_DEFAULTS: Partial<
-  Record<LowerThirdStrapType, (state: LiveMatchState) => StrapText | null>
+  Record<
+    LowerThirdStrapType,
+    (state: LiveMatchState, ballsPerOver: number) => StrapText | null
+  >
 > = {
   batsman: (s) =>
     s.striker_name
@@ -57,18 +60,18 @@ const STRAP_DEFAULTS: Partial<
           ),
         }
       : null,
-  bowler: (s) =>
+  bowler: (s, bpo) =>
     s.current_bowler_name
       ? {
           badge: "Bowling",
           title: s.current_bowler_name,
-          subtitle: `${s.bowler_wickets ?? 0}-${s.bowler_runs ?? 0} off ${oversText(s.bowler_balls)} overs`,
+          subtitle: `${s.bowler_wickets ?? 0}-${s.bowler_runs ?? 0} off ${oversText(s.bowler_balls, bpo)} overs`,
           detail: join(
             s.bowler_maidens !== undefined &&
               s.bowler_maidens !== null &&
               `Maidens ${s.bowler_maidens}`,
-            economyText(s.bowler_runs, s.bowler_balls) &&
-              `Econ ${economyText(s.bowler_runs, s.bowler_balls)}`,
+            economyText(s.bowler_runs, s.bowler_balls, bpo) &&
+              `Econ ${economyText(s.bowler_runs, s.bowler_balls, bpo)}`,
           ),
         }
       : null,
@@ -118,8 +121,8 @@ const STRAP_DEFAULTS: Partial<
       ),
     };
   },
-  win_predictor: (s) => {
-    const est = winPredictorFromLive(s);
+  win_predictor: (s, bpo) => {
+    const est = winPredictorFromLive(s, { ballsPerOver: bpo });
     if (!est) return null;
     if (est.kind === "projection") {
       return {
@@ -186,13 +189,17 @@ export function strapAvailable(
 ): boolean {
   if (type === "none") return false;
   const make = STRAP_DEFAULTS[type];
-  return make ? make(state) !== null : true;
+  return make ? make(state, 6) !== null : true;
 }
 
-/** The strap's text: what the producer set, else its type's default. */
+/**
+ * The strap's text: what the producer set, else its type's default (overs
+ * and rates in the match's `ballsPerOver`).
+ */
 export function strapText(
   strap: ActiveLowerThirdStrap,
   state: LiveMatchState,
+  ballsPerOver = 6,
 ): StrapText | null {
   if (strap.type === "custom" || strap.type === "message") {
     return {
@@ -202,7 +209,7 @@ export function strapText(
       detail: strap.detail ?? "",
     };
   }
-  const defaults = STRAP_DEFAULTS[strap.type]?.(state) ?? null;
+  const defaults = STRAP_DEFAULTS[strap.type]?.(state, ballsPerOver) ?? null;
   if (!defaults && !strap.title) return null;
   return {
     badge: strap.badge ?? defaults?.badge ?? "",
@@ -337,12 +344,14 @@ export function StrapView({
   layout,
   theme,
   customColors,
+  ballsPerOver = 6,
 }: OverlayThemeProps & {
   strap: ActiveLowerThirdStrap;
   state: LiveMatchState;
   layout: LayoutMode;
+  ballsPerOver?: number;
 }) {
-  const text = strapText(strap, state);
+  const text = strapText(strap, state, ballsPerOver);
   if (!text || !text.title) return null;
 
   const form = strap.type === "message" ? (strap.form ?? "double") : null;

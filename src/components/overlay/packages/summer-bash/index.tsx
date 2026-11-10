@@ -16,6 +16,7 @@
  * Every element is its own: none falls back to Standard.
  */
 
+import { ballsPerOverOf } from "../../overlay-kit";
 import type { BroadcastPackage, PackageElements } from "../types";
 import { SummerBashScoreBug } from "./bug";
 import {
@@ -96,15 +97,15 @@ export const SUMMER_BASH_ELEMENTS: PackageElements = {
   playerOfTheMatch: PlayerOfTheMatch,
   winPredictor: (p) =>
     p.variant === "strap" ? (
-      <WinPredictorStrap state={p.state} layout={p.layout} strap={p.strap} />
+      <WinPredictorStrap state={p.state} layout={p.layout} strap={p.strap} bpo={ballsPerOverOf(p.match)} />
     ) : (
-      <EstimateCard state={p.state} />
+      <EstimateCard state={p.state} bpo={ballsPerOverOf(p.match)} />
     ),
   projectedScore: (p) =>
     p.variant === "strap" ? (
-      <WinPredictorStrap state={p.state} layout={p.layout} strap={p.strap} />
+      <WinPredictorStrap state={p.state} layout={p.layout} strap={p.strap} bpo={ballsPerOverOf(p.match)} />
     ) : (
-      <EstimateCard state={p.state} />
+      <EstimateCard state={p.state} bpo={ballsPerOverOf(p.match)} />
     ),
   breakStrap: BreakStrap,
   message: Message,

@@ -1175,8 +1175,17 @@ export function HundredThisOverCard(p: OverlayElementProps["thisOver"]) {
   );
 }
 
-export function EstimateCard({ state, testId }: { state: LiveMatchState; testId: string }) {
-  const est = estimateOf(state);
+export function EstimateCard({
+  state,
+  match = null,
+  testId,
+}: {
+  state: LiveMatchState;
+  match?: Match | null;
+  testId: string;
+}) {
+  const bpo = ballsPerOverFrom(state, match);
+  const est = estimateOf(state, bpo);
   if (!est) return null;
   const sides = sidesWithTones(state);
   if (est.kind === "projection") {
@@ -1217,7 +1226,7 @@ export function EstimateCard({ state, testId }: { state: LiveMatchState; testId:
       hero={<ChaseLine chase={{ runs: est.runsNeeded, balls: est.ballsLeft, target: null }} size={40} />}
       heroLabel={`${sides.batting.code} chasing`}
     >
-      <SplitBar state={state} width={1180 - 12} height={200} size={112} />
+      <SplitBar state={state} bpo={bpo} width={1180 - 12} height={200} size={112} />
       <Footer>
         <Text size={22} style={{ color: "var(--hb-ink-muted)" }}>
           From the runs needed, balls and wickets left, against the first innings&apos; scoring rate.

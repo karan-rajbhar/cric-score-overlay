@@ -11,6 +11,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import { BallChip } from "~/components/ds/ball";
 import { overBallChip } from "~/components/matches/match-live-panel";
+import type { Match } from "~/lib/match-types";
 import { cn } from "~/lib/utils";
 import {
   overlayPalette,
@@ -37,6 +38,10 @@ export const OV = {
   team2: "bg-[color:var(--ov-team2)] text-[color:var(--ov-team2-text)]",
 } as const;
 
+/** Legal deliveries per over (live_state does not carry it; the match does). */
+export const ballsPerOverOf = (match: Match | null | undefined) =>
+  match?.balls_per_over && match.balls_per_over > 0 ? match.balls_per_over : 6;
+
 /** "12.3" from a ball count. */
 export function oversText(
   balls: number | null | undefined,
@@ -54,12 +59,15 @@ export function strikeRateText(
   return balls && balls > 0 ? (((runs ?? 0) * 100) / balls).toFixed(1) : null;
 }
 
-/** Economy to two decimals, or null before a ball is bowled. */
+/** Economy (runs an over of `ballsPerOver`) to two decimals, or null before a ball is bowled. */
 export function economyText(
   runs: number | null | undefined,
   balls: number | null | undefined,
+  ballsPerOver = 6,
 ): string | null {
-  return balls && balls > 0 ? (((runs ?? 0) * 6) / balls).toFixed(2) : null;
+  return balls && balls > 0
+    ? (((runs ?? 0) * ballsPerOver) / balls).toFixed(2)
+    : null;
 }
 
 /** A team's short code: its own, else the first three letters. */

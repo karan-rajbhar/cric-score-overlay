@@ -235,6 +235,7 @@ export function TextStrap({
   cells,
   stripe,
   children,
+  ballsPerOver = 6,
 }: {
   strap: ActiveLowerThirdStrap;
   state: LiveMatchState;
@@ -243,8 +244,10 @@ export function TextStrap({
   cells?: Cell[];
   stripe?: string;
   children?: ReactNode;
+  /** The match's (`ballsPerOverOf`): the type's wording counts overs in it. */
+  ballsPerOver?: number;
 }) {
-  const text = strapText(strap, state);
+  const text = strapText(strap, state, ballsPerOver);
   if (!text || !text.title) return null;
   return (
     <NameStrap
