@@ -20,7 +20,7 @@ const admin: MyClub = { id: "c1", name: "Riverside CC", role: "admin" };
 const member: MyClub = { id: "c2", name: "Hill CC", role: "member" };
 
 describe("adding a match to a club", () => {
-  it("lists every club to a scorer, none to anyone else", () => {
+  it("lists every club to whoever may change the match's club, none to anyone else", () => {
     expect(clubsForMatch([admin, member], true)).toEqual([admin, member]);
     expect(clubsForMatch([admin, member], false)).toEqual([]);
   });
@@ -42,7 +42,7 @@ describe("adding a match to a club", () => {
     expect(canChangeMatchClub({}, [])).toBe(false);
   });
 
-  it("is still offered to a scorer with no club, so the dialog can say how", () => {
+  it("is still offered to its creator with no club, so the dialog can say how", () => {
     expect(offerAddToClub({}, [], true)).toBe(true);
     expect(offerAddToClub({}, [], false)).toBe(false);
     expect(offerAddToClub({ club_id: "c9" }, [], true)).toBe(false);

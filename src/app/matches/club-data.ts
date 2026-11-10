@@ -76,15 +76,15 @@ export async function clubWithRecords(
 }
 
 /**
- * The clubs to offer for a match: the user's own when they score it, none
- * otherwise (running a club gives no rights over a match outside it). The
- * server also asks for the right to delete the match (`canSetMatchClub`).
+ * The clubs to offer for a match: the user's own when they may change its
+ * club (`mayChange`: the right to delete it, `canSetMatchClub`), none
+ * otherwise (running a club gives no rights over a match outside it).
  */
 export function clubsForMatch(
   clubs: readonly MyClub[],
-  isMatchAdmin: boolean,
+  mayChange: boolean,
 ): MyClub[] {
-  return isMatchAdmin ? [...clubs] : [];
+  return mayChange ? [...clubs] : [];
 }
 
 /**
@@ -103,17 +103,17 @@ export function canChangeMatchClub(
 
 /**
  * Whether to offer "Add to club" at all: whenever the user may, and to
- * every scorer of a match not in a club yet even when they may not (the
- * dialog then says how: join the club, or ask its admins), so the action
- * is never missing without a reason.
+ * whoever may change the match's club (`mayChange`) when it is in none yet
+ * and they belong to no club (the dialog then says how to join one), so
+ * the action is never missing without a reason.
  */
 export function offerAddToClub(
   match: { club_id?: string | null; tournament_id?: string | null },
   choosable: readonly MyClub[],
-  isMatchAdmin: boolean,
+  mayChange: boolean,
 ): boolean {
   if (canChangeMatchClub(match, choosable)) return true;
-  return isMatchAdmin && !match.club_id && !match.tournament_id;
+  return mayChange && !match.club_id && !match.tournament_id;
 }
 
 /**
