@@ -33,6 +33,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
+import { Avatar } from "~/components/ds/avatar";
 import {
   sidebarModeOf,
   useSidebarExpanded,
@@ -221,12 +222,19 @@ export function NavigationBar() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
-                  className="flex h-9 w-9 touch-manipulation items-center justify-center rounded-full border border-border bg-muted text-xs font-semibold text-foreground transition-colors hover:bg-accent"
+                  className="flex h-9 w-9 touch-manipulation items-center justify-center rounded-full transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   aria-label="User menu"
                 >
-                  {(user.user_metadata?.full_name ||
-                    user.email ||
-                    "U")[0]?.toUpperCase()}
+                  {/* The same avatar as Home and More: photo, else the
+                      full name's initials and colour (N22). */}
+                  <Avatar
+                    name={
+                      (user.user_metadata?.full_name as string | undefined) ??
+                      "You"
+                    }
+                    src={user.user_metadata?.avatar_url as string | undefined}
+                    className="h-9 w-9 text-xs"
+                  />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent

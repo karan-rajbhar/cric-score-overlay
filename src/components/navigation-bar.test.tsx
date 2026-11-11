@@ -81,7 +81,10 @@ describe("NavigationBar Component", () => {
 
     expect(screen.getByRole("button", { name: /create/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /user menu/i })).toBeInTheDocument();
-    expect(screen.getByText("K")).toBeInTheDocument(); // Avatar initial
+    // The same avatar as Home and More: the full name's initials (N22).
+    expect(screen.getByRole("button", { name: /user menu/i })).toHaveTextContent(
+      "KS",
+    );
   });
 
   it("triggers search navigation on query submission", () => {

@@ -153,12 +153,13 @@ export default function Dashboard() {
   };
 
   const fullName = (user?.user_metadata?.full_name as string | undefined) ?? "";
-  const firstName = fullName.split(" ")[0] || "there";
+  const firstName = fullName.trim().split(/\s+/)[0] ?? "";
 
   return (
     <PageContainer>
       <GreetingBar
         name={firstName}
+        avatarName={fullName}
         greeting={greeting}
         photoUrl={user?.user_metadata?.avatar_url as string | undefined}
         actions={
@@ -184,7 +185,8 @@ export default function Dashboard() {
         }
       />
 
-      <section aria-label="Live matches">
+      {/* Not a landmark: the carousel is the "Live matches" section (N21). */}
+      <div>
         {liveLoading && liveMatches.length === 0 ? (
           <div className={`${cardSurface} h-72 animate-pulse`} />
         ) : liveFailed && liveMatches.length === 0 ? (
@@ -213,7 +215,7 @@ export default function Dashboard() {
             </Button>
           </div>
         )}
-      </section>
+      </div>
 
       {/* Under the live matches, not above them (N11). */}
       {user && <GetStarted userId={user.id} />}
