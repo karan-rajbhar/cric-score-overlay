@@ -207,6 +207,32 @@ describe("Pinned tabs on a long screen", () => {
 });
 
 describe("A detail page's phone header", () => {
+  it("ends a long title before the buttons, never under them (M1)", () => {
+    const title = "Metropolitan Strikers vs Riverside Warriors, Championship Opener";
+    expect(title.length).toBeGreaterThanOrEqual(60);
+    const { container } = render(
+      <ScreenBar
+        title={title}
+        backHref="/matches"
+        action={
+          <>
+            <button type="button">Share</button>
+            <button type="button">More</button>
+          </>
+        }
+      />,
+    );
+    const bar = container.firstElementChild!;
+    // The side tracks are at least as wide as their buttons; the title's
+    // track gives way and cuts it with an ellipsis.
+    expect(bar.className).toContain(
+      "grid-cols-[minmax(max-content,1fr)_minmax(0,auto)_minmax(max-content,1fr)]",
+    );
+    expect(screen.getByRole("heading", { name: title })).toHaveClass("truncate");
+    const actions = screen.getByRole("button", { name: "Share" }).parentElement!;
+    expect(actions.className).not.toContain("min-w-0");
+  });
+
   it("has no title in the bar when the header names the screen", () => {
     render(<ScreenBar backHref="/clubs" backLabel="Back to Clubs" />);
     expect(screen.queryByRole("heading")).toBeNull();
