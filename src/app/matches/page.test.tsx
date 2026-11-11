@@ -76,6 +76,8 @@ describe("the Matches filters live in the URL (M5)", () => {
   });
 
   it("says what is empty for the filter chosen (M6)", () => {
+    // The query filters by status; here it finds nothing live.
+    const saved = matches.splice(0);
     window.history.replaceState(null, "", "/matches?status=live");
     render(<MatchesPage />);
     expect(screen.getByText("Nothing live right now")).toBeInTheDocument();
@@ -85,5 +87,6 @@ describe("the Matches filters live in the URL (M5)", () => {
       "/auth/login?redirect=%2Fmatches",
     );
     window.history.replaceState(null, "", "/");
+    matches.push(...saved);
   });
 });
