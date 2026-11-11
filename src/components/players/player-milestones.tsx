@@ -32,15 +32,16 @@ function MatchLine({
   date: string | null;
 }) {
   const when = shortDate(date);
+  // The title when known, else the date is the link (P3): never "Match".
   return (
     <span className="block min-w-0 truncate text-xs text-muted-foreground">
       <Link
         href={`/matches/${matchId}`}
         className="underline-offset-2 hover:text-foreground hover:underline"
       >
-        {title ?? "Match"}
+        {title ?? when ?? "Open the match"}
       </Link>
-      {when && <> · {when}</>}
+      {title && when && <> · {when}</>}
     </span>
   );
 }

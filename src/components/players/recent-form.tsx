@@ -32,9 +32,11 @@ function Strip({ label, entries }: { label: string; entries: FormEntry[] }) {
               <span className="block text-xs text-muted-foreground">
                 {e.detail}
               </span>
-              <span className="mt-1 block truncate text-xs text-muted-foreground">
-                {e.matchTitle ?? "Match"}
-              </span>
+              {e.matchTitle && (
+                <span className="mt-1 block truncate text-xs text-muted-foreground">
+                  {e.matchTitle}
+                </span>
+              )}
             </Link>
           </li>
         ))}
