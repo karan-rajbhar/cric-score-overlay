@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { ScoringPanel, readBallLabel } from "./scoring-panel";
 
 describe("ScoringPanel with Wagon Wheel selection", () => {
@@ -245,7 +245,9 @@ describe("ScoringPanel with Wagon Wheel selection", () => {
     expect(wideButton.className).toContain("bg-black");
     expect(wideButton.className).toContain("text-white");
     expect(
-      screen.getByText(/selected: tap the runs/i),
+      within(screen.getByTestId("keypad-status")).getByText(
+        /selected: tap the runs/i,
+      ),
     ).toBeInTheDocument();
   });
 
@@ -552,5 +554,67 @@ describe("readBallLabel", () => {
       runs: 1,
     });
     expect(readBallLabel("W+nb+1")).toMatchObject({ kind: "wicket", runs: 2 });
+  });
+});
+
+describe("ScoringPanel: one status row above the keys", () => {
+  // The keys must not move between taps (S3 of the UI/UX audit): every
+  // notice that comes and goes lives in this one fixed-height row.
+  const defaultProps = {
+    onScore: vi.fn(),
+    onWicket: vi.fn(),
+    onUndo: vi.fn(),
+    currentOver: 4,
+    currentBall: 2,
+    lastBalls: ["1", "4", "0"],
+    wagonWheelPrompt: false,
+  };
+  const row = () => screen.getByTestId("keypad-status");
+
+  it("holds the hint, an armed extra with its no-ball choice, and a free hit", () => {
+    const { rerender } = render(<ScoringPanel {...defaultProps} />);
+    expect(row()).toHaveClass("h-11");
+    expect(row()).toHaveTextContent(/tap a ball in the over/i);
+
+    fireEvent.click(screen.getByRole("button", { name: "No ball" }));
+    expect(
+      within(row()).getByRole("radiogroup", { name: /no-ball were/ }),
+    ).toBeInTheDocument();
+    fireEvent.click(within(row()).getByRole("button", { name: "Cancel" }));
+    expect(row()).not.toHaveTextContent(/no ball/i);
+
+    rerender(<ScoringPanel {...defaultProps} isFreeHit />);
+    expect(row()).toHaveTextContent(/free hit/i);
+  });
+
+  it("holds what Undo took back, and the wait for the server", () => {
+    const { rerender } = render(
+      <ScoringPanel
+        {...defaultProps}
+        onRedo={() => undefined}
+        undoNotice={{
+          label: "4",
+          position: "3.6",
+          players: "Starc to Kohli",
+          note: null,
+          pending: false,
+          canRedo: true,
+        }}
+      />,
+    );
+    expect(within(row()).getByText(/ball removed/i)).toBeInTheDocument();
+    expect(
+      within(row()).getByRole("button", { name: "Restore ball" }),
+    ).toBeInTheDocument();
+
+    rerender(<ScoringPanel {...defaultProps} waitingNote="Saving." />);
+    expect(within(row()).getByRole("status")).toHaveTextContent("Saving.");
+  });
+
+  it("opens More runs over the keys instead of above the extras", () => {
+    render(<ScoringPanel {...defaultProps} />);
+    fireEvent.click(screen.getByRole("button", { name: /more run options/i }));
+    const panel = screen.getByText("More runs").closest("div.absolute");
+    expect(panel).not.toBeNull();
   });
 });

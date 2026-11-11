@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { ScoringPanel } from "./scoring-panel";
 import { LiveMatchHUD } from "./live-match-hud";
@@ -234,7 +234,9 @@ describe("Scoring Page UI & Responsive Inspection (Mobile & Desktop)", () => {
       expect(wideBtn).toHaveAttribute("aria-pressed", "true");
 
       // Verify staged delivery alert banner is visible
-      expect(screen.getByText(/wide selected/i)).toBeInTheDocument();
+      expect(
+        within(screen.getByTestId("keypad-status")).getByText(/wide selected/i),
+      ).toBeInTheDocument();
 
       // Tap 0 (1 Wide recorded)
       const dotBtn = screen.getByRole("button", { name: /0 runs/i });

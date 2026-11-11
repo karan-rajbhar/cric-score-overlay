@@ -1344,7 +1344,7 @@ function HeaderIndicators({ s }: { s: LoadedScreen }) {
           </button>
         ) : (
           <span
-            className="flex items-center gap-1 px-1 text-2xs font-medium text-muted-foreground"
+            className="flex items-center gap-1 px-1 text-xs font-medium text-muted-foreground"
             title={
               pendingCount > 0 || isSaving || isProcessing
                 ? "Saving to the server"
@@ -1707,6 +1707,22 @@ function MatchToolsMenu({ s }: { s: LoadedScreen }) {
 /** The console's header: back, title, status and tools. */
 function ScoringHeader({ s }: { s: LoadedScreen }) {
   const { sunlightMode, match, setShowAddPlayerDialog, matchShare } = s;
+  // Under the title, what the scoreboard no longer spends a phone row on:
+  // who is batting, which innings and the format (not the title again).
+  const inningsNumber = s.currentInnings?.innings_number ?? 0;
+  const battingName = s.battingTeam?.short_name || s.battingTeam?.name;
+  const subtitle =
+    match.status === "live" && inningsNumber > 0 && battingName
+      ? [
+          `${battingName} batting`,
+          isSuperOverInnings(inningsNumber)
+            ? "Super over"
+            : inningsNumber === 2
+              ? "2nd innings"
+              : "1st innings",
+          matchFormatName(match),
+        ].join(" · ")
+      : `${match.title} · ${matchFormatName(match)}`;
   return (
     <>
       {/* Dedicated Scorer Console Header (Distraction-Free) */}
@@ -1754,7 +1770,7 @@ function ScoringHeader({ s }: { s: LoadedScreen }) {
                 )}
               </div>
               <p className="truncate text-xs text-muted-foreground">
-                {match.title} · {matchFormatName(match)}
+                {subtitle}
               </p>
             </div>
           </div>
@@ -2023,7 +2039,7 @@ function MatchNotices({ s }: { s: LoadedScreen }) {
                 </p>
                 {match.status === "live" && <LiveIndicator />}
               </div>
-              <p className="truncate text-2xs text-muted-foreground sm:text-xs">
+              <p className="truncate text-xs text-muted-foreground">
                 {user
                   ? "Only this match's scorers can score it."
                   : "Scorers invited to this match can sign in to score."}
@@ -2189,7 +2205,7 @@ function ConsoleBanners({ s }: { s: LoadedScreen }) {
             <p className="flex items-center gap-1.5 text-xs font-bold sm:text-sm">
               {notice.title}
             </p>
-            <p className="text-2xs text-muted-foreground sm:text-xs">
+            <p className="text-xs text-muted-foreground">
               {notice.text}
             </p>
           </div>
@@ -2215,7 +2231,7 @@ function ConsoleBanners({ s }: { s: LoadedScreen }) {
                 ? "Choose the opening bowler"
                 : `Over ${match.current_over} complete`}
             </p>
-            <p className="text-2xs text-muted-foreground sm:text-xs">
+            <p className="text-xs text-muted-foreground">
               {inningsStart
                 ? "Pick who bowls the first over to start scoring."
                 : `Choose the bowler for over ${match.current_over + 1}.`}
@@ -2247,7 +2263,7 @@ function ConsoleBanners({ s }: { s: LoadedScreen }) {
                     ? "Choose the opening batters"
                     : "Choose the batters"}
               </p>
-              <p className="text-2xs text-muted-foreground sm:text-xs">
+              <p className="text-xs text-muted-foreground">
                 {oneEmpty
                   ? "A batter is out or has retired: who comes in?"
                   : "Scoring starts once both batters are in."}
@@ -2382,7 +2398,7 @@ function Console({ s }: { s: LoadedScreen }) {
                                 <strong>{bowlerName}</strong> to{" "}
                                 <strong>{batterName}</strong>
                               </p>
-                              <div className="flex items-center gap-2 text-[0.625rem] text-muted-foreground">
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                 {d.extra_type ? (
                                   <span className="font-medium capitalize text-warning">
                                     {d.extra_type.replace("_", " ")} ({d.extras}{" "}
@@ -2607,7 +2623,7 @@ function BenchCard({ s }: { s: LoadedScreen }) {
                       <p className="truncate font-medium text-foreground">
                         {d.name}
                       </p>
-                      <p className="truncate text-[0.625rem] text-muted-foreground">
+                      <p className="truncate text-xs text-muted-foreground">
                         {d.dismissalType
                           ? d.dismissalType.replace("_", " ")
                           : "out"}
@@ -2617,7 +2633,7 @@ function BenchCard({ s }: { s: LoadedScreen }) {
                       <span className="font-score text-xs font-bold tabular-nums">
                         {d.runs}
                       </span>
-                      <span className="ml-1 text-[0.625rem] text-muted-foreground">
+                      <span className="ml-1 text-xs text-muted-foreground">
                         ({d.balls})
                       </span>
                     </div>
@@ -2656,7 +2672,7 @@ function BowlingAttackCard({ s }: { s: LoadedScreen }) {
               <h3 className="text-sm font-semibold">
                 <span>{bowlingTeam?.name ?? "Bowling"} attack</span>
               </h3>
-              <span className="text-[0.625rem] font-semibold text-muted-foreground">
+              <span className="text-xs font-semibold text-muted-foreground">
                 O · M · R · W · Econ
               </span>
             </div>
@@ -2679,14 +2695,14 @@ function BowlingAttackCard({ s }: { s: LoadedScreen }) {
                       )}
                     </span>
                   </div>
-                  <div className="shrink-0 space-x-1.5 text-right font-score text-2xs font-semibold tabular-nums text-foreground">
+                  <div className="shrink-0 space-x-1.5 text-right font-score text-xs font-semibold tabular-nums text-foreground">
                     <span>{sp.overs}ov</span>
                     <span className="text-muted-foreground">{sp.maidens}m</span>
                     <span>{sp.runs}r</span>
                     <span className="font-bold text-destructive">
                       {sp.wickets}w
                     </span>
-                    <span className="text-[0.625rem] text-muted-foreground">
+                    <span className="text-xs text-muted-foreground">
                       ({sp.econ})
                     </span>
                   </div>
@@ -3236,7 +3252,9 @@ export default function ScoringPage() {
     <div
       data-sunlight={sunlightMode ? "true" : "false"}
       className={cn(
-        "min-h-screen w-full max-w-full overflow-x-hidden bg-background",
+        // Phones: exactly the visible height (browser bars included), so
+        // the keypad takes what is left and Wicket / Undo stay on screen.
+        "min-h-screen w-full max-w-full overflow-x-hidden bg-background max-sm:flex max-sm:h-dvh max-sm:min-h-0 max-sm:flex-col",
         sunlightMode && "sunlight-mode",
       )}
     >
@@ -3253,9 +3271,13 @@ export default function ScoringPage() {
 
       <main
         id="main-scoring-content"
-        className="container mx-auto grid w-full min-w-0 max-w-6xl gap-2 px-2 py-2 sm:gap-6 sm:px-4 sm:py-6 lg:grid-cols-3"
+        tabIndex={-1}
+        className="container mx-auto grid w-full min-w-0 max-w-6xl gap-2 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-1.5 focus:outline-none max-sm:flex max-sm:min-h-0 max-sm:flex-1 max-sm:flex-col max-sm:overflow-y-auto sm:gap-6 sm:px-4 sm:py-6 lg:grid-cols-3"
       >
-        <div className="flex w-full min-w-0 flex-col gap-2 max-sm:min-h-[calc(100dvh-3.75rem)] sm:gap-4 lg:col-span-2">
+        {/* Phones: fills the height left under the header; it scrolls only
+            when a banner (choose the bowler, the innings is over) needs
+            the room, never between balls. */}
+        <div className="flex w-full min-w-0 flex-col gap-1.5 max-sm:flex-1 sm:gap-4 lg:col-span-2">
           <MatchNotices s={screen} />
 
           <Scoreboard s={screen} />

@@ -1484,10 +1484,9 @@ export function useScoring(
       setIsOffline(false);
       await flushQueue();
     };
-    const handleOffline = () => {
-      setIsOffline(true);
-      toast.warning("Network connection lost. Scoring is working in offline mode.");
-    };
+    // No toast: the sync line under the header says it for as long as it
+    // lasts, without covering the batters.
+    const handleOffline = () => setIsOffline(true);
 
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);

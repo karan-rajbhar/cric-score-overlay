@@ -32,10 +32,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     Boolean(pathname?.includes("/matches/")) &&
     Boolean(pathname?.endsWith("/score") || pathname?.includes("/score/"));
   if (isScoring) {
+    // A div: the scoring screen has its own <main>, and a page has one.
     return (
-      <main className="min-h-screen bg-background text-foreground">
+      <div className="min-h-screen bg-background text-foreground">
         {children}
-      </main>
+      </div>
     );
   }
 
