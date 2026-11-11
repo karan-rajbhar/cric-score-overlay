@@ -9,7 +9,8 @@ import type { Match } from "~/lib/match-types";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Players",
+  // Not "Players": that is the players directory (N19).
+  title: "Match players",
   robots: { index: false, follow: false },
 };
 
