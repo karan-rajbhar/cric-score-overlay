@@ -21,7 +21,7 @@ import { Avatar, TeamCrest } from "~/components/ds/avatar";
 import { ListCard, ListRow } from "~/components/ds/list";
 import { ProfileHeader } from "~/components/ds/player-header";
 import { EntityActions } from "~/components/follow/entity-actions";
-import { ClubContacts } from "~/components/clubs/club-contacts";
+import { ClubContactRows, ClubContacts } from "~/components/clubs/club-contacts";
 import { Button } from "~/components/ui/button";
 import { ActionsSheet } from "~/components/ds/actions-sheet";
 import { PinnedTitle } from "~/components/ds/pinned-title";
@@ -43,7 +43,6 @@ import {
 } from "~/components/clubs/hall-of-fame-dialog";
 import {
   SeasonDialog,
-  DeleteSeasonButton,
 } from "~/components/clubs/season-dialog";
 import { ClubSettingsDialog } from "~/components/clubs/club-settings-dialog";
 import { ClubStreamingDialog } from "~/components/streaming/club-streaming-dialog";
@@ -168,6 +167,14 @@ export default async function ClubLayout({
     }));
 
   const trail = clubTrail();
+  const currentSeason = typedSeasons.find((s) => s.is_current) ?? null;
+  const viewerRole = isOwner
+    ? "You own this club"
+    : isAdmin
+      ? "You are an admin"
+      : isMember
+        ? "You are a member"
+        : null;
 
   const membership = (
     <ClubMembershipButton
@@ -201,7 +208,7 @@ export default async function ClubLayout({
       />
       <ClubSettingsDialog club={club} />
       <ClubStreamingDialog clubId={club.id} />
-      <SeasonDialog clubId={club.id} />
+      <SeasonDialog clubId={club.id} seasons={typedSeasons} />
     </>
   );
 
@@ -236,13 +243,7 @@ export default async function ClubLayout({
               {isAdmin && newTournament}
               <EntityActions kind="club" id={club.id} name={club.name} />
               {adminTools}
-              <div className="flex !min-h-0 flex-wrap items-center gap-x-4 gap-y-1.5 px-1 pt-2 text-sm text-muted-foreground empty:hidden">
-                <ClubContacts
-                  club={club}
-                  socialLinks={socialLinks}
-                  part="contact"
-                />
-              </div>
+              <ClubContactRows club={club} socialLinks={socialLinks} />
             </ActionsSheet>
           </>
         }
@@ -265,23 +266,18 @@ export default async function ClubLayout({
             {club.club_type && (
               <Chip tone="outline">{formatClubType(club.club_type)} club</Chip>
             )}
+            {/* Who you are here, once, as a label: not a greyed-out
+                "Club owner" button (T6). */}
+            {viewerRole && <Chip tone="primary">{viewerRole}</Chip>}
             {club.founded_year && <Chip>Est. {club.founded_year}</Chip>}
-            {typedSeasons.map((s) => (
-              <Chip key={s.id} tone={s.is_current ? "primary" : "outline"}>
+            {/* The current season only; all of them are under Seasons
+                (T5). */}
+            {currentSeason && (
+              <Chip tone="outline">
                 <Calendar className="h-3 w-3 shrink-0" aria-hidden="true" />
-                {s.name}
-                {s.is_current && (
-                  <span className="font-normal opacity-80">· Active</span>
-                )}
-                {isAdmin && !s.is_current && (
-                  <DeleteSeasonButton
-                    clubId={club.id}
-                    seasonId={s.id}
-                    seasonName={s.name}
-                  />
-                )}
+                {currentSeason.name}
               </Chip>
-            ))}
+            )}
           </>
         }
         description={club.description}
@@ -295,13 +291,19 @@ export default async function ClubLayout({
             </span>
           </>
         }
+        // The main action first, and the club's tools behind ⋯, grouped
+        // as the phone sheet has them (T8).
         actions={
           <>
-            {adminTools}
+            {isAdmin && newTeam}
+            {isAdmin && newTournament}
             <EntityActions kind="club" id={club.id} name={club.name} />
             {membership}
-            {isAdmin && newTournament}
-            {isAdmin && newTeam}
+            {adminTools && (
+              <ActionsSheet title={club.name} label="Club tools">
+                {adminTools}
+              </ActionsSheet>
+            )}
           </>
         }
       />
