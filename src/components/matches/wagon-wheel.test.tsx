@@ -233,17 +233,17 @@ describe("WagonWheel Component (Stumps App Design)", () => {
   it("displays delivery counts in the run breakdown pill (1s, 2s, 3s, 4s, 6s)", () => {
     render(<WagonWheel match={dummyMatch} />);
 
-    expect(screen.getByRole("button", { name: /show 1s only/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /show 2s only/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /show 3s only/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /show 4s only/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /show 6s only/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^1s \d+$/, description: "Show only the 1s" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^2s \d+$/, description: "Show only the 2s" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^3s \d+$/, description: "Show only the 3s" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^4s \d+$/, description: "Show only the 4s" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^6s \d+$/, description: "Show only the 6s" })).toBeInTheDocument();
   });
 
   it("toggles run filter when a run pill is clicked", () => {
     render(<WagonWheel match={dummyMatch} />);
 
-    const sixPill = screen.getByRole("button", { name: /show 6s only/i });
+    const sixPill = screen.getByRole("button", { name: /^6s \d+$/, description: "Show only the 6s" });
     expect(sixPill).toHaveAttribute("aria-pressed", "false");
 
     // Click to filter by 6s

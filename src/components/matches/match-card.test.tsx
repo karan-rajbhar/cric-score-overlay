@@ -84,11 +84,11 @@ describe("MatchCard scoring actions", () => {
   it("opens the match from the card", () => {
     renderCard(<MatchCard match={liveMatch} />);
     expect(
-      screen.getByRole("link", { name: /^Royal Tigers versus Coastal Kings/ }),
+      screen.getByRole("link", { name: /Royal Tigers.*Coastal Kings/ }),
     ).toHaveAttribute("href", `/matches/${liveMatch.id}`);
   });
 
-  it("names the card link with the status, scores and result", () => {
+  it("names the card by what it shows, and describes it in words (X4)", () => {
     renderCard(
       <MatchCard
         match={makeMatch({
@@ -112,14 +112,14 @@ describe("MatchCard scoring actions", () => {
         })}
       />,
     );
-    expect(
-      screen.getByRole("link", {
-        name:
-          "Royal Tigers versus Coastal Kings, completed. " +
-          "Royal Tigers 98 for 3 (10.2 overs), Coastal Kings 80 for 10 (10.0 overs). " +
-          "Royal Tigers won by 18 runs",
-      }),
-    ).toBeInTheDocument();
+    const link = screen.getByRole("link", {
+      description:
+        "Royal Tigers versus Coastal Kings, completed. " +
+        "Royal Tigers 98 for 3 (10.2 overs), Coastal Kings 80 for 10 (10.0 overs). " +
+        "Royal Tigers won by 18 runs",
+    });
+    // Its name is its visible text, so voice control can say it.
+    expect(link).toHaveAccessibleName(/Royal Tigers 98\/3 .*Coastal Kings 80\/10/);
   });
 
   it("calls the wait before the chase an innings break", () => {

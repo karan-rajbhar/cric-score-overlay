@@ -658,7 +658,9 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
                 type="button"
                 onClick={() => handleToggleRunFilter(r)}
                 aria-pressed={active}
-                aria-label={`Show ${r}s only (${runCounts[r]})`}
+                // Named by what it shows ("1s 34"), as voice control
+                // needs (X4); the title says what a tap does.
+                title={`Show only the ${r}s`}
                 className={cn(
                   "flex flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                   active
@@ -672,7 +674,7 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
                     className={cn("h-2 w-2 rounded-full", SHOT_FILL[String(r)])}
                   />
                   {r}s
-                </span>
+                </span>{" "}
                 <span className="font-score text-base font-semibold tabular-nums text-foreground">
                   {runCounts[r]}
                 </span>
