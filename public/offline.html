@@ -6,27 +6,36 @@
     <meta name="theme-color" content="#fafafd" />
     <title>Offline · CricScore</title>
     <link rel="icon" href="/favicon.ico" />
+    <script>
+      // The theme chosen in the app, as its pages paint it (N33).
+      (function () {
+        try {
+          var t = localStorage.getItem("cricket-ui-theme") || "light";
+          var d = t === "dark" || (t === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.className = d ? "dark" : "light";
+        } catch (e) {}
+      })();
+    </script>
     <style>
       :root {
         --bg: hsl(230 40% 98.5%);
         --card: hsl(0 0% 100%);
         --fg: hsl(236 45% 12%);
         --muted: hsl(233 12% 44%);
-        --border: hsl(230 25% 91%);
+        --ring: hsl(230 25% 91%);
         --primary: hsl(241 50% 27%);
         --primary-fg: #ffffff;
-        color-scheme: light dark;
+        color-scheme: light;
       }
-      @media (prefers-color-scheme: dark) {
-        :root {
-          --bg: hsl(235 38% 7%);
-          --card: hsl(235 30% 11%);
-          --fg: hsl(230 40% 95%);
-          --muted: hsl(232 16% 68%);
-          --border: hsl(235 22% 19%);
-          --primary: hsl(238 90% 82%);
-          --primary-fg: hsl(241 55% 14%);
-        }
+      :root.dark {
+        --bg: hsl(235 38% 7%);
+        --card: hsl(235 30% 11%);
+        --fg: hsl(230 40% 95%);
+        --muted: hsl(232 16% 68%);
+        --ring: hsl(235 22% 19%);
+        --primary: hsl(238 90% 82%);
+        --primary-fg: hsl(241 55% 14%);
+        color-scheme: dark;
       }
       * { box-sizing: border-box; }
       body {
@@ -38,36 +47,41 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        padding: max(24px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+        padding: max(24px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
       }
+      /* The app's floating card: no border, 16px corners, a hairline ring. */
       main {
         width: 100%;
         max-width: 420px;
         background: var(--card);
-        border: 1px solid var(--border);
-        border-radius: 12px;
+        border-radius: 16px;
+        box-shadow: 0 0 0 1px var(--ring), 0 1px 2px hsl(236 45% 12% / 0.04), 0 4px 16px hsl(236 45% 12% / 0.05);
         padding: 24px;
       }
       h1 { margin: 0 0 8px; font-size: 1.25rem; font-weight: 600; text-wrap: balance; }
       p { margin: 0 0 16px; color: var(--muted); font-size: 0.95rem; }
-      h2 { margin: 20px 0 8px; font-size: 0.9rem; font-weight: 600; }
-      ul { list-style: none; margin: 0; padding: 0; }
+      h2 { margin: 20px 0 4px; font-size: 1rem; font-weight: 600; }
+      ul { list-style: none; margin: 0 0 20px; padding: 0; }
       li + li { margin-top: 8px; }
       a.match {
-        display: block;
-        padding: 12px 14px;
-        border: 1px solid var(--border);
-        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        min-height: 44px;
+        padding: 10px 14px;
+        border-radius: 12px;
+        box-shadow: 0 0 0 1px var(--ring);
         color: var(--fg);
         text-decoration: none;
         font-weight: 500;
       }
       a.match:focus-visible, button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+      /* The app's primary button: a pill, 44px to tap. */
       button {
         appearance: none;
         border: 0;
-        border-radius: 8px;
-        padding: 10px 16px;
+        border-radius: 9999px;
+        min-height: 44px;
+        padding: 10px 20px;
         background: var(--primary);
         color: var(--primary-fg);
         font: inherit;
@@ -79,12 +93,13 @@
   <body>
     <main>
       <h1>You're offline</h1>
-      <p>Open a match you've scored before on this device. Balls you score offline sync when you're back online.</p>
+      <p>This page needs a connection. It opens again when you're back online.</p>
+      <!-- For scorers, and only when there is something to open (N33). -->
       <section id="matches" hidden aria-labelledby="matches-title">
-        <h2 id="matches-title">Available offline</h2>
+        <h2 id="matches-title">Scoring on this device</h2>
+        <p>These matches open offline. Balls you score sync when you're back online.</p>
         <ul id="match-list"></ul>
       </section>
-      <p id="empty" hidden>No matches are saved on this device yet. Open a match's scoring screen while online to keep it available offline.</p>
       <button type="button" onclick="location.reload()">Try again</button>
     </main>
     <script>
@@ -122,7 +137,7 @@
             }
           }
         } catch (e) {}
-        document.getElementById(found ? "matches" : "empty").hidden = false;
+        if (found) document.getElementById("matches").hidden = false;
       })();
       addEventListener("online", function () { location.reload(); });
     </script>
