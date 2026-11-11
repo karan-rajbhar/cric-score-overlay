@@ -102,11 +102,30 @@ describe("NavigationBar Component", () => {
 
     render(<NavigationBar />);
 
-    const searchInput = screen.getByPlaceholderText(/search matches/i);
+    const searchInput = screen.getByRole("searchbox", { name: "Search" });
     fireEvent.change(searchInput, { target: { value: "Ashes Cup" } });
     fireEvent.submit(searchInput.closest("form")!);
 
     expect(mockPush).toHaveBeenCalledWith("/search?q=Ashes%20Cup");
+
+    // One letter goes too: the Search page says it is too short (N15).
+    mockPush.mockClear();
+    fireEvent.change(searchInput, { target: { value: "a" } });
+    fireEvent.submit(searchInput.closest("form")!);
+    expect(mockPush).toHaveBeenCalledWith("/search?q=a");
+  });
+
+  it("opens Search from Ctrl+K when the header has no field (N15)", () => {
+    mockUseAuth.mockReturnValue({
+      user: null,
+      loading: false,
+      signOut: mockSignOut,
+    });
+    render(<NavigationBar />);
+    mockPush.mockClear();
+    // jsdom lays nothing out, so the field counts as hidden, as below lg.
+    fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+    expect(mockPush).toHaveBeenCalledWith("/search");
   });
 
   it("toggles the sidebar from its button and from Ctrl+B, as its title says", () => {

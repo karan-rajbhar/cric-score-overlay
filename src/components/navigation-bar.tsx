@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useState, useEffect, useSyncExternalStore } from "react";
 import { useAuth } from "~/lib/auth";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -42,6 +42,17 @@ import {
 import { useSignOut, useUsername } from "~/lib/hooks/useAccount";
 import { useSignInHref } from "~/lib/sign-in";
 
+const noSubscribe = () => () => {};
+
+/** "⌘K" on Apple keyboards, "Ctrl K" elsewhere (N15). */
+function useSearchShortcutLabel(): string {
+  return useSyncExternalStore(
+    noSubscribe,
+    () => (/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K"),
+    () => "Ctrl K",
+  );
+}
+
 export function NavigationBar() {
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -54,6 +65,10 @@ export function NavigationBar() {
   const [searchQuery, setSearchQuery] = useState("");
   const username = useUsername();
   const signInHref = useSignInHref();
+  const pathname = usePathname();
+  // The Search page has its own field: one search box per screen (N15).
+  const onSearchPage = pathname === "/search";
+  const shortcut = useSearchShortcutLabel();
   const sidebar = useSidebarStore();
   const { toggleCollapsed } = sidebar;
   const sidebarOpen = useSidebarExpanded(sidebarModeOf(sidebar));
@@ -65,7 +80,13 @@ export function NavigationBar() {
       if (!e.metaKey && !e.ctrlKey) return;
       if (e.key === "k") {
         e.preventDefault();
-        document.getElementById("global-search-input")?.focus();
+        // The header field shows from lg, and not on Search: elsewhere the
+        // shortcut opens the Search page (N15).
+        const field =
+          document.getElementById("global-search-input") ??
+          document.getElementById("search-query");
+        if (field && field.offsetParent !== null) field.focus();
+        else router.push("/search");
       } else if (e.key === "b") {
         e.preventDefault();
         toggleCollapsed();
@@ -73,7 +94,7 @@ export function NavigationBar() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [toggleCollapsed]);
+  }, [toggleCollapsed, router]);
 
   return (
     <header className="sticky top-0 z-40 h-14 border-b border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85">
@@ -105,15 +126,16 @@ export function NavigationBar() {
         </div>
 
         {/* Center: Search */}
-        <div className="hidden w-full max-w-md items-center lg:flex">
+        <div
+          className={`hidden w-full max-w-md items-center ${onSearchPage ? "" : "lg:flex"}`}
+        >
           <form
             role="search"
             onSubmit={(e) => {
               e.preventDefault();
               const q = searchQuery.trim();
-              if (q.length >= 2) {
-                router.push(`/search?q=${encodeURIComponent(q)}`);
-              }
+              // Any text: the Search page says when it is too short (N15).
+              if (q) router.push(`/search?q=${encodeURIComponent(q)}`);
             }}
             className="relative w-full"
           >
@@ -127,15 +149,15 @@ export function NavigationBar() {
               spellCheck={false}
               id="global-search-input"
               type="search"
-              aria-label="Search matches, tournaments and players"
+              aria-label="Search"
               autoComplete="off"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search matches, tournaments, players"
+              placeholder="Search"
               className="h-10 w-full rounded-full border border-border bg-card pl-10 pr-14 text-sm transition-colors placeholder:text-muted-foreground focus-visible:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
             />
             <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 select-none rounded-full border border-border bg-muted px-2 py-0.5 font-sans text-xs font-medium text-muted-foreground sm:inline-block">
-              Ctrl K
+              {shortcut}
             </kbd>
           </form>
         </div>
@@ -147,7 +169,7 @@ export function NavigationBar() {
             asChild
             variant="ghost"
             size="sm"
-            className="h-9 w-9 touch-manipulation p-0 text-muted-foreground hover:text-foreground lg:hidden"
+            className={`h-9 w-9 touch-manipulation p-0 text-muted-foreground hover:text-foreground lg:hidden ${onSearchPage ? "hidden" : ""}`}
             title="Search"
             aria-label="Search"
           >
