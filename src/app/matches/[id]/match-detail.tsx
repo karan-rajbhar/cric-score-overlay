@@ -252,6 +252,7 @@ export function MatchView({
           <PinnedTabs ref={tabBar} label="Match sections" tabs={tabs} />
 
           <TabsContent value="summary" className="mt-4">
+            <TabTitle tabs={tabs} value="summary" />
             {/* A finished match whose players play for the scorer's club
                 (the page follows live_state, so it updates once added). */}
             {isScorer && match.status === "completed" && !match.club_id && (
@@ -275,26 +276,45 @@ export function MatchView({
           </TabsContent>
 
           <TabsContent value="scorecard" className="mt-4">
+            <TabTitle tabs={tabs} value="scorecard" />
             <MatchScorecard match={match} />
           </TabsContent>
 
           <TabsContent value="balls" className="mt-4">
+            <TabTitle tabs={tabs} value="balls" />
             <MatchBalls match={match} />
           </TabsContent>
 
           {/* Top performers and head to head are here too; partnerships
               are on the Scorecard. */}
           <TabsContent value="stats" className="mt-4 space-y-6">
+            <TabTitle tabs={tabs} value="stats" />
             <MatchStats match={match} />
           </TabsContent>
 
           <TabsContent value="squads" className="mt-4">
+            <TabTitle tabs={tabs} value="squads" />
             <MatchSquads match={match} />
           </TabsContent>
         </Tabs>
       </ContentSheet>
     </div>
   );
+}
+
+/**
+ * A tab's own heading, for screen readers: the page's h1, each tab an h2,
+ * its sections h3 (M11).
+ */
+function TabTitle({
+  tabs,
+  value,
+}: {
+  tabs: readonly { value: string; label: string }[];
+  value: string;
+}) {
+  const label = tabs.find((t) => t.value === value)?.label;
+  return label ? <h2 className="sr-only">{label}</h2> : null;
 }
 
 function MatchDetailsPageContent() {

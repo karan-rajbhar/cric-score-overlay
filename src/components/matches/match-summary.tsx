@@ -194,16 +194,17 @@ export function InningsSummaryCard({
     <Card className="overflow-hidden">
       <div className="flex items-center gap-3 border-b border-border px-4 py-3">
         <TeamCrest {...teamRef(team)} size="sm" />
-        <span className="min-w-0 flex-1">
-          <span className="line-clamp-2 text-base font-semibold leading-snug text-foreground">
+        <div className="min-w-0 flex-1">
+          {/* The side's name heads its card (h3 under the tab's h2, M11). */}
+          <h3 className="line-clamp-2 text-base font-semibold leading-snug text-foreground">
             {team.name}
-          </span>
+          </h3>
           {won && (
             <Chip tone="success" size="sm" className="mt-1">
               Won
             </Chip>
           )}
-        </span>
+        </div>
         <span className="shrink-0 text-right font-score tabular-nums">
           <span
             className={cn(
