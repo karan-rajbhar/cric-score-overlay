@@ -474,7 +474,14 @@ export default async function TeamDetailsPage({
                         jersey_number: p.jersey_number,
                       }))}
                     />
-                    {canManageTeam && <AddPlayerDialog teamId={team.id} clubId={team.club_id} />}
+                    {canManageTeam && (
+                      <AddPlayerDialog
+                        teamId={team.id}
+                        teamName={team.name}
+                        clubId={team.club_id}
+                        squadIds={players.map((p) => p.user_id)}
+                      />
+                    )}
                   </div>
                 </div>
 
