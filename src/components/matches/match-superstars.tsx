@@ -96,9 +96,12 @@ function LeaderCard({
 
 function PlayerRow({
   player,
+  team,
   onOpen,
 }: {
   player: SuperstarPlayer;
+  /** The side's short code: after the figures, which must not be cut. */
+  team: string;
   onOpen: () => void;
 }) {
   return (
@@ -115,8 +118,9 @@ function PlayerRow({
         <span className="block truncate text-sm font-medium text-foreground">
           {player.playerName}
         </span>
+        {/* What they did first, the side after (M8). */}
         <span className="block truncate text-xs text-muted-foreground">
-          {player.teamName} · {figuresOf(player) || ROLE[player.role]}
+          {figuresOf(player) || ROLE[player.role]} · {team}
         </span>
       </span>
       <span className="shrink-0 font-score text-lg font-semibold tabular-nums text-foreground">
@@ -379,6 +383,11 @@ export function MatchSuperstars({ match }: MatchSuperstarsProps) {
             <PlayerRow
               key={p.playerId}
               player={p}
+              team={
+                p.teamId === match.team1_id
+                  ? match.team1.short_name || match.team1.name
+                  : match.team2.short_name || match.team2.name
+              }
               onOpen={() => setSelected(p)}
             />
           ))}
