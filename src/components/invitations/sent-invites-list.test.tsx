@@ -2,7 +2,9 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SentInvite } from "~/app/invitations/data";
 
-const revokeInvite = vi.fn(async () => ({ success: true }));
+const revokeInvite = vi.fn<(id: string) => Promise<{ success: boolean }>>(
+  async () => ({ success: true }),
+);
 vi.mock("~/app/invitations/actions", () => ({
   revokeInvite: (id: string) => revokeInvite(id),
 }));
