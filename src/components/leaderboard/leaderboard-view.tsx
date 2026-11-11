@@ -736,219 +736,123 @@ const LEADERBOARD_TABS = [
   { id: "mvp", label: "MVP" },
 ] as const;
 
+/** One highlight of the overview: what it counts, who leads, by how much. */
+function HighlightCard({
+  title,
+  name,
+  figure,
+  detail,
+  empty,
+}: {
+  title: string;
+  name?: string | null;
+  figure?: React.ReactNode;
+  detail?: string | false | null;
+  empty: string;
+}) {
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+        {name ? (
+          <>
+            <div className="mt-2 flex items-baseline justify-between gap-2">
+              <span className="min-w-0 truncate font-semibold text-foreground">
+                {name}
+              </span>
+              <span className="shrink-0 font-score text-2xl font-semibold tabular-nums text-foreground">
+                {figure}
+              </span>
+            </div>
+            {detail && (
+              <p className="mt-0.5 text-xs text-muted-foreground">{detail}</p>
+            )}
+          </>
+        ) : (
+          <p className="mt-2 text-xs text-muted-foreground">{empty}</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function OverviewTab({ view }: { view: LeaderboardState }) {
   const { data, showHighlights, setActiveTab } = view;
   return (
     <div className="space-y-6">
-      {/* Highlight Cards Grid */}
+      {/* Highlight cards: one look, titles saying what they count, not
+          a league's nicknames ("Orange cap"), T9. */}
       {showHighlights && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {/* Orange cap */}
-          <Card>
-            <CardHeader className="p-4 pb-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-foreground">
-                  Orange cap
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  Most runs
-                </span>
-              </div>
-            </CardHeader>
-            <CardContent className="p-4 pt-2">
-              {data.highlights.orangeCap ? (
-                <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="truncate font-semibold text-foreground">
-                      {data.highlights.orangeCap.name}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {data.highlights.orangeCap.innings} inn • Avg:{" "}
-                      {data.highlights.orangeCap.averageDisplay} • SR:{" "}
-                      {data.highlights.orangeCap.strikeRateDisplay}
-                    </div>
-                  </div>
-                  <div className="text-2xl font-semibold font-score tabular-nums text-foreground">
-                    {data.highlights.orangeCap.runs}
-                  </div>
-                </div>
-              ) : (
-                <div className="text-xs text-muted-foreground">
-                  No batting records yet
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Purple cap */}
-          <Card>
-            <CardHeader className="p-4 pb-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-foreground">
-                  Purple cap
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  Most wickets
-                </span>
-              </div>
-            </CardHeader>
-            <CardContent className="p-4 pt-2">
-              {data.highlights.purpleCap ? (
-                <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="truncate font-semibold text-foreground">
-                      {data.highlights.purpleCap.name}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {data.highlights.purpleCap.overs} ov • Avg:{" "}
-                      {data.highlights.purpleCap.averageDisplay} • Econ:{" "}
-                      {data.highlights.purpleCap.economyDisplay}
-                    </div>
-                  </div>
-                  <div className="text-2xl font-semibold font-score tabular-nums text-foreground">
-                    {data.highlights.purpleCap.wickets}
-                  </div>
-                </div>
-              ) : (
-                <div className="text-xs text-muted-foreground">
-                  No bowling records yet
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* MVP Leader */}
-          <Card>
-            <CardHeader className="p-4 pb-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-foreground">
-                  MVP leader
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  All-round points
-                </span>
-              </div>
-            </CardHeader>
-            <CardContent className="p-4 pt-2">
-              {data.highlights.mvpLeader ? (
-                <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="truncate font-semibold text-foreground">
-                      {data.highlights.mvpLeader.name}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {data.highlights.mvpLeader.summary}
-                    </div>
-                  </div>
-                  <div className="text-2xl font-semibold font-score tabular-nums text-foreground">
-                    {data.highlights.mvpLeader.totalPoints}
-                  </div>
-                </div>
-              ) : (
-                <div className="text-xs text-muted-foreground">
-                  No MVP records yet
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Most Sixes */}
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-muted-foreground">
-                  Most sixes
-                </span>
-              </div>
-              <div className="mt-2 flex items-baseline justify-between">
-                <div className="truncate font-semibold text-foreground">
-                  {data.highlights.mostSixes?.name ?? "—"}
-                </div>
-                <div className="text-xl font-semibold font-score tabular-nums text-foreground">
-                  {data.highlights.mostSixes?.sixes ?? 0}
-                </div>
-              </div>
-              <div className="mt-0.5 text-xs text-muted-foreground">
-                {data.highlights.mostSixes
-                  ? `${data.highlights.mostSixes.runs} total runs • ${data.highlights.mostSixes.fours} fours`
-                  : "No sixes recorded"}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Highest Individual Score */}
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-muted-foreground">
-                  Highest individual score
-                </span>
-              </div>
-              <div className="mt-2 flex items-baseline justify-between">
-                <div className="truncate font-semibold text-foreground">
-                  {data.highlights.highestScore?.name ?? "—"}
-                </div>
-                <div className="text-xl font-semibold font-score tabular-nums text-foreground">
-                  {data.highlights.highestScore?.highestScoreDisplay ?? "—"}
-                </div>
-              </div>
-              <div className="mt-0.5 text-xs text-muted-foreground">
-                {data.highlights.highestScore
-                  ? data.highlights.highestScore.highestScoreBalls
-                    ? `${data.highlights.highestScore.highestScoreBalls} balls • SR ${data.highlights.highestScore.highestScoreStrikeRateDisplay}`
-                    : `${data.highlights.highestScore.runs} total runs in tournament`
-                  : "No batting records"}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Best Bowling Inning */}
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-muted-foreground">
-                  Best bowling figures
-                </span>
-              </div>
-              <div className="mt-2 flex items-baseline justify-between">
-                <div className="truncate font-semibold text-foreground">
-                  {data.highlights.bestBowling?.name ?? "—"}
-                </div>
-                <div className="text-xl font-semibold font-score tabular-nums text-foreground">
-                  {data.highlights.bestBowling?.bestBowling.display ?? "—"}
-                </div>
-              </div>
-              <div className="mt-0.5 text-xs text-muted-foreground">
-                {data.highlights.bestBowling
-                  ? `${data.highlights.bestBowling.wickets} total wkts • Econ ${data.highlights.bestBowling.economyDisplay}`
-                  : "No bowling figures recorded"}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Top Fielder */}
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-muted-foreground">
-                  Top fielder
-                </span>
-              </div>
-              <div className="mt-2 flex items-baseline justify-between">
-                <div className="truncate font-semibold text-foreground">
-                  {data.highlights.topFielder?.name ?? "—"}
-                </div>
-                <div className="text-xl font-semibold font-score tabular-nums text-foreground">
-                  {data.highlights.topFielder?.totalDismissals ?? 0}
-                </div>
-              </div>
-              <div className="mt-0.5 text-xs text-muted-foreground">
-                {data.highlights.topFielder
-                  ? `${data.highlights.topFielder.catches} catches • ${data.highlights.topFielder.stumpings} st • ${data.highlights.topFielder.runOuts} ro`
-                  : "No dismissals recorded"}
-              </div>
-            </CardContent>
-          </Card>
+          <HighlightCard
+            title="Most runs"
+            name={data.highlights.orangeCap?.name}
+            figure={data.highlights.orangeCap?.runs}
+            detail={
+              data.highlights.orangeCap &&
+              `${data.highlights.orangeCap.innings} inn · avg ${data.highlights.orangeCap.averageDisplay} · SR ${data.highlights.orangeCap.strikeRateDisplay}`
+            }
+            empty="No batting records yet"
+          />
+          <HighlightCard
+            title="Most wickets"
+            name={data.highlights.purpleCap?.name}
+            figure={data.highlights.purpleCap?.wickets}
+            detail={
+              data.highlights.purpleCap &&
+              `${data.highlights.purpleCap.overs} ov · avg ${data.highlights.purpleCap.averageDisplay} · econ ${data.highlights.purpleCap.economyDisplay}`
+            }
+            empty="No bowling records yet"
+          />
+          <HighlightCard
+            title="Most valuable player"
+            name={data.highlights.mvpLeader?.name}
+            figure={data.highlights.mvpLeader?.totalPoints}
+            detail={data.highlights.mvpLeader?.summary}
+            empty="No records yet"
+          />
+          <HighlightCard
+            title="Most sixes"
+            name={data.highlights.mostSixes?.name}
+            figure={data.highlights.mostSixes?.sixes}
+            detail={
+              data.highlights.mostSixes &&
+              `${data.highlights.mostSixes.runs} runs · ${data.highlights.mostSixes.fours} fours`
+            }
+            empty="No sixes recorded"
+          />
+          <HighlightCard
+            title="Highest score"
+            name={data.highlights.highestScore?.name}
+            figure={data.highlights.highestScore?.highestScoreDisplay}
+            detail={
+              data.highlights.highestScore &&
+              (data.highlights.highestScore.highestScoreBalls
+                ? `${data.highlights.highestScore.highestScoreBalls} balls · SR ${data.highlights.highestScore.highestScoreStrikeRateDisplay}`
+                : `${data.highlights.highestScore.runs} runs in all`)
+            }
+            empty="No batting records yet"
+          />
+          <HighlightCard
+            title="Best bowling"
+            name={data.highlights.bestBowling?.name}
+            figure={data.highlights.bestBowling?.bestBowling.display}
+            detail={
+              data.highlights.bestBowling &&
+              `${data.highlights.bestBowling.wickets} wickets in all · econ ${data.highlights.bestBowling.economyDisplay}`
+            }
+            empty="No bowling figures recorded"
+          />
+          <HighlightCard
+            title="Top fielder"
+            name={data.highlights.topFielder?.name}
+            figure={data.highlights.topFielder?.totalDismissals}
+            detail={
+              data.highlights.topFielder &&
+              `${data.highlights.topFielder.catches} ct · ${data.highlights.topFielder.stumpings} st · ${data.highlights.topFielder.runOuts} run out`
+            }
+            empty="No dismissals recorded"
+          />
         </div>
       )}
 

@@ -46,8 +46,9 @@ export default async function TournamentTabPage({
   return (
     <div className="space-y-6">
       <LeaderboardView
-        title="Leaderboard"
-        subtitle={`The leading run scorers, wicket takers and all-rounders in ${tournament.name}`}
+        // The tab is Stats: the section says what it holds (T9).
+        title="Leading players"
+        subtitle={`Run scorers, wicket takers and all-rounders in ${tournament.name}`}
         data={data}
         showHighlights={true}
       />

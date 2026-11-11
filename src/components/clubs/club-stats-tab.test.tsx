@@ -129,7 +129,7 @@ describe("ClubStatsTab Component", () => {
       />,
     );
 
-    expect(screen.getByText("Leaderboard")).toBeInTheDocument();
+    expect(screen.getByText("Leading players")).toBeInTheDocument();
   });
 
   it("offers the statistics as CSV and PDF once there are ranked players", () => {

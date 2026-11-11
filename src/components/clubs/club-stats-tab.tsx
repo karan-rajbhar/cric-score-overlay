@@ -157,8 +157,9 @@ export function ClubStatsTab({
       {/* Leaderboards */}
       {leaderboardData ? (
         <LeaderboardView
-          title="Leaderboard"
-          subtitle={`The leading players across every ${clubName} match.`}
+          // The tab is Stats: the section says what it holds (T9).
+          title="Leading players"
+          subtitle={`Across every ${clubName} match.`}
           data={leaderboardData}
           showHighlights={true}
           downloads={(tab) => ({
