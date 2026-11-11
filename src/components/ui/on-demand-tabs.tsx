@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import { Skeleton } from "~/components/ui/skeleton";
 import { setUrlParam } from "~/lib/url-state";
-import { Tabs, TabsContent } from "./tabs";
+import { settleUnderPinnedTabs, Tabs, TabsContent } from "./tabs";
 
 /**
  * Tabs for a detail page some of whose tabs cost reads, split across a route's
@@ -23,6 +23,9 @@ import { Tabs, TabsContent } from "./tabs";
 
 const OnDemandContext = React.createContext<{
   onDemand: readonly string[];
+  /** Whether a costly tab was just chosen (and forgets it): settle under the
+   * pinned tabs once it arrives. */
+  takeSettle: () => boolean;
 } | null>(null);
 
 export function OnDemandTabs({
@@ -52,6 +55,7 @@ export function OnDemandTabs({
     inUrl && onDemand.includes(inUrl) ? inUrl : null,
   );
 
+  const settle = React.useRef(false);
   const open = (next: string) => {
     setValue(next);
     if (!onDemand.includes(next) || next === served.current) {
@@ -59,6 +63,7 @@ export function OnDemandTabs({
       return;
     }
     served.current = next;
+    settle.current = true;
     const url = new URL(window.location.href);
     url.searchParams.set("tab", next);
     startTransition(() => {
@@ -66,7 +71,17 @@ export function OnDemandTabs({
     });
   };
 
-  const context = React.useMemo(() => ({ onDemand }), [onDemand]);
+  const context = React.useMemo(
+    () => ({
+      onDemand,
+      takeSettle: () => {
+        const due = settle.current;
+        settle.current = false;
+        return due;
+      },
+    }),
+    [onDemand],
+  );
   return (
     <OnDemandContext.Provider value={context}>
       <Tabs value={value} onValueChange={open} {...props} />
@@ -88,9 +103,25 @@ export function OnDemandPanels({
 }) {
   const context = React.useContext(OnDemandContext);
   const inUrl = useSearchParams().get("tab");
+  const marker = React.useRef<HTMLSpanElement | null>(null);
+  // The tab's content has arrived: put its top under the pinned tabs, as a
+  // cheap tab does at once (T2). Its skeleton held the page's height, so
+  // the page did not jump to the top meanwhile.
+  React.useEffect(() => {
+    if (!context?.takeSettle()) return;
+    const root = marker.current?.closest<HTMLElement>("[data-swipe-tabs]");
+    requestAnimationFrame(() => settleUnderPinnedTabs(root ?? null));
+  }, [inUrl, children, context]);
   return context?.onDemand.map((tab) => (
     <TabsContent key={tab} value={tab} className={className}>
-      {tab === inUrl ? children : <TabSkeleton />}
+      {tab === inUrl ? (
+        <>
+          <span ref={marker} hidden />
+          {children}
+        </>
+      ) : (
+        <TabSkeleton />
+      )}
     </TabsContent>
   ));
 }
@@ -98,7 +129,13 @@ export function OnDemandPanels({
 /** What a costly tab shows until its content arrives. */
 export function TabSkeleton() {
   return (
-    <div className="space-y-3" aria-busy="true" aria-label="Loading">
+    // A screen tall, so the page keeps its length (and its scroll position)
+    // while the tab's content is on its way.
+    <div
+      className="min-h-[100svh] space-y-3"
+      aria-busy="true"
+      aria-label="Loading"
+    >
       <Skeleton className="h-20 w-full rounded-xl" />
       <Skeleton className="h-20 w-full rounded-xl" />
       <Skeleton className="h-20 w-full rounded-xl" />
