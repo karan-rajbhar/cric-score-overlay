@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import {
   Download,
@@ -159,10 +159,17 @@ export function InvitesSection() {
   );
 }
 
+const noSubscribe = () => () => {};
+
 /** Theme and notifications, and Sign out when signed in. */
 export function SettingsSection() {
   const { user } = useAuth();
   const { theme, setTheme } = useTheme();
+  const mounted = useSyncExternalStore(
+    noSubscribe,
+    () => true,
+    () => false,
+  );
   const { signOut, pending } = useSignOut();
   return (
     <section className="space-y-3">
@@ -170,13 +177,19 @@ export function SettingsSection() {
       {user && <NotificationSettings />}
       <div className="space-y-2">
         <span className="block text-sm font-medium text-foreground">Theme</span>
-        <Segmented
-          label="Theme"
-          options={THEMES}
-          value={theme}
-          onChange={setTheme}
-          className="w-full justify-between"
-        />
+        {/* The saved choice is known only on the device: render it after
+            mount, or the server's "Light" stays selected on a dark page. */}
+        {mounted ? (
+          <Segmented
+            label="Theme"
+            options={THEMES}
+            value={theme}
+            onChange={setTheme}
+            className="w-full justify-between"
+          />
+        ) : (
+          <div className="h-11 w-full rounded-full bg-muted" aria-hidden="true" />
+        )}
       </div>
       {user && (
         <ListCard>

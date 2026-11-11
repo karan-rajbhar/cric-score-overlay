@@ -64,6 +64,13 @@ export function ThemeProvider({
       }
 
       root.classList.add(effectiveTheme);
+      root.style.colorScheme = effectiveTheme;
+      // The browser's bar follows the chosen theme, not only the OS's.
+      for (const meta of document.querySelectorAll<HTMLMetaElement>(
+        'meta[name="theme-color"]',
+      )) {
+        meta.content = effectiveTheme === "dark" ? "#0b0c19" : "#fafafd";
+      }
       setResolvedTheme(effectiveTheme);
     };
 
