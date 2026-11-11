@@ -73,7 +73,7 @@ export function RetirePlayerDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <form onSubmit={handleSubmit}>
-          <DialogHeader className="text-left">
+          <DialogHeader>
             <DialogTitle className="text-balance">
               Retire {playerName}
             </DialogTitle>

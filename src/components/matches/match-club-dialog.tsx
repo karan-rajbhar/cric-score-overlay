@@ -197,8 +197,9 @@ function ClubForm({
       <DialogContent className="max-h-[90vh] overflow-y-auto rounded-panel shadow-float sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
+            {/* The menu item's words: "Change club" (M14). */}
             {current
-              ? "Club"
+              ? "Change club"
               : clubs.length === 1
                 ? `Add to ${clubs[0]!.name}`
                 : "Add to a club"}

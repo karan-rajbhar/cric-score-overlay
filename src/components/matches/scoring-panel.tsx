@@ -1195,7 +1195,7 @@ export function ScoringPanel({
               (e.currentTarget as HTMLElement | null)?.focus();
             }}
           >
-            <DialogHeader className="text-center sm:text-center">
+            <DialogHeader>
               <div className="mx-auto flex items-center gap-2">
                 <Compass className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                 <DialogTitle className="text-lg font-semibold">

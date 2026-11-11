@@ -194,7 +194,8 @@ export function MatchMoreMenu({
               },
               canReschedule && {
                 key: "reschedule",
-                label: "Reschedule",
+                // What it changes, as the dialog it opens is titled (M14).
+                label: "Change date, venue or umpires",
                 icon: CalendarClock,
                 onSelect: () => setShowReschedule(true),
               },

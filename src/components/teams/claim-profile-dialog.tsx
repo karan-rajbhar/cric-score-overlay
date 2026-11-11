@@ -113,7 +113,7 @@ export function ClaimProfileDialog({
       }}
     >
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-md">
-        <DialogHeader className="text-left">
+        <DialogHeader>
           <DialogTitle className="text-balance">
             Invite {player.name} to claim this profile
           </DialogTitle>

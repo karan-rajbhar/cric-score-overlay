@@ -51,7 +51,7 @@ export function UnsavedActionsDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader className="text-left">
+        <DialogHeader>
           <DialogTitle className="text-balance">
             {count === 1 ? "1 action not saved" : `${count} actions not saved`}
           </DialogTitle>

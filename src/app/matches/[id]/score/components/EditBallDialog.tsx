@@ -606,7 +606,7 @@ export function EditBallDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
-        <DialogHeader className="text-left">
+        <DialogHeader>
           <DialogTitle className="text-balance">
             Correct ball {position}
           </DialogTitle>

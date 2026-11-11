@@ -39,7 +39,7 @@ export function ConfirmDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-sm">
-        <DialogHeader className="text-left">
+        <DialogHeader>
           <DialogTitle className="text-balance">{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>

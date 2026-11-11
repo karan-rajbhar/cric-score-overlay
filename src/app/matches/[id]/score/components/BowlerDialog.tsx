@@ -182,7 +182,7 @@ export function BowlerDialog({
         className="sm:max-w-md"
         onOpenAutoFocus={(e) => focusPickerRow(e, contentRef.current)}
       >
-        <DialogHeader className="space-y-2 text-left">
+        <DialogHeader className="space-y-2">
           <RoleBand role="bowling" teamName={bowlingTeamName} />
           <DialogTitle className="text-balance">
             {overBowling

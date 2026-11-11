@@ -59,7 +59,7 @@ export function TossDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader className="text-left">
+        <DialogHeader>
           <DialogTitle>Toss</DialogTitle>
           <DialogDescription>
             Record the toss to start the match. The opening batters and

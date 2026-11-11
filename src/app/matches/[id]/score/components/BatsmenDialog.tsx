@@ -359,7 +359,7 @@ export function BatsmenDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader className="space-y-2 text-left">
+        <DialogHeader className="space-y-2">
           <RoleBand role="batting" teamName={battingTeamName} />
           <DialogTitle className="text-balance">{title}</DialogTitle>
           <DialogDescription>
