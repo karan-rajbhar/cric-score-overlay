@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { cardDate } from "~/lib/dates";
 import { globalSearch } from "./actions";
 import { Input } from "~/components/ui/input";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -17,15 +18,31 @@ function Section<T>({
   title,
   items,
   render,
+  moreHref,
 }: {
   title: string;
   items: T[];
   render: (item: T) => React.ReactNode;
+  /** There are more than these: the list that holds them all (N13). */
+  moreHref?: string | null;
 }) {
   if (items.length === 0) return null;
   return (
     <section className="space-y-3">
-      <SectionHeader title={title} count={items.length} />
+      <SectionHeader
+        title={title}
+        count={moreHref ? undefined : items.length}
+        action={
+          moreHref ? (
+            <Link
+              href={moreHref}
+              className="inline-flex min-h-11 items-center text-sm font-medium text-primary underline-offset-4 hover:underline"
+            >
+              Show all
+            </Link>
+          ) : undefined
+        }
+      />
       <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
         {items.map((item, i) => (
           <li key={i}>{render(item)}</li>
@@ -105,20 +122,25 @@ export default async function SearchPage({
         <div className="space-y-6">
           <Section
             title="Matches"
+            moreHref={result.more?.matches ? `/matches?search=${encodeURIComponent(q.trim())}` : null}
             items={result.matches}
             render={(x: {
               id: string;
               title: string;
               status: string;
               venue: string | null;
+              scheduled_at: string | null;
             }) => {
               return (
                 <Link className="block transition-colors hover:bg-muted/50" href={`/matches/${x.id}`}>
                   <div className="flex items-center justify-between gap-3 px-4 py-3">
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-medium">{x.title}</p>
+                        {/* When and where, so two of one name differ (N13). */}
                         <p className="truncate text-xs text-muted-foreground">
-                          {x.venue ?? "—"}
+                          {[cardDate(x.scheduled_at), x.venue]
+                            .filter(Boolean)
+                            .join(" · ") || "Date to be confirmed"}
                         </p>
                       </div>
                       <MatchStatusChip status={x.status} className="shrink-0" />
@@ -130,6 +152,7 @@ export default async function SearchPage({
 
           <Section
             title="Teams"
+            moreHref={result.more?.teams ? `/teams?view=all&search=${encodeURIComponent(q.trim())}` : null}
             items={result.teams}
             render={(x: {
               id: string;
@@ -153,6 +176,7 @@ export default async function SearchPage({
 
           <Section
             title="Players"
+            moreHref={result.more?.players ? `/players?q=${encodeURIComponent(q.trim())}` : null}
             items={result.players}
             render={(x: {
               id: string;
@@ -179,6 +203,7 @@ export default async function SearchPage({
 
           <Section
             title="Clubs"
+            moreHref={result.more?.clubs ? `/clubs?view=all&search=${encodeURIComponent(q.trim())}` : null}
             items={result.clubs}
             render={(x: {
               id: string;
@@ -200,6 +225,7 @@ export default async function SearchPage({
 
           <Section
             title="Tournaments"
+            moreHref={result.more?.tournaments ? `/tournaments?search=${encodeURIComponent(q.trim())}` : null}
             items={result.tournaments}
             render={(x: {
               id: string;
