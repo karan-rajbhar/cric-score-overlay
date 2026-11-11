@@ -11,6 +11,7 @@ import {
   Calendar,
   AlertCircle,
   Swords,
+  Minus,
   Percent,
   UserRound,
   X,
@@ -417,10 +418,22 @@ export default async function TeamDetailsPage({
           />
           <StatTile compact icon={Trophy} label="Won" value={record.won} />
           <StatTile compact icon={X} label="Lost" value={record.lost} />
+          {/* Phones drop the note under Played: ties and no results get
+              their own tile there, so the row adds up (P6). */}
+          {record.noWinner > 0 && (
+            <StatTile
+              compact
+              icon={Minus}
+              label="Tied / NR"
+              value={record.noWinner}
+              className="md:hidden"
+            />
+          )}
           <StatTile compact
             icon={Percent}
             label="Win rate"
             value={record.winRate !== null ? `${record.winRate}%` : "–"}
+            className={record.noWinner > 0 ? "max-md:hidden" : undefined}
           />
         </StatGrid>
 
