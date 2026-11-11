@@ -20,7 +20,7 @@ export async function getOnboardingProgress(): Promise<OnboardingProgress | null
   } = await db.auth.getUser();
   if (!user) return null;
 
-  const [teams, matches, invites] = await Promise.all([
+  const [teams, matches, invites, squads, clubs] = await Promise.all([
     db
       .from("teams")
       .select("id, roster")
@@ -32,6 +32,10 @@ export async function getOnboardingProgress(): Promise<OnboardingProgress | null
       .eq("created_by", user.id)
       .limit(SAMPLE),
     db.from("invitations").select("id").eq("invited_by", user.id).limit(1),
+    // A player already in a squad or a club is not setting up from
+    // scratch: the checklist is for them only once they make a team (N11).
+    db.from("team_players").select("id").eq("user_id", user.id).limit(1),
+    db.from("club_memberships").select("id").eq("user_id", user.id).limit(1),
   ]);
   const teamRows = (teams.data ?? []) as {
     id: string;
@@ -41,6 +45,10 @@ export async function getOnboardingProgress(): Promise<OnboardingProgress | null
     id: string;
     match_admins?: string[] | null;
   }[];
+
+  const playsAlready =
+    (squads.data ?? []).length > 0 || (clubs.data ?? []).length > 0;
+  if (playsAlready && teamRows.length === 0) return null;
 
   return {
     teamId: teamRows[0]?.id ?? null,

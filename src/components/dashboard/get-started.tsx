@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Check, X } from "lucide-react";
+import { Check, ChevronDown, X } from "lucide-react";
+import { cardSurface } from "~/components/ds/card";
 import { getOnboardingProgress } from "~/app/dashboard/actions";
 import {
   onboardingComplete,
@@ -74,100 +75,106 @@ export function GetStarted({ userId }: { userId: string }) {
     setHidden(true);
   };
 
+  // One compact row that opens the steps (N11): the first screen of Home
+  // stays the live matches.
   return (
     <section
       aria-labelledby="get-started-title"
-      className="rounded-xl border border-border bg-card p-4 sm:p-5"
+      className={cn(cardSurface, "flex items-start gap-1 p-1")}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2
-            id="get-started-title"
-            className="text-balance text-base font-semibold text-foreground"
-          >
-            Get started
-          </h2>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            <span className="tabular-nums">
-              {done} of {steps.length}
-            </span>{" "}
-            done. Set up a team and your first match.
-          </p>
-        </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-10 w-10 shrink-0 text-muted-foreground"
-          onClick={dismiss}
-          aria-label="Dismiss get started checklist"
-        >
-          <X />
-        </Button>
-      </div>
-      <ol className="mt-4 grid gap-2 sm:grid-cols-2">
-        {steps.map((step, i) => {
-          const body = (
-            <>
-              <span
-                aria-hidden="true"
-                className={cn(
-                  "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-2xs font-semibold tabular-nums",
-                  step.done
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border text-muted-foreground",
-                )}
-              >
-                {step.done ? <Check className="h-3 w-3" /> : i + 1}
-              </span>
-              <span className="min-w-0">
+      <details className="group min-w-0 flex-1">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 rounded-xl px-3 py-2 [&::-webkit-details-marker]:hidden">
+          <span className="min-w-0 flex-1">
+            <h2
+              id="get-started-title"
+              className="text-sm font-semibold text-foreground"
+            >
+              Set up a team and your first match
+            </h2>
+            <span className="block text-xs tabular-nums text-muted-foreground">
+              {done} of {steps.length} done
+            </span>
+          </span>
+          <ChevronDown
+            className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
+            aria-hidden="true"
+          />
+        </summary>
+        <ol className="grid gap-2 px-3 pb-3 sm:grid-cols-2">
+          {steps.map((step, i) => {
+            // Why a step waits, instead of a faded box with no reason.
+            const waits = !step.done && !step.href;
+            const body = (
+              <>
                 <span
+                  aria-hidden="true"
                   className={cn(
-                    "block text-sm font-semibold",
+                    "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-xs font-semibold tabular-nums",
                     step.done
-                      ? "text-muted-foreground line-through"
-                      : "text-foreground",
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border text-muted-foreground",
                   )}
                 >
-                  {step.label}
-                  {step.optional && (
-                    <span className="ml-1 font-normal text-muted-foreground">
-                      (optional)
-                    </span>
-                  )}
+                  {step.done ? <Check className="h-3 w-3" /> : i + 1}
                 </span>
-                <span className="block text-xs text-muted-foreground">
-                  {step.description}
+                <span className="min-w-0">
+                  <span
+                    className={cn(
+                      "block text-sm font-semibold",
+                      step.done
+                        ? "text-muted-foreground line-through"
+                        : "text-foreground",
+                    )}
+                  >
+                    {step.label}
+                    {step.optional && (
+                      <span className="ml-1 font-normal text-muted-foreground">
+                        (optional)
+                      </span>
+                    )}
+                  </span>
+                  <span className="block text-xs text-muted-foreground">
+                    {waits
+                      ? step.id === "players"
+                        ? "After you create a team."
+                        : "After you create a match."
+                      : step.description}
+                  </span>
                 </span>
-              </span>
-              <span className="sr-only">
-                {step.done ? " Done." : " Not done yet."}
-              </span>
-            </>
-          );
-          const itemClass =
-            "flex items-start gap-3 rounded-lg border border-border/70 p-3";
-          return (
-            <li key={step.id}>
-              {step.href && !step.done ? (
-                <Link
-                  href={step.href}
-                  className={cn(
-                    itemClass,
-                    "transition-colors hover:bg-accent/50",
-                  )}
-                >
-                  {body}
-                </Link>
-              ) : (
-                <div className={cn(itemClass, !step.done && "opacity-60")}>
-                  {body}
-                </div>
-              )}
-            </li>
-          );
-        })}
-      </ol>
+                <span className="sr-only">
+                  {step.done ? " Done." : " Not done yet."}
+                </span>
+              </>
+            );
+            const itemClass =
+              "flex min-h-11 items-start gap-3 rounded-xl bg-muted/40 p-3";
+            return (
+              <li key={step.id}>
+                {step.href && !step.done ? (
+                  <Link
+                    href={step.href}
+                    className={cn(itemClass, "transition-colors hover:bg-accent")}
+                  >
+                    {body}
+                  </Link>
+                ) : (
+                  <div className={itemClass}>{body}</div>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      </details>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="h-11 w-11 shrink-0 text-muted-foreground"
+        onClick={dismiss}
+        aria-label="Dismiss the set-up checklist"
+      >
+        <X />
+      </Button>
     </section>
   );
 }

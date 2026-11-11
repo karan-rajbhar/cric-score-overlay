@@ -184,8 +184,6 @@ export default function Dashboard() {
         }
       />
 
-      {user && <GetStarted userId={user.id} />}
-
       <section aria-label="Live matches">
         {liveLoading && liveMatches.length === 0 ? (
           <div className={`${cardSurface} h-72 animate-pulse`} />
@@ -216,6 +214,9 @@ export default function Dashboard() {
           </div>
         )}
       </section>
+
+      {/* Under the live matches, not above them (N11). */}
+      {user && <GetStarted userId={user.id} />}
 
       {myUpcoming.length > 0 && (
         <section className="space-y-4">

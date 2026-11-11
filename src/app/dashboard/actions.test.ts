@@ -30,7 +30,7 @@ function signIn(ds: MemoryDataSource, id: string | null) {
 }
 
 describe("getOnboardingProgress", () => {
-  it("is empty for a brand-new user, for 3 billed reads", async () => {
+  it("is empty for a brand-new user, for 5 billed reads", async () => {
     const ds = new MemoryDataSource(seed);
     signIn(ds, "brand-new");
     const before = ds.billedReads;
@@ -41,7 +41,16 @@ describe("getOnboardingProgress", () => {
       matchId: null,
       hasCoScorer: false,
     });
-    expect(ds.billedReads - before).toBe(3);
+    // Teams, matches, invites, and whether they play already (squad, club).
+    expect(ds.billedReads - before).toBe(5);
+  });
+
+  it("is nothing for someone who already plays and has made no team (N11)", async () => {
+    const ds = new MemoryDataSource({
+      team_players: [{ id: "tp1", team_id: "t9", user_id: "player" }],
+    });
+    signIn(ds, "player");
+    expect(await getOnboardingProgress()).toBeNull();
   });
 
   it("tracks each step from the user's own data", async () => {
