@@ -385,7 +385,7 @@ function NewTeamForm({
             setName(e.target.value);
             if (error) setError(null);
           }}
-          placeholder="e.g. Mumbai Lions"
+          placeholder="e.g. Hilltop Hawks"
           autoComplete="off"
           autoCapitalize="words"
           enterKeyHint="next"

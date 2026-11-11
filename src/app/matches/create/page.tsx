@@ -1,11 +1,11 @@
 "use client";
 
-import { BackLink } from "~/components/ds/back-link";
+import { ScreenBar } from "~/components/ds/screen";
 import { SignInRequired } from "~/components/ui/sign-in-required";
 import { useId, useMemo, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, ChevronDown, ChevronLeft, Loader2, RotateCcw } from "lucide-react";
+import { AlertCircle, ChevronDown, Loader2, RotateCcw } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
@@ -468,15 +468,13 @@ function MatchSetupForm({ userId }: { userId: string }) {
 
   return (
     <PageContainer size="form" stack={false}>
-      <Button variant="ghost" size="sm" asChild className="-ml-2 mb-2">
-        <BackLink href={backHref}>
-          <ChevronLeft className="mr-1 h-4 w-4 shrink-0" aria-hidden="true" />
-          Back
-        </BackLink>
-      </Button>
-      <h1 className="text-balance text-2xl font-semibold">New match</h1>
+      {/* The round Back of every screen, and the page's heading, as the
+          other create forms (F3, F6). */}
+      <ScreenBar backHref={backHref} title="New match" />
       {context && (
-        <p className="mt-1 text-sm text-muted-foreground">For {context}</p>
+        <p className="mt-2 text-center text-sm text-muted-foreground">
+          For {context}
+        </p>
       )}
 
       <form onSubmit={submit} className="mt-5 space-y-4" noValidate>
