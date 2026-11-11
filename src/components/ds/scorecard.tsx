@@ -309,7 +309,11 @@ function BattingTotals({
           scope="row"
           className={cn(cell, "font-sans font-normal text-muted-foreground")}
         >
-          Extras <span className="text-xs">{extras.detail}</span>
+          Extras{" "}
+          {/* Each "nb 2" kept whole, the lines balanced (M12). */}
+          <span className="text-balance text-xs">
+            {extras.detail.replace(/([a-z]+) (\d+)/g, "$1\u00a0$2")}
+          </span>
         </th>
         <td className={cn(cell, "font-semibold text-foreground")}>
           {extras.total}
