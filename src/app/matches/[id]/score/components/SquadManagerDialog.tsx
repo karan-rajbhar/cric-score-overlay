@@ -1,7 +1,7 @@
 "use client";
 
 import { useContext, useMemo, useState } from "react";
-import { Loader2, Search, Trash2, UserPlus, Users } from "lucide-react";
+import { Loader2, Search, UserPlus, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "~/components/ui/button";
 import {
@@ -213,20 +213,21 @@ function SquadPanel({
           </span>
         )}
         {removable && (
+          // The word, not a bare bin: what it takes them out of (the
+          // team, not only this match) is said in the confirm (S10).
           <Button
             type="button"
             variant="ghost"
-            size="icon"
-            className="h-10 w-10 shrink-0 text-muted-foreground hover:text-destructive"
+            size="sm"
+            className="min-h-11 shrink-0 px-3 text-muted-foreground hover:text-destructive"
             aria-label={`Remove ${name} from ${team.name}`}
-            title={`Remove from ${team.name}`}
             disabled={busyId === p.user_id || isProcessing || isOffline}
             onClick={() => setRemoving({ userId: p.user_id, name })}
           >
             {busyId === p.user_id ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <Trash2 className="h-4 w-4" />
+              "Remove"
             )}
           </Button>
         )}
