@@ -22,7 +22,8 @@ function CarouselDots({
           onClick={() => onSelect(i)}
           aria-label={`Show ${i + 1} of ${count}`}
           aria-current={i === index ? "true" : undefined}
-          className="flex h-6 items-center px-0.5"
+          // A 44px-wide target around each dot (N16).
+          className="flex h-6 min-w-11 items-center justify-center"
         >
           <span
             className={cn(

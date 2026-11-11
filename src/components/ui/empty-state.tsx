@@ -54,7 +54,6 @@ export function EmptyState({
             (primaryAction.href ? (
               <Button
                 asChild
-                size="sm"
                 variant={primaryAction.variant ?? "default"}
                 className="gap-1.5"
               >
@@ -67,7 +66,6 @@ export function EmptyState({
               </Button>
             ) : (
               <Button
-                size="sm"
                 variant={primaryAction.variant ?? "default"}
                 onClick={primaryAction.onClick}
                 className="gap-1.5"
@@ -83,7 +81,6 @@ export function EmptyState({
             (secondaryAction.href ? (
               <Button
                 asChild
-                size="sm"
                 variant={secondaryAction.variant ?? "outline"}
                 className="gap-1.5"
               >
@@ -96,7 +93,6 @@ export function EmptyState({
               </Button>
             ) : (
               <Button
-                size="sm"
                 variant={secondaryAction.variant ?? "outline"}
                 onClick={secondaryAction.onClick}
                 className="gap-1.5"

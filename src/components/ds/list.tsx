@@ -32,7 +32,7 @@ export function SectionHeader({
       {href && (
         <Link
           href={href}
-          className="inline-flex shrink-0 items-center gap-0.5 rounded-full text-sm font-medium text-muted-foreground hover:text-foreground"
+          className="-my-3 inline-flex min-h-11 shrink-0 items-center gap-0.5 rounded-full text-sm font-medium text-muted-foreground hover:text-foreground"
         >
           {actionLabel}
           <ChevronRight className="h-4 w-4" aria-hidden="true" />
