@@ -14,6 +14,7 @@ import {
 import { Alert, AlertDescription } from "~/components/ui/alert";
 import { AlertCircle } from "lucide-react";
 import { BrandMark, BrandWordmark } from "~/components/brand";
+import { placeName } from "~/lib/sign-in";
 
 /**
  * Where to go after sign-in: the target's path, query and hash when it
@@ -45,6 +46,11 @@ function LoginPageInner() {
   const displayError = error ?? redirectError?.message ?? null;
   // Popup in progress, or back from Google's page and finishing (N3).
   const busy = googleLoading || signingIn;
+
+  // Where signing in leads back to, named when it has a short name (N31).
+  const returnTo = placeName(
+    searchParams.get("redirect") ?? searchParams.get("next") ?? "",
+  );
 
   // Invite links carry the invited email so Google suggests that account.
   const inviteEmail = (() => {
@@ -95,7 +101,7 @@ function LoginPageInner() {
             <BrandWordmark />
           </Link>
           <h1 className="text-balance text-2xl font-semibold tracking-tight">
-            Sign in to CricScore
+            {returnTo ? `Sign in to continue to ${returnTo}` : "Sign in to CricScore"}
           </h1>
           <p className="text-sm text-muted-foreground">
             CricScore is invite-only. Anyone can follow matches from a shared

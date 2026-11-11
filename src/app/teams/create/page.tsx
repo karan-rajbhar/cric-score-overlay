@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import Link from "next/link";
+import { SignInRequired } from "~/components/ui/sign-in-required";
 import { unstable_rethrow, useSearchParams } from "next/navigation";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardDescription } from "~/components/ui/card";
@@ -20,7 +20,7 @@ import { useFieldErrors } from "~/lib/hooks/useFieldErrors";
 import { createTeam } from "../actions";
 import { useAuth } from "~/lib/auth";
 import { useUserManagedClubsQuery } from "~/lib/hooks/useMatchQueries";
-import { ChevronDown, Loader2, Users, Shield } from "lucide-react";
+import { ChevronDown, Loader2, Shield } from "lucide-react";
 import { TeamColourPicker } from "~/components/teams/team-colour-picker";
 import { isTeamColor } from "~/lib/team-colors";
 import { cn } from "~/lib/utils";
@@ -320,20 +320,10 @@ export default function CreateTeamPage() {
 
   if (!user) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Card className="mx-4 w-full max-w-md">
-          <CardContent className="p-6 text-center">
-            <Users className="mx-auto mb-3 h-10 w-10 text-muted-foreground/50" />
-            <h2 className="mb-1 text-lg font-semibold">Sign in required</h2>
-            <p className="mb-4 text-sm text-muted-foreground">
-              You must be signed in to create and manage teams.
-            </p>
-            <Button asChild>
-              <Link href="/auth/login?redirect=/teams/create">Sign in</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+      <SignInRequired
+        title="Sign in to create a team"
+        allows="A team keeps its squad, so its players are ready for every match."
+      />
     );
   }
 

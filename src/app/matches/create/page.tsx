@@ -1,9 +1,9 @@
 "use client";
 
 import { BackLink } from "~/components/ds/back-link";
+import { SignInRequired } from "~/components/ui/sign-in-required";
 import { useId, useMemo, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, ChevronDown, ChevronLeft, Loader2, RotateCcw } from "lucide-react";
 import { Button } from "~/components/ui/button";
@@ -912,19 +912,10 @@ function CreateMatchGate() {
   }
   if (!user) {
     return (
-      <div className="flex min-h-[50vh] items-center justify-center">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-6 text-center">
-            <h1 className="mb-2 text-xl font-semibold">Sign in required</h1>
-            <p className="mb-4 text-muted-foreground">
-              Sign in to create and score a match.
-            </p>
-            <Button asChild>
-              <Link href="/auth/login?redirect=/matches/create">Sign in</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+      <SignInRequired
+        title="Sign in to start a match"
+        allows="Start a match to score it ball by ball and share it live."
+      />
     );
   }
   return <MatchSetupForm userId={user.id} />;

@@ -72,3 +72,25 @@ describe("the sign-in page and its URL (N8)", () => {
     auth.user = { id: "u1" };
   });
 });
+
+describe("the sign-in page names where it goes back to (N31)", () => {
+  it("says it continues to the page that sent the person here", () => {
+    auth.user = null;
+    params.value = new URLSearchParams("redirect=/matches/create?clubId=c1");
+    render(<LoginPage />);
+    expect(
+      screen.getByRole("heading", { name: "Sign in to continue to New match" }),
+    ).toBeInTheDocument();
+    auth.user = { id: "u1" };
+  });
+
+  it("keeps its own title with nowhere to go back to", () => {
+    auth.user = null;
+    params.value = new URLSearchParams("");
+    render(<LoginPage />);
+    expect(
+      screen.getByRole("heading", { name: "Sign in to CricScore" }),
+    ).toBeInTheDocument();
+    auth.user = { id: "u1" };
+  });
+});

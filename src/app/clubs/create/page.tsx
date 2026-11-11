@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import { SignInRequired } from "~/components/ui/sign-in-required";
 import { unstable_rethrow } from "next/navigation";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
@@ -38,19 +38,10 @@ export default function CreateClubPage() {
 
   if (!user) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Card className="mx-4 w-full max-w-md">
-          <CardContent className="p-6 text-center">
-            <h1 className="mb-2 text-lg font-semibold">Sign in required</h1>
-            <p className="mb-4 text-sm text-muted-foreground">
-              Sign in to create a club.
-            </p>
-            <Button asChild>
-              <Link href="/auth/login?redirect=/clubs/create">Sign in</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+      <SignInRequired
+        title="Sign in to create a club"
+        allows="A club keeps its teams, members, matches and statistics together."
+      />
     );
   }
 

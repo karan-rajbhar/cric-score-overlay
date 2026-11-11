@@ -7,6 +7,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({
     push: mockPush,
   }),
+  usePathname: () => window.location.pathname,
 }));
 
 const mockUseAuth = vi.fn();
@@ -52,6 +53,7 @@ describe("NavigationBar Component", () => {
   });
 
   it("renders Brand and unauthenticated buttons when user is logged out", () => {
+    window.history.replaceState(null, "", "/matches/m1?tab=scorecard");
     mockUseAuth.mockReturnValue({
       user: null,
       loading: false,
@@ -61,7 +63,11 @@ describe("NavigationBar Component", () => {
     render(<NavigationBar />);
 
     expect(screen.getByText("CricScore")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /sign in/i })).toBeInTheDocument();
+    // Signing in comes back to the page on screen (N31).
+    expect(screen.getByRole("link", { name: /sign in/i })).toHaveAttribute(
+      "href",
+      `/auth/login?redirect=${encodeURIComponent("/matches/m1?tab=scorecard")}`,
+    );
     // Invite-only: there is no sign-up link.
     expect(screen.queryByRole("link", { name: /get started|join/i })).not.toBeInTheDocument();
   });

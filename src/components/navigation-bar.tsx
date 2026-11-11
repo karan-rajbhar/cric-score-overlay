@@ -40,6 +40,7 @@ import {
   useSidebarStore,
 } from "~/lib/stores/useSidebarStore";
 import { useSignOut, useUsername } from "~/lib/hooks/useAccount";
+import { useSignInHref } from "~/lib/sign-in";
 
 export function NavigationBar() {
   const { user, loading } = useAuth();
@@ -48,6 +49,7 @@ export function NavigationBar() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const username = useUsername();
+  const signInHref = useSignInHref();
   const sidebar = useSidebarStore();
   const { toggleCollapsed } = sidebar;
   const sidebarOpen = useSidebarExpanded(sidebarModeOf(sidebar));
@@ -307,7 +309,8 @@ export function NavigationBar() {
                 variant="ghost"
                 size="sm"
               >
-                <Link href="/auth/login">Sign in</Link>
+                {/* Comes back to this page after signing in (N31). */}
+                <Link href={signInHref}>Sign in</Link>
               </Button>
             </div>
           )}

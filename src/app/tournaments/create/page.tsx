@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import Link from "next/link";
+import { SignInRequired } from "~/components/ui/sign-in-required";
 import { unstable_rethrow, useSearchParams } from "next/navigation";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
@@ -315,21 +315,10 @@ export default function CreateTournamentPage() {
 
   if (!user) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Card className="mx-4 w-full max-w-md">
-          <CardContent className="p-6 text-center">
-            <h1 className="mb-2 text-lg font-semibold">Sign in required</h1>
-            <p className="mb-4 text-sm text-muted-foreground">
-              Sign in to create a tournament.
-            </p>
-            <Button asChild>
-              <Link href="/auth/login?redirect=/tournaments/create">
-                Sign in
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+      <SignInRequired
+        title="Sign in to create a tournament"
+        allows="A tournament schedules its fixtures and keeps the points table."
+      />
     );
   }
 
