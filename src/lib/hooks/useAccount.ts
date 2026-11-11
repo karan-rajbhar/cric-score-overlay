@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { useConfirm } from "~/components/ui/confirm-dialog";
 import { useAuth } from "~/lib/auth";
 import { createClient } from "~/lib/firebase/client";
 import { getTotalPendingCount } from "~/lib/offline-queue";
@@ -40,24 +41,32 @@ export function useUsername(): string | null {
 
 /**
  * Sign out, after a warning when scoring actions have not reached the
- * server (they stay on the device).
+ * server (they stay on the device). The warning is the app's own dialog
+ * (N37): render `dialog` where the sign-out button is.
  */
 export function useSignOut(): {
   signOut: () => Promise<void>;
   pending: boolean;
+  dialog: ReactNode;
 } {
   const { signOut } = useAuth();
   const [pending, setPending] = useState(false);
+  const [ask, dialog] = useConfirm();
   const run = async () => {
     if (pending) return;
     const unsent = getTotalPendingCount();
-    if (
-      unsent > 0 &&
-      !window.confirm(
-        `${unsent} scoring ${unsent === 1 ? "change has" : "changes have"} not reached the server yet. Reconnect and open the match to send ${unsent === 1 ? "it" : "them"} first. Sign out anyway? ${unsent === 1 ? "It stays" : "They stay"} on this device.`,
-      )
-    ) {
-      return;
+    if (unsent > 0) {
+      // After a menu that held the button has let go of the focus.
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+      const one = unsent === 1;
+      const ok = await ask({
+        title: `${unsent} scoring ${one ? "change has" : "changes have"} not been sent`,
+        description: `${one ? "It stays" : "They stay"} on this device. Reconnect and open the match to send ${one ? "it" : "them"} before you sign out.`,
+        cancelLabel: "Stay signed in",
+        confirmLabel: "Sign out anyway",
+        destructive: true,
+      });
+      if (!ok) return;
     }
     try {
       setPending(true);
@@ -67,5 +76,5 @@ export function useSignOut(): {
       window.location.reload();
     }
   };
-  return { signOut: run, pending };
+  return { signOut: run, pending, dialog };
 }

@@ -45,7 +45,11 @@ import { useSignInHref } from "~/lib/sign-in";
 export function NavigationBar() {
   const { user, loading } = useAuth();
   const router = useRouter();
-  const { signOut: handleSignOut, pending: signOutLoading } = useSignOut();
+  const {
+    signOut: handleSignOut,
+    pending: signOutLoading,
+    dialog: signOutDialog,
+  } = useSignOut();
   const [inviteOpen, setInviteOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const username = useUsername();
@@ -316,6 +320,7 @@ export function NavigationBar() {
           )}
         </div>
       </div>
+      {signOutDialog}
     </header>
   );
 }

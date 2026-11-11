@@ -170,9 +170,10 @@ export function SettingsSection() {
     () => true,
     () => false,
   );
-  const { signOut, pending } = useSignOut();
+  const { signOut, pending, dialog: signOutDialog } = useSignOut();
   return (
     <section className="space-y-3">
+      {signOutDialog}
       <SectionHeader title="Settings" />
       {user && <NotificationSettings />}
       <div className="space-y-2">

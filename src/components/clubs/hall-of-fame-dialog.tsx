@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useConfirm } from "~/components/ui/confirm-dialog";
 import {
   Dialog,
   DialogContent,
@@ -206,11 +207,19 @@ export function RemoveHallOfFameButton({
   playerName: string;
 }) {
   const [loading, setLoading] = useState(false);
+  const [ask, confirmDialog] = useConfirm();
 
   const handleRemove = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!confirm(`Remove ${playerName} from the Club Hall of Fame?`)) return;
+    const ok = await ask({
+      title: `Remove ${playerName} from the hall of fame?`,
+      description: "Their records stay; only the hall of fame entry goes.",
+      cancelLabel: "Keep",
+      confirmLabel: "Remove",
+      destructive: true,
+    });
+    if (!ok) return;
 
     setLoading(true);
     try {
@@ -229,6 +238,8 @@ export function RemoveHallOfFameButton({
   };
 
   return (
+    <>
+    {confirmDialog}
     <Button
       variant="ghost"
       size="icon"
@@ -243,6 +254,7 @@ export function RemoveHallOfFameButton({
         <Trash2 className="h-3.5 w-3.5" />
       )}
     </Button>
+    </>
   );
 }
 
