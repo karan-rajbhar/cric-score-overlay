@@ -458,7 +458,9 @@ export function PlayerActivityTabs({
                     <TableHead className="text-center">6s</TableHead>
                     <TableHead className="min-w-[180px]">Dismissal</TableHead>
                     <TableHead className="min-w-[180px]">Result</TableHead>
-                    <TableHead className="w-[80px] text-right"></TableHead>
+                    <TableHead className="w-[80px] text-right">
+                      <span className="sr-only">Scorecard</span>
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -604,7 +606,9 @@ export function PlayerActivityTabs({
                       Extras (wd/nb)
                     </TableHead>
                     <TableHead className="min-w-[180px]">Result</TableHead>
-                    <TableHead className="w-[80px] text-right"></TableHead>
+                    <TableHead className="w-[80px] text-right">
+                      <span className="sr-only">Scorecard</span>
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

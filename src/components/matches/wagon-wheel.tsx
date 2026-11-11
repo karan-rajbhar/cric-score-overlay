@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useId, useMemo, useState } from "react";
 import {
   Card,
   CardContent,
@@ -62,6 +62,7 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
     return active?.id ?? inningsList[0]?.id ?? "";
   }, [inningsList, match.current_innings]);
 
+  const filterId = useId();
   const [selectedInningsId, setSelectedInningsId] = useState<string>(defaultInningsId);
   const [selectedBatterId, setSelectedBatterId] = useState<string>("all");
   const [selectedSectorId, setSelectedSectorId] = useState<string | null>(null);
@@ -683,8 +684,11 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
         {/* Filters: innings and batter */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
           <div>
-            <label className="text-xs font-semibold text-muted-foreground mb-1 block">
-              Team
+            <label
+              id={`${filterId}-innings`}
+              className="text-xs font-semibold text-muted-foreground mb-1 block"
+            >
+              Innings
             </label>
             <Select
               value={selectedInningsId}
@@ -693,8 +697,11 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
                 setSelectedBatterId("all");
               }}
             >
-              <SelectTrigger className="h-10 w-full bg-background text-xs sm:text-sm">
-                <SelectValue placeholder="Team" />
+              <SelectTrigger
+                aria-labelledby={`${filterId}-innings`}
+                className="h-10 w-full bg-background text-xs sm:text-sm"
+              >
+                <SelectValue placeholder="Innings" />
               </SelectTrigger>
               <SelectContent>
                 {inningsList.map((inn) => (
@@ -711,15 +718,24 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-muted-foreground mb-1 block">
-              Batsman
+            <label
+              id={`${filterId}-batter`}
+              className="text-xs font-semibold text-muted-foreground mb-1 block"
+            >
+              Batter
             </label>
             <Select
               value={selectedBatterId}
               onValueChange={setSelectedBatterId}
             >
-              <SelectTrigger className="h-10 w-full bg-background text-xs sm:text-sm">
-                <Users className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
+              <SelectTrigger
+                aria-labelledby={`${filterId}-batter`}
+                className="h-10 w-full bg-background text-xs sm:text-sm"
+              >
+                <Users
+                  className="mr-1.5 h-3.5 w-3.5 text-muted-foreground"
+                  aria-hidden="true"
+                />
                 <SelectValue placeholder="All players" />
               </SelectTrigger>
               <SelectContent>
