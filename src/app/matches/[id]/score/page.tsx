@@ -474,6 +474,8 @@ function useScoringScreen() {
   );
   const [showEditBallDialog, setShowEditBallDialog] = useState(false);
   const [showMatchSettingsDialog, setShowMatchSettingsDialog] = useState(false);
+  /** The End innings confirm, from Match tools or the scoreboard (S13). */
+  const [showEndInnings, setShowEndInnings] = useState(false);
   const [showPenaltyBonusDialog, setShowPenaltyBonusDialog] = useState(false);
   /** The end the batsmen dialog changes (null: the first empty one). */
   const [batsmenFocus, setBatsmenFocus] = useState<
@@ -1293,6 +1295,8 @@ function useScoringScreen() {
     setShowEditBallDialog,
     setShowInviteDialog,
     setShowMatchSettingsDialog,
+    showEndInnings,
+    setShowEndInnings,
     setShowPenaltyBonusDialog,
     setShowPotmDialog,
     setShowReviseTargetDialog,
@@ -1428,12 +1432,13 @@ function HeaderIndicators({ s }: { s: LoadedScreen }) {
       {/* Awake indicator */}
       {isScreenAwake && (
         <Chip
-          title="Screen wake lock active to prevent display timeout"
+          title="The screen will not dim or lock while you score"
           tone="outline"
           size="sm"
           className="hidden text-muted-foreground sm:inline-flex"
         >
-          Awake
+          {/* Says what it means, not "Awake" (S13). */}
+          Screen stays on
         </Chip>
       )}
 
@@ -1459,6 +1464,8 @@ function MatchToolsMenu({ s }: { s: LoadedScreen }) {
     sunlightMode,
     isScorer,
     setShowMatchSettingsDialog,
+    setShowEndInnings,
+    isInningsComplete,
     match,
     isChase,
     setShowReviseTargetDialog,
@@ -1516,6 +1523,18 @@ function MatchToolsMenu({ s }: { s: LoadedScreen }) {
           </Button>
         }
         groups={[
+          // First: the screen is scored outdoors, and this is what helps
+          // in bright light (S13), not three groups down.
+          {
+            items: [
+              {
+                key: "sunlight",
+                label: `Sunlight mode: ${sunlightMode ? "On" : "Off"}`,
+                icon: Sun,
+                onSelect: toggleSunlightMode,
+              },
+            ],
+          },
           {
             label: "This match",
             items: [
@@ -1572,6 +1591,15 @@ function MatchToolsMenu({ s }: { s: LoadedScreen }) {
                   label: "Penalty / bonus runs",
                   icon: ShieldAlert,
                   onSelect: () => setShowPenaltyBonusDialog(true),
+                },
+              // Always here; the scoreboard shows it only near the end (S13).
+              live &&
+                isScorer &&
+                !isInningsComplete && {
+                  key: "end-innings",
+                  label: "End innings",
+                  icon: Flag,
+                  onSelect: () => setShowEndInnings(true),
                 },
               live &&
                 isScorer && {
@@ -1650,12 +1678,6 @@ function MatchToolsMenu({ s }: { s: LoadedScreen }) {
                 label: `Voice announcements: ${voiceAnnouncements ? "On" : "Off"}`,
                 icon: Volume2,
                 onSelect: toggleVoiceAnnouncements,
-              },
-              {
-                key: "sunlight",
-                label: `Sunlight mode: ${sunlightMode ? "On" : "Off"}`,
-                icon: Sun,
-                onSelect: toggleSunlightMode,
               },
               {
                 key: "shortcuts",
@@ -2107,6 +2129,8 @@ function Scoreboard({ s }: { s: LoadedScreen }) {
             ? () => void handleEndInnings()
             : undefined
         }
+        endInningsOpen={s.showEndInnings}
+        onEndInningsOpenChange={s.setShowEndInnings}
         isProcessing={isProcessing}
         striker={strikerDisplay}
         nonStriker={nonStrikerDisplay}

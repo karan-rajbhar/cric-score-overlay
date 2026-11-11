@@ -62,6 +62,9 @@ export interface LiveMatchHUDProps {
   rawDeliveries?: DeliveryToEdit[];
   battingTeamName?: string;
   onEndInnings?: () => void;
+  /** The End innings confirm, when the page also opens it (Match tools). */
+  endInningsOpen?: boolean;
+  onEndInningsOpenChange?: (open: boolean) => void;
   isProcessing?: boolean;
   onSwapStriker?: () => void;
   onChangeStriker?: () => void;
@@ -85,6 +88,8 @@ export function LiveMatchHUD({
   rawDeliveries = [],
   battingTeamName,
   onEndInnings,
+  endInningsOpen,
+  onEndInningsOpenChange,
   isProcessing = false,
   onSwapStriker,
   onChangeStriker,
@@ -126,6 +131,7 @@ export function LiveMatchHUD({
   const currentRuns = currentInnings?.total_runs ?? 0;
   const currentWickets = currentInnings?.total_wickets ?? 0;
   const wicketsInHand = Math.max(0, wicketsLimit - currentWickets);
+  const endInningsDue = ballsRem <= bpo || wicketsInHand <= 1;
 
   const runsNeeded = useMemo(() => {
     if (targetRuns == null || !isSecondInnings) return null;
@@ -200,7 +206,9 @@ export function LiveMatchHUD({
 
   // Ending an innings early can't be undone from the keypad, so it goes
   // through a confirmation dialog that can be cancelled.
-  const [confirmEndOpen, setConfirmEndOpen] = useState(false);
+  const [ownEndOpen, setOwnEndOpen] = useState(false);
+  const confirmEndOpen = endInningsOpen ?? ownEndOpen;
+  const setConfirmEndOpen = onEndInningsOpenChange ?? setOwnEndOpen;
   const confirmEndInnings = () => {
     setConfirmEndOpen(false);
     onEndInnings?.();
@@ -341,6 +349,10 @@ export function LiveMatchHUD({
 
               {onEndInnings && (
                 <div className="flex shrink-0 items-center gap-1.5">
+                  {/* Beside the score only near the innings' end (last
+                      over, one wicket left); Match tools has it always
+                      (S13). */}
+                  {endInningsDue && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -355,6 +367,7 @@ export function LiveMatchHUD({
                   >
                     End innings
                   </Button>
+                  )}
                   <Dialog
                     open={confirmEndOpen}
                     onOpenChange={setConfirmEndOpen}

@@ -507,7 +507,15 @@ export function BatsmenDialog({
                     ? "Choose striker"
                     : "Choose non-striker"
               }
-              rows={pickable}
+              // The opener picked for the other end is marked too, so both
+              // choices show in the list, not only this slot's (S13).
+              rows={pickable.map((r) => {
+                const other =
+                  pickingFor === "striker" ? draft.nonStriker : draft.striker;
+                if (survivor || r.id !== other) return r;
+                const mark = pickingFor === "striker" ? "Non-striker" : "Striker";
+                return { ...r, tag: r.tag ? `${r.tag} · ${mark}` : mark };
+              })}
               selectedId={
                 pickingFor === "striker" ? draft.striker : draft.nonStriker
               }
