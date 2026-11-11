@@ -162,7 +162,7 @@ export function EditUsernameDialog({
                   value={inputVal}
                   onChange={(e) => setInputVal(e.target.value)}
                   placeholder="your_handle"
-                  className="pl-8 font-mono text-sm tracking-wide form-input"
+                  className="pl-8 font-mono tracking-wide form-input sm:text-sm"
                   aria-invalid={availability && !availability.available ? "true" : "false"}
                   aria-describedby="username-feedback"
                   required

@@ -227,7 +227,7 @@ export function PenaltyBonusDialog({
                   max={50}
                   value={runs}
                   onChange={(e) => setRuns(Number(e.target.value))}
-                  className="h-11 w-20 text-sm font-semibold tabular-nums"
+                  className="h-11 w-20 font-semibold tabular-nums"
                   required
                 />
                 <div className="flex flex-wrap gap-1">
@@ -277,7 +277,7 @@ export function PenaltyBonusDialog({
                   value={customReason}
                   onChange={(e) => setCustomReason(e.target.value)}
                   placeholder="Enter details"
-                  className="h-11 text-xs"
+                  className="h-11"
                   required
                 />
               </div>

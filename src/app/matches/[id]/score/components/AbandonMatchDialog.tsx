@@ -184,7 +184,6 @@ export function AbandonMatchDialog({
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="e.g. Match halted at 7.2 overs due to thunderstorm..."
-                className="text-xs"
                 rows={3}
               />
             </div>
