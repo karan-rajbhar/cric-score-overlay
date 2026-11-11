@@ -110,12 +110,12 @@ export function EditUsernameDialog({
     startTransition(async () => {
       const res = await updateUsername(cleaned);
       if (res.success && res.username) {
-        toast.success(`Your handle is now @${res.username}`);
+        toast.success(`Your username is now @${res.username}`);
         setOpen(false);
         onSuccess?.(res.username);
         router.refresh();
       } else {
-        toast.error(res.error || "Failed to update handle");
+        toast.error(res.error || "Could not change your username");
       }
     });
   };
@@ -124,20 +124,17 @@ export function EditUsernameDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         {trigger ?? (
-          <Button
-            variant="outline"
-            size="sm"
-            className="font-mono"
-          >
-            <AtSign className="h-3.5 w-3.5 text-primary" />
-            <span>Edit handle</span>
+          <Button variant="outline" size="sm">
+            <AtSign className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>Change username</span>
           </Button>
         )}
       </DialogTrigger>
       <DialogContent className="max-w-md">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle className="text-lg">Choose a username</DialogTitle>
+            {/* One name for it everywhere, "username" (P9). */}
+            <DialogTitle className="text-lg">Change username</DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
               Your @username appears on your profile, teams and scorecards.
             </DialogDescription>
@@ -146,10 +143,10 @@ export function EditUsernameDialog({
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="username-input" className="text-xs font-semibold">
-                Username handle
+                Username
               </Label>
               <div className="relative flex items-center">
-                <span className="absolute left-3 font-mono text-sm font-semibold text-muted-foreground select-none">
+                <span className="absolute left-3 text-sm font-semibold text-muted-foreground select-none">
                   @
                 </span>
                 <Input
@@ -161,8 +158,8 @@ export function EditUsernameDialog({
                   maxLength={30}
                   value={inputVal}
                   onChange={(e) => setInputVal(e.target.value)}
-                  placeholder="your_handle"
-                  className="pl-8 font-mono tracking-wide form-input sm:text-sm"
+                  placeholder="your_name"
+                  className="pl-8 form-input sm:text-sm"
                   aria-invalid={availability && !availability.available ? "true" : "false"}
                   aria-describedby="username-feedback"
                   required
@@ -187,12 +184,12 @@ export function EditUsernameDialog({
                 )}
                 {!isChecking && isUnchanged && (
                   <p className="text-muted-foreground">
-                    This is your current handle (@{currentUsername}).
+                    This is your username now (@{currentUsername}).
                   </p>
                 )}
                 {!isChecking && availability?.available && !isUnchanged && (
                   <p className="font-medium text-success">
-                    ✓ @{cleaned} is available!
+                    @{cleaned} is free
                   </p>
                 )}
                 {!isChecking && availability && !availability.available && (
@@ -205,12 +202,12 @@ export function EditUsernameDialog({
 
             {/* Platform Rules Hint */}
             <div className="rounded-lg bg-muted/40 p-3 text-xs text-muted-foreground space-y-1">
-              <p className="font-semibold text-foreground">Handle Rules:</p>
+              <p className="font-semibold text-foreground">A username</p>
               <ul className="list-disc pl-4 space-y-0.5">
-                <li>3 to 30 characters long</li>
-                <li>Letters, numbers, and underscores only</li>
-                <li>Cannot start or end with an underscore</li>
-                <li>Globally unique across the cricket platform</li>
+                <li>has 3 to 30 characters</li>
+                <li>uses letters, numbers and underscores</li>
+                <li>does not start or end with an underscore</li>
+                <li>is yours alone: nobody else can have it</li>
               </ul>
             </div>
           </div>
@@ -231,7 +228,7 @@ export function EditUsernameDialog({
                   Saving…
                 </>
               ) : (
-                "Save Handle"
+                "Save username"
               )}
             </Button>
           </DialogFooter>
