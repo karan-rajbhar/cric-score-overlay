@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import dynamic from "next/dynamic";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   CalendarClock,
@@ -16,13 +15,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import { Button } from "~/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "~/components/ui/dropdown-menu";
+import { ActionMenu } from "~/components/ds/action-menu";
 import { useAuth } from "~/lib/auth";
 import {
   useCanDeleteMatchQuery,
@@ -139,8 +132,10 @@ export function MatchMoreMenu({
 
   return (
     <>
-      <DropdownMenu onOpenChange={setMenuOpen}>
-        <DropdownMenuTrigger asChild>
+      <ActionMenu
+        title={match.title ?? "Match"}
+        onOpenChange={setMenuOpen}
+        trigger={
           <Button
             variant="ghost"
             size="sm"
@@ -150,96 +145,70 @@ export function MatchMoreMenu({
           >
             <MoreHorizontal className="h-4 w-4" />
           </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-52">
-          {canStream && (
-            <DropdownMenuItem asChild>
-              <Link
-                href={`/matches/${match.id}/stream`}
-                className="flex cursor-pointer items-center gap-2"
-              >
-                <Tv className="h-4 w-4" />
-                <span>Stream this match</span>
-              </Link>
-            </DropdownMenuItem>
-          )}
-          {isAdmin === true && !ended && (
-            <DropdownMenuItem
-              onSelect={() => setShowScorers(true)}
-              className="flex cursor-pointer items-center gap-2"
-            >
-              <UserPlus className="h-4 w-4" aria-hidden="true" />
-              <span>Invite scorers</span>
-            </DropdownMenuItem>
-          )}
-          {isAdmin === true && (
-            <DropdownMenuItem asChild>
-              {/* The team sheet, where any player can be replaced. */}
-              <Link
-                href={`/matches/${match.id}/players`}
-                className="flex cursor-pointer items-center gap-2"
-              >
-                <UserCog className="h-4 w-4" aria-hidden="true" />
-                <span>Replace a player</span>
-              </Link>
-            </DropdownMenuItem>
-          )}
-          {canSetClub && (
-            <DropdownMenuItem
-              onSelect={() => setShowClub(true)}
-              className="flex cursor-pointer items-center gap-2"
-            >
-              <Shield className="h-4 w-4" aria-hidden="true" />
-              <span>{match.club_id ? "Change club" : "Add to club"}</span>
-            </DropdownMenuItem>
-          )}
-          {dls && (
-            <DropdownMenuItem
-              onSelect={() => setShowDls(true)}
-              className="flex cursor-pointer items-center gap-2"
-            >
-              <CloudRain className="h-4 w-4" />
-              <span>DLS calculator</span>
-            </DropdownMenuItem>
-          )}
-          {dlsMatch && canDownload && (
-            <DropdownMenuItem
-              // Loaded on demand: the Cricsheet builder and the export
-              // query are needed by few.
-              onSelect={() =>
-                void import("./cricsheet-export").then((m) =>
-                  m.exportCricsheet(dlsMatch),
-                )
-              }
-              className="flex cursor-pointer items-center gap-2"
-            >
-              <FileJson className="h-4 w-4" aria-hidden="true" />
-              <span>Download ball-by-ball data (Cricsheet)</span>
-            </DropdownMenuItem>
-          )}
-          {canDelete && (
-            <>
-              <DropdownMenuSeparator />
-              {canReschedule && (
-                <DropdownMenuItem
-                  onSelect={() => setShowReschedule(true)}
-                  className="flex cursor-pointer items-center gap-2"
-                >
-                  <CalendarClock className="h-4 w-4" />
-                  <span>Reschedule</span>
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuItem
-                onSelect={() => setShowDelete(true)}
-                className="flex cursor-pointer items-center gap-2 text-destructive focus:bg-destructive/10 focus:text-destructive"
-              >
-                <Trash2 className="h-4 w-4" />
-                <span>Delete match</span>
-              </DropdownMenuItem>
-            </>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+        }
+        groups={[
+          {
+            items: [
+              canStream && {
+                key: "stream",
+                label: "Stream this match",
+                icon: Tv,
+                href: `/matches/${match.id}/stream`,
+              },
+              isAdmin === true &&
+                !ended && {
+                  key: "scorers",
+                  label: "Invite scorers",
+                  icon: UserPlus,
+                  onSelect: () => setShowScorers(true),
+                },
+              // The team sheet, where any player can be replaced.
+              isAdmin === true && {
+                key: "replace",
+                label: "Replace a player",
+                icon: UserCog,
+                href: `/matches/${match.id}/players`,
+              },
+              canSetClub && {
+                key: "club",
+                label: match.club_id ? "Change club" : "Add to club",
+                icon: Shield,
+                onSelect: () => setShowClub(true),
+              },
+              dls && {
+                key: "dls",
+                label: "DLS calculator",
+                icon: CloudRain,
+                onSelect: () => setShowDls(true),
+              },
+              Boolean(dlsMatch && canDownload) && {
+                key: "cricsheet",
+                label: "Download ball-by-ball data (Cricsheet)",
+                icon: FileJson,
+                // Loaded on demand: the Cricsheet builder and the export
+                // query are needed by few.
+                onSelect: () =>
+                  void import("./cricsheet-export").then((m) =>
+                    m.exportCricsheet(dlsMatch!),
+                  ),
+              },
+              canReschedule && {
+                key: "reschedule",
+                label: "Reschedule",
+                icon: CalendarClock,
+                onSelect: () => setShowReschedule(true),
+              },
+              canDelete === true && {
+                key: "delete",
+                label: "Delete match",
+                icon: Trash2,
+                destructive: true,
+                onSelect: () => setShowDelete(true),
+              },
+            ],
+          },
+        ]}
+      />
       {showScorers && (
         <MatchScorersDialog
           matchId={match.id}

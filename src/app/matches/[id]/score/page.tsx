@@ -19,6 +19,7 @@ import type {
   DeliveryToEdit,
 } from "./components/EditBallDialog";
 import { ConfirmDialog } from "~/components/ui/confirm-dialog";
+import { ActionMenu } from "~/components/ds/action-menu";
 import { freeHitsOn, nextIsFreeHit } from "~/lib/free-hit";
 import { describeQueuedAction } from "./describe-action";
 import { overBowlingOf } from "~/lib/firebase/scoring/ball-docs";
@@ -176,14 +177,6 @@ import {
   updateTargetRuns,
 } from "../../mutations";
 import type { ExtraType, NoBallRuns } from "../../types";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "~/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import {
   ChevronLeft,
@@ -200,7 +193,7 @@ import {
   Play,
   SlidersHorizontal,
   Sun,
-  MoreVertical,
+  MoreHorizontal,
   CloudRain,
   WifiOff,
   RefreshCw,
@@ -216,7 +209,6 @@ import {
   Share2,
   MessageCircle,
   Trash2,
-  Pencil,
   Flag,
 } from "lucide-react";
 import {
@@ -1470,9 +1462,7 @@ function MatchToolsMenu({ s }: { s: LoadedScreen }) {
     setRetireTarget,
     nonStrikerDisplay,
     setShowPenaltyBonusDialog,
-    setShowAddPlayerDialog,
     user,
-    matchShare,
     setShowInviteDialog,
     toggleWagonWheelPrompt,
     wagonWheelPrompt,
@@ -1482,7 +1472,6 @@ function MatchToolsMenu({ s }: { s: LoadedScreen }) {
     setShowShortcuts,
     canDeleteMatch,
     setShowDeleteMatchDialog,
-    setShowEarlierBalls,
     setShowAbandonMatchDialog,
     actionsMenuOpen,
     showClubDialog,
@@ -1494,11 +1483,18 @@ function MatchToolsMenu({ s }: { s: LoadedScreen }) {
     isScorer,
     actionsMenuOpen || showClubDialog,
   );
+  const [showDls, setShowDls] = useState(false);
+  const [showScorers, setShowScorers] = useState(false);
+  const live = match.status === "live";
+  // Things the screen already has a button for (Squads, Share, Correct a
+  // ball) are not repeated here (S5).
   return (
     <>
-      {/* Consolidated "Match Tools" Menu (Clean on Desktop & Mobile) */}
-      <DropdownMenu onOpenChange={setActionsMenuOpen}>
-        <DropdownMenuTrigger asChild>
+      <ActionMenu
+        title="Match tools"
+        onOpenChange={setActionsMenuOpen}
+        contentClassName="w-64"
+        trigger={
           <Button
             variant="outline"
             size="sm"
@@ -1512,237 +1508,189 @@ function MatchToolsMenu({ s }: { s: LoadedScreen }) {
             <SlidersHorizontal className="hidden h-4 w-4 shrink-0 sm:inline" />
             <span className="hidden sm:inline">Match tools</span>
             <ChevronDown className="hidden h-3 w-3 opacity-60 sm:inline" />
-            <MoreVertical className="h-4 w-4 sm:hidden" />
+            <MoreHorizontal className="h-4 w-4 sm:hidden" />
           </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56 rounded-xl p-1.5">
-          <DropdownMenuLabel className="px-2 py-1 text-xs font-medium text-muted-foreground">
-            Scoring controls
-          </DropdownMenuLabel>
-          {isScorer && (
-            <DropdownMenuItem
-              onClick={() => setShowMatchSettingsDialog(true)}
-              className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
-            >
-              <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
-              <span>Match rules & settings</span>
-            </DropdownMenuItem>
-          )}
-          {match.status === "live" && isScorer && (
-            <DropdownMenuItem
-              onSelect={() => setShowEarlierBalls(true)}
-              className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
-            >
-              <Pencil className="h-4 w-4 text-muted-foreground" />
-              <span>Correct a ball</span>
-            </DropdownMenuItem>
-          )}
-          {isScorer && (
-            <DropdownMenuItem asChild>
-              {/* The team sheet, where any player can be replaced. */}
-              <Link
-                href={`/matches/${match.id}/players`}
-                className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
-              >
-                <UserCog className="h-4 w-4 text-muted-foreground" />
-                <span>Replace a player</span>
-              </Link>
-            </DropdownMenuItem>
-          )}
-          {/* The main match's chase only (updateTargetRuns refuses others). */}
-          {match.status === "live" &&
-            isScorer &&
-            isChase &&
-            !isSuperOverInnings(match.current_innings ?? 1) && (
-            <DropdownMenuItem
-              onClick={() => setShowReviseTargetDialog(true)}
-              className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
-            >
-              <Crosshair className="h-4 w-4 text-muted-foreground" />
-              <span>Revise target / overs</span>
-            </DropdownMenuItem>
-          )}
-          {match.status === "live" && isScorer && strikerDisplay && (
-            <DropdownMenuItem
-              onClick={() =>
-                setRetireTarget({
-                  playerId: strikerDisplay.id,
-                  playerName: strikerDisplay.name,
-                })
-              }
-              className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
-            >
-              <HeartPulse className="h-4 w-4 text-muted-foreground" />
-              <span>Retire {strikerDisplay.name}</span>
-            </DropdownMenuItem>
-          )}
-          {match.status === "live" && isScorer && nonStrikerDisplay && (
-            <DropdownMenuItem
-              onClick={() =>
-                setRetireTarget({
-                  playerId: nonStrikerDisplay.id,
-                  playerName: nonStrikerDisplay.name,
-                })
-              }
-              className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
-            >
-              <HeartPulse className="h-4 w-4 text-muted-foreground" />
-              <span>Retire {nonStrikerDisplay.name}</span>
-            </DropdownMenuItem>
-          )}
-          {match.status === "live" && isScorer && (
-            <DropdownMenuItem
-              onClick={() => setShowPenaltyBonusDialog(true)}
-              className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
-            >
-              <ShieldAlert className="h-4 w-4 text-muted-foreground" />
-              <span>Penalty / bonus runs</span>
-            </DropdownMenuItem>
-          )}
-          {match.status === "live" && isScorer && (
-            <DlsCalculatorModal
-              match={match}
-              canEdit={isScorer}
-              triggerButton={
-                <div className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium hover:bg-muted">
-                  <CloudRain className="h-4 w-4 text-muted-foreground" />
-                  <span>DLS calculator</span>
-                </div>
-              }
-            />
-          )}
-          {(match.status === "live" || match.status === "scheduled") &&
-            isScorer && (
-              <DropdownMenuItem
-                onSelect={() => setShowAbandonMatchDialog(true)}
-                className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
-              >
-                <Flag className="h-4 w-4 text-muted-foreground" />
-                <span>End the match early (rain, walkover)</span>
-              </DropdownMenuItem>
-            )}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onClick={() => setShowAddPlayerDialog(true)}
-            className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
-          >
-            <UserPlus className="h-4 w-4 text-muted-foreground" />
-            <span>Squads &amp; players</span>
-          </DropdownMenuItem>
-          {isScorer && (
-            <MatchScorersDialog
-              matchId={match.id}
-              isCreator={match.created_by === user?.id}
-              triggerButton={
-                <div className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium hover:bg-muted">
-                  <Users className="h-4 w-4 text-muted-foreground" />
-                  <span>Add or invite scorers</span>
-                </div>
-              }
-            />
-          )}
-          {club.offer && (
-            <DropdownMenuItem
-              onSelect={() => setShowClubDialog(true)}
-              className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
-            >
-              <Shield className="h-4 w-4 text-muted-foreground" />
-              <span>{match.club_id ? "Change club" : "Add to club"}</span>
-            </DropdownMenuItem>
-          )}
-          <DropdownMenuSeparator />
-          <DropdownMenuLabel className="px-2 py-1 text-xs font-medium text-muted-foreground">
-            Share
-          </DropdownMenuLabel>
-          {/* The overlay's header button is hidden on phones: it is here */}
-          <DropdownMenuItem asChild className="sm:hidden">
-            <Link
-              href={`/overlay/${match.id}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
-            >
-              <Tv className="h-4 w-4 text-muted-foreground" />
-              <span>Open the broadcast overlay</span>
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onPointerDown={matchShare.prepare}
-            onSelect={() => void matchShare.share()}
-            className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
-          >
-            <Share2 className="h-4 w-4 text-muted-foreground" />
-            <span>Share live score</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <a
-              href={whatsappShareUrl(
-                matchShareMessage(match, matchShareUrl(match.id)),
-              )}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
-            >
-              <MessageCircle className="h-4 w-4 text-muted-foreground" />
-              <span>Share on WhatsApp</span>
-            </a>
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onSelect={() => setShowInviteDialog(true)}
-            className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
-          >
-            <UserPlus className="h-4 w-4 text-muted-foreground" />
-            <span>Invite someone to CricScore</span>
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuLabel className="px-2 py-1 text-xs font-medium text-muted-foreground">
-            Scoring preferences
-          </DropdownMenuLabel>
-          <DropdownMenuItem
-            onClick={toggleWagonWheelPrompt}
-            className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
-          >
-            <Compass className="h-4 w-4 text-muted-foreground" />
-            <span>Wagon wheel prompt: {wagonWheelPrompt ? "On" : "Off"}</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={toggleVoiceAnnouncements}
-            className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
-          >
-            <Volume2 className="h-4 w-4 text-muted-foreground" />
-            <span>
-              Voice announcements: {voiceAnnouncements ? "On" : "Off"}
-            </span>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={toggleSunlightMode}
-            className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
-          >
-            <Sun className="h-4 w-4 text-muted-foreground" />
-            <span>Sunlight mode: {sunlightMode ? "On" : "Off"}</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => setShowShortcuts(true)}
-            className="hidden cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium sm:flex"
-          >
-            <Keyboard className="h-4 w-4 text-muted-foreground" />
-            <span>Keyboard shortcuts</span>
-          </DropdownMenuItem>
-          {canDeleteMatch && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onSelect={() => setShowDeleteMatchDialog(true)}
-                className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium text-destructive focus:bg-destructive/10 focus:text-destructive"
-              >
-                <Trash2 className="h-4 w-4" />
-                <span>Delete match</span>
-              </DropdownMenuItem>
-            </>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+        }
+        groups={[
+          {
+            label: "This match",
+            items: [
+              isScorer && {
+                key: "settings",
+                label: "Match settings",
+                icon: SlidersHorizontal,
+                onSelect: () => setShowMatchSettingsDialog(true),
+              },
+              // The team sheet, where any player can be replaced.
+              isScorer && {
+                key: "replace",
+                label: "Replace a player",
+                icon: UserCog,
+                href: `/matches/${match.id}/players`,
+              },
+              // The main match's chase only (updateTargetRuns refuses others).
+              live &&
+                isScorer &&
+                isChase &&
+                !isSuperOverInnings(match.current_innings ?? 1) && {
+                  key: "target",
+                  label: "Revise target / overs",
+                  icon: Crosshair,
+                  onSelect: () => setShowReviseTargetDialog(true),
+                },
+              live &&
+                isScorer &&
+                strikerDisplay && {
+                  key: "retire-striker",
+                  label: `Retire ${strikerDisplay.name}`,
+                  icon: HeartPulse,
+                  onSelect: () =>
+                    setRetireTarget({
+                      playerId: strikerDisplay.id,
+                      playerName: strikerDisplay.name,
+                    }),
+                },
+              live &&
+                isScorer &&
+                nonStrikerDisplay && {
+                  key: "retire-non-striker",
+                  label: `Retire ${nonStrikerDisplay.name}`,
+                  icon: HeartPulse,
+                  onSelect: () =>
+                    setRetireTarget({
+                      playerId: nonStrikerDisplay.id,
+                      playerName: nonStrikerDisplay.name,
+                    }),
+                },
+              live &&
+                isScorer && {
+                  key: "penalty",
+                  label: "Penalty / bonus runs",
+                  icon: ShieldAlert,
+                  onSelect: () => setShowPenaltyBonusDialog(true),
+                },
+              live &&
+                isScorer && {
+                  key: "dls",
+                  label: "DLS calculator",
+                  icon: CloudRain,
+                  onSelect: () => setShowDls(true),
+                },
+              (live || match.status === "scheduled") &&
+                isScorer && {
+                  key: "abandon",
+                  label: "End the match early (rain, walkover)",
+                  icon: Flag,
+                  destructive: true,
+                  onSelect: () => setShowAbandonMatchDialog(true),
+                },
+            ],
+          },
+          {
+            label: "People",
+            items: [
+              isScorer && {
+                key: "scorers",
+                label: "Add or invite scorers",
+                icon: Users,
+                onSelect: () => setShowScorers(true),
+              },
+              club.offer && {
+                key: "club",
+                label: match.club_id ? "Change club" : "Add to club",
+                icon: Shield,
+                onSelect: () => setShowClubDialog(true),
+              },
+              {
+                key: "invite",
+                label: "Invite someone to CricScore",
+                icon: UserPlus,
+                onSelect: () => setShowInviteDialog(true),
+              },
+            ],
+          },
+          {
+            label: "Share",
+            items: [
+              // The header has the overlay's button from sm up.
+              {
+                key: "overlay",
+                label: "Open the broadcast overlay",
+                icon: Tv,
+                href: `/overlay/${match.id}`,
+                external: true,
+                phoneOnly: true,
+              },
+              {
+                key: "whatsapp",
+                label: "Share on WhatsApp",
+                icon: MessageCircle,
+                href: whatsappShareUrl(
+                  matchShareMessage(match, matchShareUrl(match.id)),
+                ),
+                external: true,
+              },
+            ],
+          },
+          {
+            label: "Preferences",
+            items: [
+              {
+                key: "wagon",
+                label: `Wagon wheel prompt: ${wagonWheelPrompt ? "On" : "Off"}`,
+                icon: Compass,
+                onSelect: toggleWagonWheelPrompt,
+              },
+              {
+                key: "voice",
+                label: `Voice announcements: ${voiceAnnouncements ? "On" : "Off"}`,
+                icon: Volume2,
+                onSelect: toggleVoiceAnnouncements,
+              },
+              {
+                key: "sunlight",
+                label: `Sunlight mode: ${sunlightMode ? "On" : "Off"}`,
+                icon: Sun,
+                onSelect: toggleSunlightMode,
+              },
+              {
+                key: "shortcuts",
+                label: "Keyboard shortcuts",
+                icon: Keyboard,
+                desktopOnly: true,
+                onSelect: () => setShowShortcuts(true),
+              },
+            ],
+          },
+          {
+            items: [
+              canDeleteMatch && {
+                key: "delete",
+                label: "Delete match",
+                icon: Trash2,
+                destructive: true,
+                onSelect: () => setShowDeleteMatchDialog(true),
+              },
+            ],
+          },
+        ]}
+      />
+      {live && isScorer && showDls && (
+        <DlsCalculatorModal
+          match={match}
+          canEdit={isScorer}
+          open
+          onOpenChange={setShowDls}
+        />
+      )}
+      {isScorer && showScorers && (
+        <MatchScorersDialog
+          matchId={match.id}
+          isCreator={match.created_by === user?.id}
+          open
+          onOpenChange={setShowScorers}
+        />
+      )}
     </>
   );
 }
@@ -2813,7 +2761,6 @@ function ScoringDialogs({ s }: { s: LoadedScreen }) {
     battingTeamPlayers,
     battingTeam,
     currentInnings,
-    bowlingTeamPlayerIds,
     battingOnlyIds,
     bowlingOnlyIds,
     battingSide,
@@ -2833,7 +2780,6 @@ function ScoringDialogs({ s }: { s: LoadedScreen }) {
     bowlingTeamPlayers,
     bowlingTeam,
     lastOverBowlerId,
-    battingTeamPlayerIds,
     rawDeliveries,
     handleReassignOverBowler,
     handleReplaceBatter,
