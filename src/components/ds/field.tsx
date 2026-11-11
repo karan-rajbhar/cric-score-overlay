@@ -16,7 +16,7 @@ import { cn } from "~/lib/utils";
 
 /** The control look shared by inputs, selects and textareas. */
 export const controlClass =
-  "w-full rounded-lg border border-input bg-card px-3.5 text-base text-foreground transition-colors placeholder:text-muted-foreground focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50 aria-[invalid=true]:border-destructive sm:text-sm";
+  "w-full rounded-lg border border-input bg-card px-3.5 text-base text-foreground transition-colors placeholder:text-muted-foreground focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50 aria-[invalid=true]:border-destructive sm:[@media(pointer:fine)]:text-sm";
 
 const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
   ({ className, ...props }, ref) => (

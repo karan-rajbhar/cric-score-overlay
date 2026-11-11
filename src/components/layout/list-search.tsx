@@ -42,7 +42,7 @@ export function ListSearch({
         aria-label={label}
         placeholder={placeholder}
         defaultValue={value}
-        className="h-10 w-full pl-9 text-base sm:text-sm"
+        className="h-10 w-full pl-9"
       />
       {Object.entries(hidden ?? {}).map(([key, val]) => (
         <input key={key} type="hidden" name={key} value={val} />

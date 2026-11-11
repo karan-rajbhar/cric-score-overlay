@@ -254,8 +254,10 @@ export function NavigationBar() {
               <DropdownMenuTrigger asChild>
                 <button
                   className="flex h-9 w-9 touch-manipulation items-center justify-center rounded-full transition-opacity [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                  aria-label="User menu"
                 >
+                  {/* Named by text, not aria-label: the initials it shows
+                      are part of the avatar, hidden from the name (X4). */}
+                  <span className="sr-only">User menu</span>
                   {/* The same avatar as Home and More: photo, else the
                       full name's initials and colour (N22). */}
                   <Avatar

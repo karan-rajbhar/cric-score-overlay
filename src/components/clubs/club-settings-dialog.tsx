@@ -255,7 +255,7 @@ export function ClubSettingsDialog({ club }: ClubSettingsDialogProps) {
                   value={contactEmail}
                   onChange={(e) => setContactEmail(e.target.value)}
                   placeholder="contact@club.com"
-                  className="h-10 sm:h-8 sm:text-xs"
+                  className="h-10 sm:[@media(pointer:fine)]:h-8 sm:[@media(pointer:fine)]:text-xs"
                 />
               </div>
               <div className="space-y-1">
@@ -268,7 +268,7 @@ export function ClubSettingsDialog({ club }: ClubSettingsDialogProps) {
                   value={contactPhone}
                   onChange={(e) => setContactPhone(e.target.value)}
                   placeholder="+44 20 7616 8500"
-                  className="h-10 sm:h-8 sm:text-xs"
+                  className="h-10 sm:[@media(pointer:fine)]:h-8 sm:[@media(pointer:fine)]:text-xs"
                 />
               </div>
               <div className="col-span-1 space-y-1 sm:col-span-2">
@@ -282,7 +282,7 @@ export function ClubSettingsDialog({ club }: ClubSettingsDialogProps) {
                   value={websiteUrl}
                   onChange={(e) => setWebsiteUrl(e.target.value)}
                   placeholder="https://lords.org"
-                  className="h-10 sm:h-8 sm:text-xs"
+                  className="h-10 sm:[@media(pointer:fine)]:h-8 sm:[@media(pointer:fine)]:text-xs"
                 />
               </div>
             </div>
@@ -303,7 +303,7 @@ export function ClubSettingsDialog({ club }: ClubSettingsDialogProps) {
                   value={twitter}
                   onChange={(e) => setTwitter(e.target.value)}
                   placeholder="@clubhandle"
-                  className="h-10 sm:h-8 sm:text-xs"
+                  className="h-10 sm:[@media(pointer:fine)]:h-8 sm:[@media(pointer:fine)]:text-xs"
                 />
               </div>
               <div className="space-y-1">
@@ -315,7 +315,7 @@ export function ClubSettingsDialog({ club }: ClubSettingsDialogProps) {
                   value={instagram}
                   onChange={(e) => setInstagram(e.target.value)}
                   placeholder="@clubhandle"
-                  className="h-10 sm:h-8 sm:text-xs"
+                  className="h-10 sm:[@media(pointer:fine)]:h-8 sm:[@media(pointer:fine)]:text-xs"
                 />
               </div>
               <div className="space-y-1">

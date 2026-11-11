@@ -1522,7 +1522,8 @@ function MatchToolsMenu({ s }: { s: LoadedScreen }) {
               "h-10 w-10 gap-1.5 p-0 sm:h-9 sm:w-auto sm:px-3",
               sunlightMode && "border-2 border-black font-bold",
             )}
-            aria-label="Match actions and scoring options"
+            // Named as it reads from sm up (X4); phones show ⋯ alone.
+            aria-label="Match tools"
             title="Match tools & scoring options"
           >
             <SlidersHorizontal className="hidden h-4 w-4 shrink-0 sm:inline" />

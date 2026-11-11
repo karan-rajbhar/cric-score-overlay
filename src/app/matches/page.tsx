@@ -190,7 +190,7 @@ function Matches() {
             placeholder="Filter by team, title or venue…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-10 w-full pl-9 text-base sm:text-sm"
+            className="h-10 w-full pl-9"
           />
         </div>
 

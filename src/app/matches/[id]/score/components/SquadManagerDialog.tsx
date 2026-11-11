@@ -284,7 +284,7 @@ function SquadPanel({
               void createNew();
             }
           }}
-          className="h-11 pl-9 text-base sm:text-sm"
+          className="h-11 pl-9"
         />
       </div>
 

@@ -2248,7 +2248,7 @@ export function LeaderboardView({
             spellCheck={false}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-8 sm:text-xs"
+            className="pl-8 sm:[@media(pointer:fine)]:text-xs"
           />
         </div>
       </div>

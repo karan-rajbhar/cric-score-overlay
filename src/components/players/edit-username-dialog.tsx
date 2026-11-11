@@ -159,7 +159,7 @@ export function EditUsernameDialog({
                   value={inputVal}
                   onChange={(e) => setInputVal(e.target.value)}
                   placeholder="your_name"
-                  className="pl-8 form-input sm:text-sm"
+                  className="pl-8 form-input"
                   aria-invalid={availability && !availability.available ? "true" : "false"}
                   aria-describedby="username-feedback"
                   required

@@ -71,7 +71,8 @@ export function CalendarSubscribe({
           variant="outline"
           size="sm"
           className="gap-1.5"
-          aria-label={`Add ${name} fixtures to your calendar`}
+          // Starts with what it shows, for voice control (X4).
+          aria-label={`Add to calendar: ${name} fixtures`}
         >
           <CalendarPlus className="h-4 w-4" aria-hidden="true" />
           Add to calendar

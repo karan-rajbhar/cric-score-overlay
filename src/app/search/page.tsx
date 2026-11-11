@@ -88,7 +88,7 @@ export default async function SearchPage({
             aria-label="Search"
             placeholder="Search"
             // The browser's own clear cross is not the app's (N14).
-            className="h-11 pl-10 text-base sm:text-sm [&::-webkit-search-cancel-button]:appearance-none"
+            className="h-11 pl-10 [&::-webkit-search-cancel-button]:appearance-none"
             // Only on an empty page: after a search, or coming Back to one,
             // the keyboard would cover the results.
             autoFocus={!q}
