@@ -694,7 +694,12 @@ function MatchSetupForm({ userId }: { userId: string }) {
               className="space-y-4 border-t px-4 pb-5 pt-4 sm:px-6"
             >
               <div>
-                <Label htmlFor={ids.title}>Match title</Label>
+                {/* Optional fields say so, as the design system's Field
+                    does; required ones carry no mark (F4). */}
+                <Label htmlFor={ids.title}>
+                  Match title{" "}
+                  <span className="font-normal text-muted-foreground">(optional)</span>
+                </Label>
                 <Input
                   id={ids.title}
                   value={title}
@@ -707,7 +712,10 @@ function MatchSetupForm({ userId }: { userId: string }) {
                 </p>
               </div>
               <div>
-                <Label htmlFor={ids.venue}>Venue</Label>
+                <Label htmlFor={ids.venue}>
+                  Venue{" "}
+                  <span className="font-normal text-muted-foreground">(optional)</span>
+                </Label>
                 <Input
                   id={ids.venue}
                   value={venue}

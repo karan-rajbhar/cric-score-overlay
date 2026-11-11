@@ -291,9 +291,9 @@ describe("New match form", () => {
     render(<CreateMatchPage />);
     const toggle = screen.getByRole("button", { name: /more options/i });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
-    expect(screen.getByLabelText("Venue")).not.toBeVisible();
+    expect(screen.getByLabelText("Venue (optional)")).not.toBeVisible();
     fireEvent.click(toggle);
-    expect(screen.getByLabelText("Venue")).toBeVisible();
+    expect(screen.getByLabelText("Venue (optional)")).toBeVisible();
     expect(screen.getByLabelText("Balls per over")).toHaveValue(6);
   });
 
