@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { StatGrid, StatTile } from "~/components/ds/stat-tile";
-import { Chip } from "~/components/ds/chip";
+import { Chip, chipVariants } from "~/components/ds/chip";
+import Link from "next/link";
+import { cn } from "~/lib/utils";
 import { TeamCrest } from "~/components/ds/avatar";
 import { MetaItem } from "~/components/ds/list";
 import { ProfileHeader } from "~/components/ds/player-header";
@@ -380,8 +382,24 @@ export default async function TeamDetailsPage({
         }
         labels={
           <>
-            {team.short_name && <Chip tone="outline">{team.short_name}</Chip>}
-            <Chip>{formatTeamType(team.team_type)}</Chip>
+            {/* The crest and title already say the short name; the club
+                is named and opens (P10). */}
+            {clubInfo ? (
+              <Link
+                href={`/clubs/${clubInfo.id}`}
+                className={cn(
+                  chipVariants({ tone: "outline" }),
+                  "hover:bg-accent max-md:h-11 max-md:px-3.5",
+                )}
+              >
+                {clubInfo.name}
+              </Link>
+            ) : (
+              team.team_type &&
+              team.team_type !== "club" && (
+                <Chip>{formatTeamType(team.team_type)}</Chip>
+              )
+            )}
           </>
         }
         description={team.description}

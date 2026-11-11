@@ -15,13 +15,15 @@ export function ProfileTeams({ teams }: { teams: PlayerTeamMembership[] }) {
         <li key={tm.id}>
           <Link
             href={`/teams/${tm.team.id}`}
-            className="inline-flex max-w-full items-center gap-2 rounded-full bg-card py-1 pl-1 pr-3 text-sm font-medium text-foreground shadow-soft ring-1 ring-border/40 transition-colors hover:bg-accent"
+            // The crest's short code ("STR", not "S"), 44px to tap on
+            // phones (P10).
+            className="inline-flex min-h-11 max-w-full items-center gap-2 rounded-full bg-card py-1 pl-1 pr-3 text-sm font-medium text-foreground shadow-soft ring-1 ring-border/40 transition-colors hover:bg-accent md:min-h-9"
           >
             <TeamCrest
               name={tm.team.name}
               shortName={tm.team.short_name}
               logoUrl={tm.team.logo_url}
-              size="xs"
+              size="sm"
             />
             <span className="truncate">{tm.team.name}</span>
             {tm.jersey_number != null && (
@@ -29,7 +31,7 @@ export function ProfileTeams({ teams }: { teams: PlayerTeamMembership[] }) {
                 #{tm.jersey_number}
               </span>
             )}
-            {tm.role_in_team && (
+            {tm.role_in_team && tm.role_in_team !== "player" && (
               <span className="text-xs font-normal text-muted-foreground">
                 {formatPlayerRole(tm.role_in_team)}
               </span>

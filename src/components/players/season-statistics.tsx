@@ -76,7 +76,7 @@ export function SeasonStatistics({
             Season
           </Label>
           <Select value={season} onValueChange={setSeason}>
-            <SelectTrigger id={selectId} className="h-9 w-40">
+            <SelectTrigger id={selectId} className="h-11 w-40 md:h-9">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
