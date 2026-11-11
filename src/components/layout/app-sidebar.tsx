@@ -28,14 +28,15 @@ interface NavItem {
 }
 
 interface NavSection {
-  title: string;
+  /** Heading over the group; the first group (Home, Matches) has none, so
+   * Home is not filed under "Matches" (N27). */
+  title?: string;
   items: NavItem[];
 }
 
 function navSections(home: string): NavSection[] {
   return [
     {
-      title: "Matches",
       items: [
         { href: home, label: "Home", icon: Home },
         { href: "/matches", label: "Matches", icon: Radio },
@@ -91,14 +92,14 @@ export function AppSidebar() {
             (item) => !item.authOnly || !!user,
           );
           return (
-            <div key={section.title} className="space-y-1">
-              {mode !== "open" && (
+            <div key={section.title ?? "main"} className="space-y-1">
+              {mode !== "open" && section.title && (
                 <div className={cn("mx-1 my-2 h-px bg-border/40", cls.rail)} />
               )}
-              {!railOnly && (
+              {!railOnly && section.title && (
                 <div
                   className={cn(
-                    "mb-1.5 px-3 text-xs font-medium text-muted-foreground/75",
+                    "mb-1.5 px-3 text-xs font-medium text-muted-foreground",
                     mode === "auto" && "hidden lg:block",
                   )}
                 >

@@ -34,7 +34,7 @@ export function NotificationSettings() {
     <section aria-labelledby="notification-settings" className="space-y-1">
       <h2
         id="notification-settings"
-        className="mb-1.5 px-3 text-xs font-medium text-muted-foreground/75"
+        className="mb-1.5 px-3 text-xs font-medium text-muted-foreground"
       >
         Notifications
       </h2>
