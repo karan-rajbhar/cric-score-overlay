@@ -636,10 +636,11 @@ export function battingWithCrease(
     (m, b) => Math.max(m, b.batting_position ?? 0),
     0,
   );
-  // Sorted, as the engine always has (its replay fixtures pin it).
-  const newcomers = [strikerId, nonStrikerId]
-    .filter((id) => !kept.some((b) => b.user_id === id))
-    .sort();
+  // The striker first: who faces the first ball is number 1 on the card
+  // (S6). It used to be id order, which made the openers' order a toss-up.
+  const newcomers = [strikerId, nonStrikerId].filter(
+    (id) => !kept.some((b) => b.user_id === id),
+  );
 
   const next = kept.map((b) => {
     const isCurrent = atCrease(b.user_id);
