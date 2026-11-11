@@ -9,7 +9,7 @@ import { MatchHero } from "./match-hero";
 
 /**
  * A live match as the home screen's big card (the match header on its own
- * card) with "Follow live", and "Score" for its scorers. Follows the
+ * card), opened by a tap anywhere on it, with "Watch live", and "Score" for its scorers. Follows the
  * match's live_state like the list cards.
  */
 export function LiveHeroCard({
@@ -25,28 +25,39 @@ export function LiveHeroCard({
     team1_id: match.team1_id ?? match.team1.id,
     team2_id: match.team2_id ?? match.team2.id,
   });
+  const href = `/matches/${match.id}`;
   return (
-    <MatchHero
-      match={match}
-      sides={sides}
-      plain={false}
-      performers={false}
-      className="h-full"
-    >
-      <div className="flex gap-2">
-        <Button
-          asChild
-          className="flex-1"
-          variant={canScore ? "outline" : "default"}
-        >
-          <Link href={`/matches/${match.id}`}>Follow live</Link>
-        </Button>
-        {canScore && (
-          <Button asChild className="flex-1">
-            <Link href={`/matches/${match.id}/score`}>Score</Link>
+    // The whole card opens the match, like every other match card (N9): a
+    // link stretched over it, under the buttons.
+    <div className="relative h-full">
+      <Link
+        href={href}
+        aria-label={`${match.team1.name} versus ${match.team2.name}, live: open the match`}
+        className="absolute inset-0 z-[1] rounded-panel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      />
+      <MatchHero
+        match={match}
+        sides={sides}
+        plain={false}
+        performers={false}
+        className="h-full"
+      >
+        <div className="relative z-[2] flex gap-2">
+          <Button
+            asChild
+            className="flex-1"
+            variant={canScore ? "outline" : "default"}
+          >
+            {/* "Watch": "Follow" elsewhere means subscribing. */}
+            <Link href={href}>Watch live</Link>
           </Button>
-        )}
-      </div>
-    </MatchHero>
+          {canScore && (
+            <Button asChild className="flex-1">
+              <Link href={`${href}/score`}>Score</Link>
+            </Button>
+          )}
+        </div>
+      </MatchHero>
+    </div>
   );
 }
