@@ -58,4 +58,41 @@ describe("TossDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Start match" }));
     expect(onConfirm).toHaveBeenCalledWith("t2", "bowl");
   });
+
+  it("says once when players are in both squads (S1)", () => {
+    const { rerender } = render(
+      <TossDialog
+        open
+        onOpenChange={() => {}}
+        match={match}
+        tossWinner=""
+        tossDecision=""
+        onTossWinnerChange={() => {}}
+        onTossDecisionChange={() => {}}
+        onConfirm={() => {}}
+        isProcessing={false}
+        sharedPlayers={3}
+      />,
+    );
+    expect(
+      screen.getByText(
+        "3 players are in both squads: they join the side they first bat or bowl for.",
+      ),
+    ).toBeInTheDocument();
+    rerender(
+      <TossDialog
+        open
+        onOpenChange={() => {}}
+        match={match}
+        tossWinner=""
+        tossDecision=""
+        onTossWinnerChange={() => {}}
+        onTossDecisionChange={() => {}}
+        onConfirm={() => {}}
+        isProcessing={false}
+      />,
+    );
+    expect(screen.queryByText(/in both squads/)).toBeNull();
+  });
 });
+

@@ -26,6 +26,8 @@ interface TossDialogProps {
   onTossDecisionChange: (v: string) => void;
   onConfirm: () => void;
   isProcessing: boolean;
+  /** Players in both teams' squads (S1). */
+  sharedPlayers?: number;
 }
 
 /** Two taps: who won the toss, then bat or bowl. */
@@ -39,6 +41,7 @@ export function TossDialog({
   onTossDecisionChange,
   onConfirm,
   isProcessing,
+  sharedPlayers = 0,
 }: TossDialogProps) {
   const winnerLabel = useId();
   const decisionLabel = useId();
@@ -66,6 +69,15 @@ export function TossDialog({
             bowler come next.
           </DialogDescription>
         </DialogHeader>
+        {/* Said once, here: a player in both squads is offered to both
+            sides until they bat or bowl for one (S1). */}
+        {sharedPlayers > 0 && (
+          <p className="rounded-lg bg-muted/60 px-3 py-2 text-sm text-muted-foreground">
+            {sharedPlayers === 1
+              ? "1 player is in both squads: they join the side they first bat or bowl for."
+              : `${sharedPlayers} players are in both squads: they join the side they first bat or bowl for.`}
+          </p>
+        )}
         <div className="space-y-4">
           <div>
             <p id={winnerLabel} className="text-sm font-medium">

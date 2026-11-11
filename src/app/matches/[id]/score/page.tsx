@@ -626,6 +626,14 @@ function useScoringScreen() {
     };
   }, [match, battingTeam, bowlingTeam, battingTeamPlayerIds, bowlingTeamPlayerIds]);
 
+  /** Players in both squads, said once at the toss (S1). */
+  const sharedSquadCount = useMemo(
+    () =>
+      [...battingTeamPlayerIds].filter((id) => bowlingTeamPlayerIds.has(id))
+        .length,
+    [battingTeamPlayerIds, bowlingTeamPlayerIds],
+  );
+
   // Registered players for the pickers' "Add", so the scorer adds the
   // profile that exists instead of a second one. Each says which of this
   // match's squads they are in and who they played for: someone in the other
@@ -1223,6 +1231,7 @@ function useScoringScreen() {
     bowlingOnlyIds,
     battingSide,
     fieldingSide,
+    sharedSquadCount,
     bowlingTeamPlayers,
     canDeleteMatch,
     createPickedPlayer,
@@ -2793,6 +2802,7 @@ function ScoringDialogs({ s }: { s: LoadedScreen }) {
     bowlingOnlyIds,
     battingSide,
     fieldingSide,
+    sharedSquadCount,
     currentBowlerId,
     strikerId,
     nonStrikerId,
@@ -2896,6 +2906,7 @@ function ScoringDialogs({ s }: { s: LoadedScreen }) {
         match={match}
         tossWinner={tossWinner}
         tossDecision={tossDecision ?? ""}
+        sharedPlayers={sharedSquadCount}
         onTossWinnerChange={setSelectedTossWinner}
         onTossDecisionChange={(v) => setTossDecision(v as never)}
         onConfirm={async () => {
