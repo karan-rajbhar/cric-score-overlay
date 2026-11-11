@@ -19,7 +19,8 @@ export function MobileTabBar() {
   const section = navSectionOf(pathname);
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:hidden">
+    // Steps aside while the on-screen keyboard is up (N38, ViewportVars).
+    <div className="fixed inset-x-0 bottom-0 z-40 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:hidden [[data-keyboard]_&]:hidden">
       <TabBar
         items={[
           {

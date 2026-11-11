@@ -118,4 +118,59 @@ describe("ViewportVars", () => {
     expect(style.getPropertyValue("--vvh")).toBe("300px");
     raf.mockRestore();
   });
+
+  it("marks the keyboard up only while a text field has focus and the view is short (N38)", () => {
+    const listeners: Record<string, () => void> = {};
+    const vv = {
+      width: 390,
+      height: 800,
+      offsetTop: 0,
+      addEventListener: (type: string, fn: () => void) => {
+        listeners[type] = fn;
+      },
+      removeEventListener: vi.fn(),
+    };
+    Object.defineProperty(window, "visualViewport", {
+      configurable: true,
+      value: vv,
+    });
+    const raf = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation((cb) => {
+        cb(0);
+        return 1;
+      });
+    const { unmount } = render(
+      <>
+        <ViewportVars />
+        <input aria-label="Search" />
+        <input type="checkbox" aria-label="Pick" />
+      </>,
+    );
+    const root = document.documentElement;
+    const resize = (height: number) => {
+      vv.height = height;
+      listeners.resize?.();
+    };
+
+    // Shorter without a text field in focus: a browser bar, not a keyboard.
+    resize(560);
+    expect(root.dataset.keyboard).toBeUndefined();
+
+    act(() => screen.getByRole("textbox", { name: "Search" }).focus());
+    resize(420);
+    expect(root.dataset.keyboard).toBe("");
+
+    // The keyboard goes down.
+    resize(800);
+    expect(root.dataset.keyboard).toBeUndefined();
+
+    // A checkbox raises no keyboard.
+    act(() => screen.getByRole("checkbox", { name: "Pick" }).focus());
+    resize(420);
+    expect(root.dataset.keyboard).toBeUndefined();
+
+    unmount();
+    raf.mockRestore();
+  });
 });
