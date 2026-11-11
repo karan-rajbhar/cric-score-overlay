@@ -290,6 +290,27 @@ describe("MatchScorecard", () => {
     expect(screen.getByText("b")).toBeInTheDocument();
   });
 
+  it("gives a dismissal its own row below 360px, so the name keeps its room (M7)", () => {
+    const original = window.matchMedia;
+    window.matchMedia = ((query: string) => ({
+      matches: query === "(max-width: 359px)",
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })) as unknown as typeof window.matchMedia;
+    try {
+      render(<MatchScorecard match={makeMatch({ innings: [inningsOf({})] })} />);
+      const name = screen.getByRole("rowheader", { name: "Virat Kohli" });
+      expect(name).not.toHaveTextContent("b");
+      // The next row holds the dismissal alone, across the table.
+      const below = name.closest("tr")!.nextElementSibling!;
+      expect(below).toHaveTextContent(/^b$/);
+      expect(below.querySelector("td")).toHaveAttribute("colspan", "6");
+    } finally {
+      window.matchMedia = original;
+    }
+  });
+
   it("lists the partnerships by wicket, with each batter's runs and balls", () => {
     const match = makeMatch({
       innings: [
