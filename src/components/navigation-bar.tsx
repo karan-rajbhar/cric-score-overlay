@@ -77,7 +77,7 @@ export function NavigationBar() {
 
   return (
     <header className="sticky top-0 z-40 h-14 border-b border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85">
-      <div className="flex h-full items-center justify-between gap-2 px-3 sm:gap-3 sm:px-5">
+      <div className="flex h-full items-center justify-between gap-2 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] sm:gap-3 sm:pl-[max(1.25rem,env(safe-area-inset-left))] sm:pr-[max(1.25rem,env(safe-area-inset-right))]">
         {/* Left: Sidebar toggle + Brand */}
         <div className="flex items-center gap-1.5 sm:gap-2.5">
           {/* Desktop sidebar collapse trigger */}

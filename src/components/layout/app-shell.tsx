@@ -78,7 +78,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <main
             id="content"
             tabIndex={-1}
-            className={`relative isolate min-w-0 flex-1 transition-all duration-300 ease-in-out focus:outline-none ${
+            className={`relative isolate min-w-0 flex-1 transition-all duration-300 ease-in-out focus:outline-none md:ml-[env(safe-area-inset-left)] ${
               pad
             }`}
           >
@@ -90,14 +90,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             {/* overflow-x-clip, not -hidden: "hidden" turns this into a scroll
                 container, so sticky page headers stick inside it (pushed down
                 by their top offset) instead of under the navigation bar. */}
-            <div className="w-full overflow-x-clip px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-[max(1.25rem,env(safe-area-inset-top))] sm:px-6 sm:py-8 lg:px-8">
+            {/* Side insets: a phone on its side keeps the page clear of the
+                notch (N39); from md the sidebar takes the left one. */}
+            <div className="w-full overflow-x-clip pb-[max(2rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-[max(1.25rem,env(safe-area-inset-top))] sm:py-8 sm:pl-[max(1.5rem,env(safe-area-inset-left))] sm:pr-[max(1.5rem,env(safe-area-inset-right))] md:pl-6 lg:pl-8 lg:pr-[max(2rem,env(safe-area-inset-right))]">
               {children}
             </div>
           </main>
         </div>
 
         <footer
-          className={`border-t border-border max-md:hidden ${
+          className={`border-t border-border max-md:hidden md:ml-[env(safe-area-inset-left)] ${
             pad
           }`}
         >

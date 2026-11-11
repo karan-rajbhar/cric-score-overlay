@@ -82,7 +82,9 @@ export function AppSidebar() {
     <aside
       id="app-sidebar"
       className={cn(
-        "fixed bottom-0 left-0 top-14 z-30 hidden overflow-y-auto overflow-x-hidden border-r border-border/60 bg-card transition-all duration-300 ease-in-out md:block",
+        // box-content: the notch's inset is added to the rail's width, not
+        // taken from it (N39).
+        "fixed bottom-0 left-0 top-14 z-30 box-content hidden overflow-y-auto overflow-x-hidden border-r border-border/60 bg-card pl-[env(safe-area-inset-left)] transition-all duration-300 ease-in-out md:block",
         cls.width,
       )}
     >
