@@ -115,8 +115,10 @@ function LoginPageInner() {
             <CardDescription className="text-center text-sm">
               {inviteEmail ? (
                 <>
-                  Sign in with Google using{" "}
-                  <span className="font-semibold text-foreground">
+                  Sign in with Google using
+                  {/* Its own line, broken anywhere: a long address stays
+                      in the card (N30). */}
+                  <span className="block font-semibold text-foreground [overflow-wrap:anywhere]">
                     {inviteEmail}
                   </span>
                 </>
