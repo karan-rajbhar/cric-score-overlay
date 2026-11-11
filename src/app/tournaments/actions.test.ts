@@ -99,6 +99,12 @@ describe("Tournament Server Actions", () => {
 
       const res = await updateTournament("t-1", fd);
       expect(res).toEqual({ success: true });
+      // A form that does not ask about the special rules or visibility
+      // (Manage) leaves them as they are.
+      const patch = mockUpdate.mock.calls[0]![0] as Record<string, unknown>;
+      expect(patch).not.toHaveProperty("last_man_stands");
+      expect(patch).not.toHaveProperty("golden_ball");
+      expect(patch).not.toHaveProperty("is_public");
     });
   });
 
