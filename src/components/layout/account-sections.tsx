@@ -128,13 +128,12 @@ export function CreateSection() {
   );
 }
 
-/** Inviting people, and the app on this device. */
+/** Inviting people: the rows are named as the pages they open (N29). */
 export function InvitesSection() {
-  const install = useInstallApp();
   const [inviteOpen, setInviteOpen] = useState(false);
   return (
     <section className="space-y-3">
-      <SectionHeader title="Invites" />
+      <SectionHeader title="Invite people" />
       <ListCard>
         <ListRow
           onClick={() => setInviteOpen(true)}
@@ -144,15 +143,9 @@ export function InvitesSection() {
         <ListRow
           href="/invitations"
           leading={<RowIcon icon={Mail} />}
-          title="Manage invites"
+          title="Invites"
+          subtitle="People you invited"
         />
-        {install && (
-          <ListRow
-            onClick={install}
-            leading={<RowIcon icon={Download} />}
-            title="Install app"
-          />
-        )}
       </ListCard>
       <InviteDialog open={inviteOpen} onOpenChange={setInviteOpen} />
     </section>
@@ -161,10 +154,14 @@ export function InvitesSection() {
 
 const noSubscribe = () => () => {};
 
-/** Theme and notifications, and Sign out when signed in. */
+/**
+ * This device (install, notifications, theme), then Sign out when signed
+ * in (N29): what belongs to the phone in one card, in the rows' look.
+ */
 export function SettingsSection() {
   const { user } = useAuth();
   const { theme, setTheme } = useTheme();
+  const install = useInstallApp();
   const mounted = useSyncExternalStore(
     noSubscribe,
     () => true,
@@ -174,24 +171,34 @@ export function SettingsSection() {
   return (
     <section className="space-y-3">
       {signOutDialog}
-      <SectionHeader title="Settings" />
-      {user && <NotificationSettings />}
-      <div className="space-y-2">
-        <span className="block text-sm font-medium text-foreground">Theme</span>
-        {/* The saved choice is known only on the device: render it after
-            mount, or the server's "Light" stays selected on a dark page. */}
-        {mounted ? (
-          <Segmented
-            label="Theme"
-            options={THEMES}
-            value={theme}
-            onChange={setTheme}
-            className="w-full justify-between"
+      <SectionHeader title="This device" />
+      <ListCard>
+        {install && (
+          <ListRow
+            onClick={install}
+            leading={<RowIcon icon={Download} />}
+            title="Install app"
           />
-        ) : (
-          <div className="h-11 w-full rounded-full bg-muted" aria-hidden="true" />
         )}
-      </div>
+        {user && <NotificationSettings />}
+        <div className="space-y-2 px-4 py-3">
+          <span className="block text-sm font-medium text-foreground">Theme</span>
+          {/* The saved choice is known only on the device: render it after
+              mount, or the server's "Light" stays selected on a dark page. */}
+          {mounted ? (
+            <Segmented
+              label="Theme"
+              options={THEMES}
+              value={theme}
+              onChange={setTheme}
+              // Three even thirds (N29).
+              className="flex w-full [&>button]:flex-1"
+            />
+          ) : (
+            <div className="h-11 w-full rounded-full bg-muted" aria-hidden="true" />
+          )}
+        </div>
+      </ListCard>
       {user && (
         <ListCard>
           <ListRow

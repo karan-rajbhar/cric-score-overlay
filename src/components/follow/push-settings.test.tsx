@@ -29,16 +29,25 @@ describe("NotificationSettings", () => {
     expect(again.container).toBeEmptyDOMElement();
   });
 
-  it("explains, and turns notifications on and off", async () => {
+  it("is a switch that shows its state, and explains (N29)", async () => {
     const { rerender } = render(<NotificationSettings />);
-    expect(
-      screen.getByRole("region", { name: "Notifications" }),
-    ).toHaveTextContent("starts, at the innings break and with the result");
-    fireEvent.click(screen.getByRole("button", { name: "Turn on notifications" }));
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Notifications are on"));
+    const toggle = screen.getByRole("switch", { name: "Notifications" });
+    expect(toggle).toHaveAttribute("aria-checked", "false");
+    expect(toggle).toHaveAccessibleDescription(
+      /Off.*starts, at the innings break and with the result/,
+    );
+    fireEvent.click(toggle);
+    await waitFor(() => expect(push.enable).toHaveBeenCalled());
+    // The row says it, not a toast.
+    expect(toast.success).not.toHaveBeenCalled();
     push.enabled = true;
     rerender(<NotificationSettings />);
-    fireEvent.click(screen.getByRole("button", { name: "Turn off on this device" }));
+    expect(screen.getByRole("switch", { name: "Notifications" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    expect(screen.getByText("On for this device")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("switch", { name: "Notifications" }));
     await waitFor(() => expect(push.disable).toHaveBeenCalled());
   });
 
@@ -46,6 +55,6 @@ describe("NotificationSettings", () => {
     push.availability = "needs-install";
     render(<NotificationSettings />);
     expect(screen.getByText(/add CricScore to your Home Screen first/)).toBeInTheDocument();
-    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.queryByRole("switch")).toBeNull();
   });
 });
