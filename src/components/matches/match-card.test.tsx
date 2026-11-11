@@ -84,11 +84,11 @@ describe("MatchCard scoring actions", () => {
   it("opens the match from the card", () => {
     renderCard(<MatchCard match={liveMatch} />);
     expect(
-      screen.getByRole("link", { name: /^Royal Tigers versus Coastal Kings/ }),
+      screen.getByRole("link", { name: /Royal Tigers.*Coastal Kings/ }),
     ).toHaveAttribute("href", `/matches/${liveMatch.id}`);
   });
 
-  it("names the card link with the status, scores and result", () => {
+  it("names the card by what it shows, and describes it in words (X4)", () => {
     renderCard(
       <MatchCard
         match={makeMatch({
@@ -112,14 +112,14 @@ describe("MatchCard scoring actions", () => {
         })}
       />,
     );
-    expect(
-      screen.getByRole("link", {
-        name:
-          "Royal Tigers versus Coastal Kings, completed. " +
-          "Royal Tigers 98 for 3 (10.2 overs), Coastal Kings 80 for 10 (10.0 overs). " +
-          "Royal Tigers won by 18 runs",
-      }),
-    ).toBeInTheDocument();
+    const link = screen.getByRole("link", {
+      description:
+        "Royal Tigers versus Coastal Kings, completed. " +
+        "Royal Tigers 98 for 3 (10.2 overs), Coastal Kings 80 for 10 (10.0 overs). " +
+        "Royal Tigers won by 18 runs",
+    });
+    // Its name is its visible text, so voice control can say it.
+    expect(link).toHaveAccessibleName(/Royal Tigers 98\/3 .*Coastal Kings 80\/10/);
   });
 
   it("calls the wait before the chase an innings break", () => {
@@ -150,6 +150,9 @@ describe("MatchCard scoring actions", () => {
   });
 
   it("shows an upcoming match as a fixture with its start time", () => {
+    // Before the start time: an upcoming fixture.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-08-01T10:00:00"));
     renderCard(
       <MatchCard
         match={makeMatch({
@@ -163,6 +166,25 @@ describe("MatchCard scoring actions", () => {
     expect(screen.getByText("14:00")).toBeInTheDocument();
     expect(screen.getByText("Upcoming")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /score/i })).toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
+  it("says a fixture whose time has passed has not started, with when it was due", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2027-01-05T10:00:00"));
+    renderCard(
+      <MatchCard
+        match={makeMatch({
+          status: "scheduled",
+          scheduled_at: "2026-08-10T14:00:00",
+          innings: [],
+        })}
+      />,
+    );
+    expect(screen.getByText("Not started")).toBeInTheDocument();
+    expect(screen.getByText(/Was due Mon 10 Aug 2026/)).toBeInTheDocument();
+    expect(screen.queryByText("Upcoming")).not.toBeInTheDocument();
+    vi.useRealTimers();
   });
 
   it("renders both team names and the running score", () => {

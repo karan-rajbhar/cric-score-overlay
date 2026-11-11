@@ -30,7 +30,12 @@ describe("navSectionOf", () => {
 
   it("does not take a longer name for a section", () => {
     expect(navSectionOf("/matchesque")).toBeNull();
-    expect(navSectionOf("/search")).toBeNull();
+    expect(navSectionOf("/searching")).toBeNull();
+  });
+
+  it("files Search and sign-in under More, where phones reach them (N24)", () => {
+    expect(navSectionOf("/search")).toBe("more");
+    expect(navSectionOf("/auth/login")).toBe("more");
   });
 });
 

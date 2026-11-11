@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { sidesInBattingOrder } from "~/lib/cricket";
 import type { Match } from "~/lib/match-types";
 import { makeInnings, makeMatch } from "~/test/factories";
@@ -46,12 +46,15 @@ describe("MatchHero on the match page", () => {
   });
 
   it("shows a start time without an Upcoming chip beside it", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-30T10:00:00Z"));
     const match = makeMatch({
       status: "scheduled",
       scheduled_at: "2026-11-01T09:48:00.000Z",
     });
     render(<MatchHero match={match} sides={sidesInBattingOrder(match)} page />);
     expect(screen.getAllByText("Upcoming")).toHaveLength(1);
+    vi.useRealTimers();
   });
 
   it("leaves the report's header as it was", () => {

@@ -17,7 +17,7 @@ import type {
   TeamPlayer,
 } from "~/lib/match-types";
 import { PlayerPicker, type PickerAddPlayer } from "./PlayerPicker";
-import { buildBatterRows } from "./player-rows";
+import { buildBatterRows, type SideRules } from "./player-rows";
 import { RoleBand } from "./RoleBand";
 
 type Slot = "striker" | "nonStriker";
@@ -75,6 +75,11 @@ interface BatsmenDialogProps {
     fromId: string,
     toId: string,
   ) => Promise<{ error: string | null }>;
+  /**
+   * Who may play for this side today: a player who played for the other
+   * side is listed disabled with the reason; one in both squads is noted.
+   */
+  side?: SideRules;
 }
 
 /**
@@ -130,6 +135,7 @@ export function BatsmenDialog({
   onEndInnings,
   onRetire,
   onReplace,
+  side,
 }: BatsmenDialogProps) {
   /** The not-out batter after a wicket (their end is not to be replaced). */
   const survivor =
@@ -150,6 +156,7 @@ export function BatsmenDialog({
   const { rows } = useMemo(
     () =>
       buildBatterRows({
+        side,
         players: battingTeamPlayers,
         performances: battingPerformances,
         dismissedIds: dismissedPlayerIds,
@@ -163,6 +170,7 @@ export function BatsmenDialog({
       battingPerformances,
       dismissedPlayerIds,
       bowlingTeamPlayerIds,
+      side,
       currentBowlerId,
       strikerId,
       nonStrikerId,
@@ -351,7 +359,7 @@ export function BatsmenDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader className="space-y-2 text-left">
+        <DialogHeader className="space-y-2">
           <RoleBand role="batting" teamName={battingTeamName} />
           <DialogTitle className="text-balance">{title}</DialogTitle>
           <DialogDescription>
@@ -499,7 +507,15 @@ export function BatsmenDialog({
                     ? "Choose striker"
                     : "Choose non-striker"
               }
-              rows={pickable}
+              // The opener picked for the other end is marked too, so both
+              // choices show in the list, not only this slot's (S13).
+              rows={pickable.map((r) => {
+                const other =
+                  pickingFor === "striker" ? draft.nonStriker : draft.striker;
+                if (survivor || r.id !== other) return r;
+                const mark = pickingFor === "striker" ? "Non-striker" : "Striker";
+                return { ...r, tag: r.tag ? `${r.tag} · ${mark}` : mark };
+              })}
               selectedId={
                 pickingFor === "striker" ? draft.striker : draft.nonStriker
               }

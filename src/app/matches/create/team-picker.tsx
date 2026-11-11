@@ -128,7 +128,7 @@ export function TeamPicker({
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-3 overflow-hidden sm:max-w-md">
-          <DialogHeader className="text-left">
+          <DialogHeader>
             <DialogTitle className="text-balance">
               {mode === "create" ? "New team" : title}
             </DialogTitle>
@@ -385,7 +385,7 @@ function NewTeamForm({
             setName(e.target.value);
             if (error) setError(null);
           }}
-          placeholder="e.g. Mumbai Lions"
+          placeholder="e.g. Hilltop Hawks"
           autoComplete="off"
           autoCapitalize="words"
           enterKeyHint="next"

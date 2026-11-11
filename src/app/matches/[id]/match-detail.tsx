@@ -35,6 +35,7 @@ import { MatchHero, scoreLineSides } from "~/components/matches/match-hero";
 import { ContentSheet, ScreenBar, TopStrip } from "~/components/ds/screen";
 import MatchDetailLoading from "./loading";
 import { EmptyState } from "~/components/ui/empty-state";
+import { CouldNotLoad } from "~/components/ui/could-not-load";
 import { ChevronLeft, Play, AlertCircle } from "lucide-react";
 import { MatchShareMenu } from "~/components/matches/match-share-menu";
 import { ShareMatchButton } from "~/components/matches/share-match-button";
@@ -251,6 +252,7 @@ export function MatchView({
           <PinnedTabs ref={tabBar} label="Match sections" tabs={tabs} />
 
           <TabsContent value="summary" className="mt-4">
+            <TabTitle tabs={tabs} value="summary" />
             {/* A finished match whose players play for the scorer's club
                 (the page follows live_state, so it updates once added). */}
             {isScorer && match.status === "completed" && !match.club_id && (
@@ -274,26 +276,45 @@ export function MatchView({
           </TabsContent>
 
           <TabsContent value="scorecard" className="mt-4">
+            <TabTitle tabs={tabs} value="scorecard" />
             <MatchScorecard match={match} />
           </TabsContent>
 
           <TabsContent value="balls" className="mt-4">
+            <TabTitle tabs={tabs} value="balls" />
             <MatchBalls match={match} />
           </TabsContent>
 
           {/* Top performers and head to head are here too; partnerships
               are on the Scorecard. */}
           <TabsContent value="stats" className="mt-4 space-y-6">
+            <TabTitle tabs={tabs} value="stats" />
             <MatchStats match={match} />
           </TabsContent>
 
           <TabsContent value="squads" className="mt-4">
+            <TabTitle tabs={tabs} value="squads" />
             <MatchSquads match={match} />
           </TabsContent>
         </Tabs>
       </ContentSheet>
     </div>
   );
+}
+
+/**
+ * A tab's own heading, for screen readers: the page's h1, each tab an h2,
+ * its sections h3 (M11).
+ */
+function TabTitle({
+  tabs,
+  value,
+}: {
+  tabs: readonly { value: string; label: string }[];
+  value: string;
+}) {
+  const label = tabs.find((t) => t.value === value)?.label;
+  return label ? <h2 className="sr-only">{label}</h2> : null;
 }
 
 function MatchDetailsPageContent() {
@@ -330,27 +351,33 @@ function MatchDetailsPageContent() {
     return <MatchDetailLoading />;
   }
 
+  // Gone while open (deleted), or a read that failed: never the database's
+  // own words, and Try again only where it can help (N6).
+  const gone =
+    !error || (matchQueryError as { code?: string } | null)?.code === "PGRST116";
   if (error || !match) {
     return (
       <div className="container mx-auto flex min-h-[60vh] max-w-lg items-center justify-center px-4 py-12">
-        <EmptyState
-          icon={AlertCircle}
-          title={error ? "Couldn't load match" : "Match not found"}
-          description={
-            error ||
-            "This match could not be found or may have been removed from the tournament schedule."
-          }
-          primaryAction={{
-            label: "Back to matches",
-            href: "/matches",
-            icon: ChevronLeft,
-          }}
-          secondaryAction={{
-            label: "Try again",
-            onClick: () => refetchMatch(),
-          }}
-          className="w-full"
-        />
+        <h1 className="sr-only">{gone ? "Match not found" : "Could not load match"}</h1>
+        {gone ? (
+          <EmptyState
+            icon={AlertCircle}
+            title="This match is not here"
+            description="It may have been deleted, or the link is not complete."
+            primaryAction={{
+              label: "All matches",
+              href: "/matches",
+              icon: ChevronLeft,
+            }}
+            className="w-full"
+          />
+        ) : (
+          <CouldNotLoad
+            what="this match"
+            onRetry={refetchMatch}
+            className="w-full"
+          />
+        )}
       </div>
     );
   }

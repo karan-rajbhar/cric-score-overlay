@@ -14,6 +14,7 @@ import {
 import { Alert, AlertDescription } from "~/components/ui/alert";
 import { AlertCircle } from "lucide-react";
 import { BrandMark, BrandWordmark } from "~/components/brand";
+import { placeName } from "~/lib/sign-in";
 
 /**
  * Where to go after sign-in: the target's path, query and hash when it
@@ -36,30 +37,20 @@ function sameSitePath(target: string): string {
 function LoginPageInner() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { signInWithGoogle, redirectError, user } = useAuth();
+  const { signInWithGoogle, redirectError, signingIn, user } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Derive OAuth errors from URL params during render (no state/effect needed)
-  const urlError = (() => {
-    const errorParam = searchParams.get("error");
-    if (!errorParam) return null;
-    switch (errorParam) {
-      case "oauth_error": {
-        const messageParam = searchParams.get("message");
-        return messageParam
-          ? decodeURIComponent(messageParam)
-          : "OAuth authentication failed. Please try again.";
-      }
-      case "session_error":
-        return "Session creation failed. Please try again.";
-      case "unexpected_error":
-        return "An unexpected error occurred. Please try again.";
-      default:
-        return "Authentication failed. Please try again.";
-    }
-  })();
-  const displayError = error ?? redirectError?.message ?? urlError;
+  // Errors come from the sign-in itself, never from the URL: any text put
+  // in a link used to show as the page's own message (N8).
+  const displayError = error ?? redirectError?.message ?? null;
+  // Popup in progress, or back from Google's page and finishing (N3).
+  const busy = googleLoading || signingIn;
+
+  // Where signing in leads back to, named when it has a short name (N31).
+  const returnTo = placeName(
+    searchParams.get("redirect") ?? searchParams.get("next") ?? "",
+  );
 
   // Invite links carry the invited email so Google suggests that account.
   const inviteEmail = (() => {
@@ -110,7 +101,7 @@ function LoginPageInner() {
             <BrandWordmark />
           </Link>
           <h1 className="text-balance text-2xl font-semibold tracking-tight">
-            Sign in to CricScore
+            {returnTo ? `Sign in to continue to ${returnTo}` : "Sign in to CricScore"}
           </h1>
           <p className="text-sm text-muted-foreground">
             CricScore is invite-only. Anyone can follow matches from a shared
@@ -124,8 +115,10 @@ function LoginPageInner() {
             <CardDescription className="text-center text-sm">
               {inviteEmail ? (
                 <>
-                  Sign in with Google using{" "}
-                  <span className="font-semibold text-foreground">
+                  Sign in with Google using
+                  {/* Its own line, broken anywhere: a long address stays
+                      in the card (N30). */}
+                  <span className="block font-semibold text-foreground [overflow-wrap:anywhere]">
                     {inviteEmail}
                   </span>
                 </>
@@ -146,14 +139,14 @@ function LoginPageInner() {
             {/* Google Sign In */}
             <Button
               onClick={handleGoogleSignIn}
-              disabled={googleLoading}
+              disabled={busy}
               variant="outline"
               className="h-11 w-full"
             >
-              {googleLoading ? (
+              {busy ? (
                 <>
                   <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-current"></div>
-                  Signing in with Google…
+                  {signingIn ? "Signing you in…" : "Signing in with Google…"}
                 </>
               ) : (
                 <>

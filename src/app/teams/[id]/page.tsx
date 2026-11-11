@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { StatGrid, StatTile } from "~/components/ds/stat-tile";
-import { Chip } from "~/components/ds/chip";
+import { Chip, chipVariants } from "~/components/ds/chip";
+import Link from "next/link";
+import { cn } from "~/lib/utils";
 import { TeamCrest } from "~/components/ds/avatar";
 import { MetaItem } from "~/components/ds/list";
 import { ProfileHeader } from "~/components/ds/player-header";
@@ -11,6 +13,7 @@ import {
   Calendar,
   AlertCircle,
   Swords,
+  Minus,
   Percent,
   UserRound,
   X,
@@ -379,8 +382,24 @@ export default async function TeamDetailsPage({
         }
         labels={
           <>
-            {team.short_name && <Chip tone="outline">{team.short_name}</Chip>}
-            <Chip>{formatTeamType(team.team_type)}</Chip>
+            {/* The crest and title already say the short name; the club
+                is named and opens (P10). */}
+            {clubInfo ? (
+              <Link
+                href={`/clubs/${clubInfo.id}`}
+                className={cn(
+                  chipVariants({ tone: "outline" }),
+                  "hover:bg-accent max-md:h-11 max-md:px-3.5",
+                )}
+              >
+                {clubInfo.name}
+              </Link>
+            ) : (
+              team.team_type &&
+              team.team_type !== "club" && (
+                <Chip>{formatTeamType(team.team_type)}</Chip>
+              )
+            )}
           </>
         }
         description={team.description}
@@ -417,10 +436,22 @@ export default async function TeamDetailsPage({
           />
           <StatTile compact icon={Trophy} label="Won" value={record.won} />
           <StatTile compact icon={X} label="Lost" value={record.lost} />
+          {/* Phones drop the note under Played: ties and no results get
+              their own tile there, so the row adds up (P6). */}
+          {record.noWinner > 0 && (
+            <StatTile
+              compact
+              icon={Minus}
+              label="Tied / NR"
+              value={record.noWinner}
+              className="md:hidden"
+            />
+          )}
           <StatTile compact
             icon={Percent}
             label="Win rate"
             value={record.winRate !== null ? `${record.winRate}%` : "–"}
+            className={record.noWinner > 0 ? "max-md:hidden" : undefined}
           />
         </StatGrid>
 
@@ -474,7 +505,14 @@ export default async function TeamDetailsPage({
                         jersey_number: p.jersey_number,
                       }))}
                     />
-                    {canManageTeam && <AddPlayerDialog teamId={team.id} clubId={team.club_id} />}
+                    {canManageTeam && (
+                      <AddPlayerDialog
+                        teamId={team.id}
+                        teamName={team.name}
+                        clubId={team.club_id}
+                        squadIds={players.map((p) => p.user_id)}
+                      />
+                    )}
                   </div>
                 </div>
 

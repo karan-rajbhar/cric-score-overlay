@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useConfirm } from "~/components/ui/confirm-dialog";
 import {
   Dialog,
   DialogContent,
@@ -13,15 +14,23 @@ import {
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
-import { Plus, Trash2, Loader2 } from "lucide-react";
+import { CalendarRange, Trash2, Loader2 } from "lucide-react";
+import { Chip } from "~/components/ds/chip";
 import { createSeason, deleteSeason } from "~/app/clubs/actions";
 import { toast } from "sonner";
 
 interface SeasonDialogProps {
   clubId: string;
+  /** The club's seasons, listed with a way to delete each but the current. */
+  seasons?: readonly { id: string; name: string; is_current?: boolean | null }[];
 }
 
-export function SeasonDialog({ clubId }: SeasonDialogProps) {
+/**
+ * The club's seasons in one place (T5): the list, each past one with a
+ * 44px delete, and a form for a new one. The header shows only the
+ * current season; it used to carry every season as a chip with a 24px bin.
+ */
+export function SeasonDialog({ clubId, seasons = [] }: SeasonDialogProps) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -48,7 +57,6 @@ export function SeasonDialog({ clubId }: SeasonDialogProps) {
         toast.error(res.error);
       } else {
         toast.success(`Created season ${name}`);
-        setOpen(false);
         setName("");
         setStartDate("");
         setEndDate("");
@@ -65,20 +73,44 @@ export function SeasonDialog({ clubId }: SeasonDialogProps) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">
-          <Plus className="h-3.5 w-3.5" />
-          New season
+          <CalendarRange className="h-3.5 w-3.5" aria-hidden="true" />
+          Seasons
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-xl">Create club season</DialogTitle>
+          <DialogTitle>Seasons</DialogTitle>
           <DialogDescription>
-            Organize tournaments, team rosters, and stats under a periodic
-            season or quarter.
+            Tournaments and statistics can be grouped by season.
           </DialogDescription>
         </DialogHeader>
 
+        {seasons.length > 0 && (
+          <ul aria-label="Seasons" className="divide-y divide-border rounded-xl ring-1 ring-border/60">
+            {seasons.map((season) => (
+              <li
+                key={season.id}
+                className="flex min-h-11 items-center gap-2 py-1 pl-3 pr-1 text-sm"
+              >
+                <span className="min-w-0 flex-1 truncate">{season.name}</span>
+                {season.is_current ? (
+                  <Chip tone="primary" className="mr-2">
+                    Current
+                  </Chip>
+                ) : (
+                  <DeleteSeasonButton
+                    clubId={clubId}
+                    seasonId={season.id}
+                    seasonName={season.name}
+                  />
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+
         <div className="space-y-4 py-2">
+          <h3 className="text-sm font-semibold text-foreground">New season</h3>
           <div className="space-y-2">
             <Label htmlFor="seasonName">Season name</Label>
             <Input
@@ -122,17 +154,17 @@ export function SeasonDialog({ clubId }: SeasonDialogProps) {
               htmlFor="isCurrent"
               className="cursor-pointer text-sm font-normal"
             >
-              Set as current active season
+              Make it the current season
             </Label>
           </div>
         </div>
 
         <DialogFooter className="gap-2 sm:gap-0">
           <Button variant="outline" onClick={() => setOpen(false)}>
-            Cancel
+            Done
           </Button>
           <Button onClick={handleSave} disabled={isSaving}>
-            {isSaving ? "Creating..." : "Create Season"}
+            {isSaving ? "Adding…" : "Add season"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -150,11 +182,19 @@ export function DeleteSeasonButton({
   seasonName: string;
 }) {
   const [loading, setLoading] = useState(false);
+  const [ask, confirmDialog] = useConfirm();
 
   const handleDelete = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!confirm(`Delete season "${seasonName}"?`)) return;
+    const ok = await ask({
+      title: `Delete the season ${seasonName}?`,
+      description: "Its matches and their records stay.",
+      cancelLabel: "Keep season",
+      confirmLabel: "Delete season",
+      destructive: true,
+    });
+    if (!ok) return;
 
     setLoading(true);
     try {
@@ -173,20 +213,24 @@ export function DeleteSeasonButton({
   };
 
   return (
+    <>
+    {confirmDialog}
     <Button
       variant="ghost"
       size="icon"
       disabled={loading}
       onClick={handleDelete}
-      className="h-6 w-6 text-muted-foreground hover:text-destructive"
-      title={`Delete season "${seasonName}"`}
+      className="h-11 w-11 shrink-0 text-muted-foreground hover:text-destructive"
+      aria-label={`Delete the season ${seasonName}`}
+      title={`Delete the season ${seasonName}`}
     >
       {loading ? (
-        <Loader2 className="h-3 w-3 animate-spin" />
+        <Loader2 className="h-4 w-4 animate-spin" />
       ) : (
-        <Trash2 className="h-3.5 w-3.5" />
+        <Trash2 className="h-4 w-4" />
       )}
     </Button>
+    </>
   );
 }
 

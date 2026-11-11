@@ -1,6 +1,6 @@
 import "~/styles/globals.css";
 import { Barlow_Condensed, Outfit, Urbanist } from "next/font/google";
-import { Toaster } from "sonner";
+import { Toaster } from "~/components/ui/toaster";
 import { AuthProvider } from "~/lib/auth";
 import { getInitialUser } from "~/lib/firebase/initial-user";
 import { ErrorReporter } from "~/components/error-reporter";
@@ -37,6 +37,9 @@ const broadcast = Barlow_Condensed({
   display: "swap",
   preload: false,
 });
+
+/** Mirrors ThemeProvider (storage key, "system", reports always light). */
+const THEME_BEFORE_PAINT = `(function(){try{var p=location.pathname;if(/^\\/(matches|clubs)\\/[^/]+\\/(report|stats-report)\\/?$/.test(p))return;var t=localStorage.getItem("cricket-ui-theme")||"light";var d=t==="dark"||(t==="system"&&matchMedia("(prefers-color-scheme: dark)").matches);var r=document.documentElement;r.classList.remove("light","dark");r.classList.add(d?"dark":"light");r.style.colorScheme=d?"dark":"light"}catch(e){}})()`;
 
 export const metadata: Metadata = {
   // Each page names itself: "<page> | CricScore".
@@ -79,6 +82,12 @@ export default async function RootLayout({
       {/* No speculation rules: navigation is client-side (next/link, which
           prefetches routes itself), so a prerendered document is never used
           but still costs a server render and Firestore reads and listeners. */}
+      <head>
+        {/* The saved theme before the first paint (N4): without it a dark
+            choice painted light, then switched once React ran. Reports are
+            always light (theme-provider forces it). */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_BEFORE_PAINT }} />
+      </head>
       <body
         className={`font-sans ${urbanist.variable} ${outfit.variable} ${broadcast.variable} overflow-x-hidden antialiased`}
       >
@@ -89,7 +98,7 @@ export default async function RootLayout({
           <AuthProvider initialUser={initialUser}>
             <QueryProvider>
               <AppShell>{children}</AppShell>
-              <Toaster richColors position="top-center" />
+              <Toaster />
               <ServiceWorkerRegistrar />
             </QueryProvider>
           </AuthProvider>

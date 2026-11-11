@@ -43,7 +43,7 @@ export function BallChip({
         "inline-flex shrink-0 items-center justify-center rounded-full font-score font-semibold tabular-nums leading-none",
         size === "md"
           ? "h-8 min-w-8 px-1.5 text-sm"
-          : "h-6 min-w-6 px-1 text-2xs",
+          : "h-6 min-w-6 px-1 text-xs",
         KIND[kind],
         className,
       )}
@@ -121,7 +121,7 @@ export const KeypadButton = React.forwardRef<
       {children}
     </span>
     {caption && (
-      <span className="text-2xs font-medium leading-none opacity-80">
+      <span className="text-xs font-medium leading-none opacity-80">
         {caption}
       </span>
     )}

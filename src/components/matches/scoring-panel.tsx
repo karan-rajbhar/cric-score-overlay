@@ -571,7 +571,7 @@ export function ScoringPanel({
         sunlightMode && "sunlight-mode border-2 border-black",
       )}
     >
-      <CardContent className="space-y-2 p-2.5 max-sm:flex max-sm:flex-1 max-sm:flex-col sm:space-y-3.5 sm:p-5">
+      <CardContent className="space-y-1.5 p-2 max-sm:flex max-sm:flex-1 max-sm:flex-col sm:space-y-3.5 sm:p-5">
         {/* Screen-reader live summary of over state */}
         <p aria-live="polite" className="sr-only">
           {undoNotice
@@ -585,7 +585,7 @@ export function ScoringPanel({
           {lastBalls.length > 0
             ? `, this over: ${lastBalls.map(getBallLabel).join(", ")}`
             : ", no balls yet this over"}
-          {selectedExtra ? `, ${selectedExtra.replace("_", " ")} pending` : ""}
+          {selectedExtra ? `. ${getStagedDeliveryDescription()}` : ""}
         </p>
 
         {/* Over position + this-over ball trail (tap a ball to edit it) */}
@@ -602,7 +602,7 @@ export function ScoringPanel({
               >
                 {lastBalls.map((ball, idx) => {
                   const chip =
-                    "flex h-8 min-w-8 shrink-0 items-center justify-center border px-0.5 text-2xs sm:h-9 sm:min-w-9 sm:text-xs";
+                    "flex h-8 min-w-8 shrink-0 items-center justify-center border px-0.5 text-xs sm:h-9 sm:min-w-9";
                   // A retirement sits between balls: shown, not numbered
                   // or edited (undo removes it).
                   if (readBallLabel(ball).kind === "retired") {
@@ -635,22 +635,24 @@ export function ScoringPanel({
                         getBallDisplay(ball),
                       )}
                       title={`Ball ${number}: ${getBallLabel(ball)} (tap to edit)`}
-                      aria-label={`Ball ${number}: ${getBallLabel(ball)}`}
                     >
+                      {/* The name starts with what the chip shows ("4"),
+                          for voice control (S12). */}
                       {ball}
+                      <span className="sr-only">
+                        , ball {number}: {getBallLabel(ball)}, edit
+                      </span>
                     </button>
                   );
                 })}
               </div>
-                <span className="tabular-nums shrink-0 rounded-full bg-muted/80 px-2 py-0.5 text-2xs font-bold text-foreground">
-                  {overSummary.runs}r
-                  {overSummary.wickets > 0 ? ` · ${overSummary.wickets}w` : ""}
-                </span>
+              <span className="shrink-0 rounded-full bg-muted/80 px-2 py-0.5 text-xs font-bold tabular-nums text-foreground">
+                {overSummary.runs}r
+                {overSummary.wickets > 0 ? ` · ${overSummary.wickets}w` : ""}
+              </span>
             </>
           ) : (
-            <span className="min-w-0 flex-1 truncate text-2xs font-medium text-muted-foreground/80 sm:text-xs">
-              New over · awaiting first ball
-            </span>
+            <span className="min-w-0 flex-1" />
           )}
           {onEditBalls && (
             <Button
@@ -668,414 +670,430 @@ export function ScoringPanel({
           )}
         </div>
 
-        {/* Waiting for the server: say why the keypad does not respond */}
-        {waitingNote && (
-          <p
-            role="status"
-            className="flex items-center gap-2 rounded-xl border border-border bg-muted/60 px-3 py-1.5 text-xs font-medium text-foreground"
-          >
-            <Loader2
-              className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground"
-              aria-hidden="true"
-            />
-            {waitingNote}
-          </p>
-        )}
-
-        {/* What the last undo took back, in words, with a way to put it back */}
-        {undoNotice && (
-          <div
-            data-testid="undo-notice"
-            className={cn(
-              "flex items-center justify-between gap-2 rounded-xl border px-3 py-1.5",
-              sunlightMode
-                ? "border-2 border-black bg-white text-black"
-                : "border-border bg-muted/60 text-foreground",
-            )}
-          >
-            <div className="flex min-w-0 items-center gap-2">
-              <RotateCcw
-                className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+        {/* One fixed row for whatever changes between taps (the server
+            being waited for, an armed extra and its choice, what Undo took
+            back, a free hit), so the keys under it never move. */}
+        <div
+          className="flex h-11 shrink-0 items-center"
+          data-testid="keypad-status"
+        >
+          {waitingNote ? (
+            <p
+              role="status"
+              className="flex w-full items-center gap-2 rounded-xl border border-border bg-muted/60 px-3 py-1.5 text-xs font-medium text-foreground"
+            >
+              <Loader2
+                className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground"
                 aria-hidden="true"
               />
-              <p
-                className="min-w-0 text-xs leading-snug"
-                title={[
-                  undoNotice.position,
-                  undoNotice.players,
-                  undoNotice.note,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              >
-                <span className="font-semibold">
-                  {undoNotice.heading
-                    ? `${undoNotice.heading} ${undoNotice.pending ? "being removed" : "removed"}: ${undoNotice.label}`
-                    : `${undoNotice.pending ? "Removing ball" : "Ball removed"}${undoNotice.label ? `: ${getBallLabel(undoNotice.label)}` : ""}`}
-                </span>
-                {(undoNotice.position || undoNotice.players) && (
-                  <span className="text-muted-foreground">
-                    {" · "}
-                    {[undoNotice.position, undoNotice.players]
-                      .filter(Boolean)
-                      .join(", ")}
-                  </span>
-                )}
-                {undoNotice.note && (
-                  <span className="block text-2xs text-muted-foreground">
-                    {undoNotice.note}
-                  </span>
-                )}
-              </p>
-            </div>
-            {undoNotice.canRedo && !undoNotice.pending && onRedo && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={onRedo}
-                disabled={disabled}
-                className="h-8 shrink-0"
-              >
-                Restore ball
-              </Button>
-            )}
-          </div>
-        )}
-
-        {/* Free hit (when the match plays them) */}
-        {isFreeHit && (
-          <div
-            className={cn(
-              "flex items-center gap-2 rounded-xl border px-3 py-2",
-              sunlightMode
-                ? "border-2 border-black bg-amber-400 font-bold text-black"
-                : "border-warning/50 bg-warning/15 text-warning dark:bg-warning/20",
-            )}
-          >
-            <span className="text-xs font-semibold">
-              Free hit: the batter can be out only run out or obstructing the
-              field
-            </span>
-          </div>
-        )}
-
-        {/* Extra pending banner */}
-        {selectedExtra && (
-          <div
-            className={cn(
-              "flex items-center justify-between gap-2 rounded-xl border px-3 py-2",
-              sunlightMode
-                ? "border-2 border-black bg-amber-300 font-bold text-black"
-                : "border-warning/40 bg-warning/10 dark:border-warning/50 dark:bg-warning/20",
-            )}
-          >
-            <div className="flex min-w-0 items-center gap-2">
-              <AlertTriangle
-                className={cn(
-                  "h-4 w-4 shrink-0",
-                  sunlightMode ? "text-black" : "text-warning",
-                )}
-              />
-              <span
-                className={cn(
-                  "text-xs font-bold",
-                  sunlightMode
-                    ? "font-bold text-black"
-                    : "text-warning",
-                )}
-              >
-                {getStagedDeliveryDescription()}
-              </span>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
+              <span className="line-clamp-2">{waitingNote}</span>
+            </p>
+          ) : selectedExtra ? (
+            <div
               className={cn(
-                "h-7 shrink-0 rounded-lg px-2 text-xs font-bold",
+                "flex h-full w-full items-center gap-1.5 rounded-xl border px-2",
                 sunlightMode
-                  ? "text-black hover:bg-black/10"
-                  : "text-warning hover:bg-warning/20",
+                  ? "border-2 border-black bg-amber-300 font-bold text-black"
+                  : "border-warning/40 bg-warning/10 dark:border-warning/50 dark:bg-warning/20",
               )}
-              onClick={() => setSelectedExtra(null)}
             >
-              Cancel
-            </Button>
-          </div>
-        )}
-
-        {/* Under an armed no-ball: were the runs off the bat, or byes? */}
-        {selectedExtra === "no_ball" && (
-          <div
-            role="radiogroup"
-            aria-label="The runs off this no-ball were"
-            className="grid grid-cols-3 gap-1.5"
-          >
-            {(
-              [
-                ["bat", "Off the bat"],
-                ["bye", "Byes"],
-                ["leg_bye", "Leg byes"],
-              ] as const
-            ).map(([kind, label]) => {
-              const checked = noBallRuns === kind;
-              return (
-                <button
-                  key={kind}
-                  type="button"
-                  role="radio"
-                  aria-checked={checked}
-                  onClick={() => setNoBallRuns(kind)}
-                  className={cn(
-                    "h-10 rounded-lg border text-xs font-semibold transition-colors",
-                    sunlightMode
-                      ? checked
-                        ? "border-2 border-black bg-black text-white"
-                        : "border-2 border-black bg-white text-black"
-                      : checked
-                        ? "border-transparent bg-primary text-primary-foreground"
-                        : "border-border bg-background text-foreground hover:bg-muted",
-                  )}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Run keypad: 4 columns on phones (two rows that grow to fill the screen), one row from sm up */}
-        <div
-          className="grid grid-cols-4 gap-1.5 max-sm:flex-1 max-sm:auto-rows-fr sm:grid-cols-8 sm:gap-2.5"
-          role="group"
-          aria-label="Runs scored"
-        >
-          {RUN_BUTTONS.map((runs) => {
-            const isFour = runs === 4;
-            const isSix = runs === 6;
-            const isFive = runs === 5;
-            const isDot = runs === 0;
-            const subLabel = getRunSubLabel(runs);
-            // Byes need a run: 0 is not a bye.
-            const noRun =
-              isDot && (selectedExtra === "bye" || selectedExtra === "leg_bye");
-            return (
-              <button
-                key={runs}
-                type="button"
-                disabled={disabled || noRun}
-                aria-label={
-                  isDot
-                    ? "0 runs (dot ball)"
-                    : isFour
-                      ? "4 runs (four)"
-                      : isSix
-                        ? "6 runs (six)"
-                        : `${runs} run${runs > 1 ? "s" : ""}`
-                }
-                title={
-                  isDot
-                    ? "Dot ball (0)"
-                    : isFour
-                      ? "Four (4)"
-                      : isSix
-                        ? "Six (6)"
-                        : `${runs} runs (${runs})`
-                }
-                className={cn(
-                  "score-display tabular-nums flex min-h-14 select-none flex-col items-center justify-center overflow-hidden rounded-xl border-2 px-1 text-2xl font-bold leading-none transition-colors active:opacity-80 disabled:opacity-50 sm:h-16 sm:rounded-2xl sm:text-3xl",
-                  // An armed extra changes what every run button records.
-                  selectedExtra && "ring-2 ring-extra/70 ring-offset-1 ring-offset-background",
-                  sunlightMode
-                    ? cn(
-                        "border-2 font-bold shadow-none",
-                        (isDot ||
-                          runs === 1 ||
-                          runs === 2 ||
-                          runs === 3 ||
-                          isFive) &&
-                          "border-black bg-white text-black hover:bg-neutral-100",
-                        isFour &&
-                          "border-black bg-emerald-600 text-white hover:bg-emerald-700",
-                        isSix &&
-                          "border-black bg-purple-700 text-white hover:bg-purple-800",
-                      )
-                    : cn(
-                        isDot &&
-                          "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
-                        runs === 1 &&
-                          "border-border bg-background text-foreground hover:bg-muted",
-                        runs === 2 &&
-                          "border-border bg-background text-foreground hover:bg-muted",
-                        runs === 3 &&
-                          "border-border bg-background text-foreground hover:bg-muted",
-                        isFive &&
-                          "border-border bg-background text-foreground hover:bg-muted",
-                        isFour &&
-                          "border-four bg-four text-four-foreground hover:bg-four/90",
-                        isSix &&
-                          "border-six bg-six text-six-foreground hover:bg-six/90",
-                      ),
-                )}
-                onClick={() => handleRunClick(runs)}
-              >
-                <span className="leading-none">{runs}</span>
-                {subLabel && (
+              {selectedExtra === "no_ball" ? (
+                <>
                   <span
                     className={cn(
-                      "mt-1 font-sans text-[0.5625rem] font-semibold leading-none sm:text-2xs",
-                      sunlightMode
-                        ? isFour || isSix
-                          ? "text-white"
-                          : "text-black"
-                        : runs === 4
-                          ? "text-four-foreground/85"
-                          : runs === 6
-                            ? "text-six-foreground/85"
-                            : selectedExtra
-                              ? "text-extra"
-                              : "text-muted-foreground",
+                      "shrink-0 text-xs font-bold",
+                      sunlightMode ? "text-black" : "text-warning",
                     )}
                   >
-                    {subLabel}
+                    No ball
                   </span>
+                  {/* Were the runs the scorer taps off the bat, or byes? */}
+                  <div
+                    role="radiogroup"
+                    aria-label="The runs off this no-ball were"
+                    className="grid min-w-0 flex-1 grid-cols-3 gap-1"
+                  >
+                    {(
+                      [
+                        ["bat", "Off the bat"],
+                        ["bye", "Byes"],
+                        ["leg_bye", "Leg byes"],
+                      ] as const
+                    ).map(([kind, label]) => {
+                      const checked = noBallRuns === kind;
+                      return (
+                        <button
+                          key={kind}
+                          type="button"
+                          role="radio"
+                          aria-checked={checked}
+                          onClick={() => setNoBallRuns(kind)}
+                          className={cn(
+                            "h-8 truncate rounded-lg border px-0.5 text-xs font-semibold transition-colors",
+                            sunlightMode
+                              ? checked
+                                ? "border-2 border-black bg-black text-white"
+                                : "border-2 border-black bg-white text-black"
+                              : checked
+                                ? "border-transparent bg-primary text-primary-foreground"
+                                : "border-border bg-background text-foreground hover:bg-muted",
+                          )}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <AlertTriangle
+                    className={cn(
+                      "h-4 w-4 shrink-0",
+                      sunlightMode ? "text-black" : "text-warning",
+                    )}
+                    aria-hidden="true"
+                  />
+                  <span
+                    className={cn(
+                      "line-clamp-2 min-w-0 flex-1 text-xs font-bold",
+                      sunlightMode ? "text-black" : "text-warning",
+                    )}
+                  >
+                    {getStagedDeliveryDescription()}
+                  </span>
+                </>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  "h-8 shrink-0 rounded-lg px-2 text-xs font-bold",
+                  sunlightMode
+                    ? "text-black hover:bg-black/10"
+                    : "text-warning hover:bg-warning/20",
                 )}
-              </button>
-            );
-          })}
-
-          {/* More runs button */}
-          <button
-            type="button"
-            disabled={disabled}
-            aria-label="More run options: 7 to 13+ runs"
-            title="More run options (7, 8, 9, 10, 11, 12, 13, custom)"
-            onClick={() => setShowMoreRuns((prev) => !prev)}
-            className={cn(
-              "score-display tabular-nums flex min-h-14 select-none flex-col items-center justify-center overflow-hidden rounded-xl border-2 px-1 leading-none transition-colors active:opacity-80 disabled:opacity-50 sm:h-16 sm:rounded-2xl",
-              sunlightMode
-                ? showMoreRuns
-                  ? "border-2 border-black bg-black text-white shadow-none"
-                  : "border-2 border-black bg-white text-black shadow-none hover:bg-neutral-100"
-                : showMoreRuns
-                  ? "border-primary bg-primary/15 text-primary"
-                  : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
-            )}
-          >
-            <span className="text-base font-semibold leading-none sm:text-lg">
-              More
-            </span>
-            <span className="mt-1 font-sans text-[0.5625rem] font-bold leading-none text-muted-foreground sm:text-[0.625rem]">
-              7–13+
-            </span>
-          </button>
-        </div>
-
-        {/* High runs / extras expandable drawer (7 to 13+) */}
-        {showMoreRuns && (
-          <div className="space-y-2.5 rounded-2xl border border-border/80 bg-muted/40 p-3 dark:bg-card/90">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-foreground">
-                More runs
-              </span>
-              <button
-                type="button"
-                onClick={() => setShowMoreRuns(false)}
-                className="rounded-full p-1 text-muted-foreground hover:bg-muted"
-                title="Close more runs"
-                aria-label="Close more runs"
+                onClick={() => setSelectedExtra(null)}
               >
-                <X className="h-3.5 w-3.5" />
-              </button>
+                Cancel
+              </Button>
             </div>
-            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-              {[7, 8, 9, 10, 11, 12, 13].map((r) => (
+          ) : undoNotice ? (
+            <div
+              data-testid="undo-notice"
+              className={cn(
+                "flex h-full w-full items-center justify-between gap-2 rounded-xl border px-3",
+                sunlightMode
+                  ? "border-2 border-black bg-white text-black"
+                  : "border-border bg-muted/60 text-foreground",
+              )}
+            >
+              <div className="flex min-w-0 items-center gap-2">
+                <RotateCcw
+                  className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                  aria-hidden="true"
+                />
+                <p
+                  className="line-clamp-2 min-w-0 text-xs leading-snug"
+                  title={[
+                    undoNotice.position,
+                    undoNotice.players,
+                    undoNotice.note,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                >
+                  <span className="font-semibold">
+                    {undoNotice.heading
+                      ? `${undoNotice.heading} ${undoNotice.pending ? "being removed" : "removed"}: ${undoNotice.label}`
+                      : `${undoNotice.pending ? "Removing ball" : "Ball removed"}${undoNotice.label ? `: ${getBallLabel(undoNotice.label)}` : ""}`}
+                  </span>
+                  {(undoNotice.position ||
+                    undoNotice.players ||
+                    undoNotice.note) && (
+                    <span className="text-muted-foreground">
+                      {" · "}
+                      {[
+                        undoNotice.position,
+                        undoNotice.players,
+                        undoNotice.note,
+                      ]
+                        .filter(Boolean)
+                        .join(", ")}
+                    </span>
+                  )}
+                </p>
+              </div>
+              {undoNotice.canRedo && !undoNotice.pending && onRedo && (
                 <Button
-                  key={r}
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="h-9 min-w-[42px] rounded-xl text-xs font-bold"
-                  onClick={() => {
-                    handleRunClick(r);
-                    setShowMoreRuns(false);
-                  }}
+                  onClick={onRedo}
+                  disabled={disabled}
+                  className="h-8 shrink-0"
                 >
-                  {r}
+                  Restore ball
                 </Button>
-              ))}
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const val = Number(customRunsInput);
-                  if (!isNaN(val) && val >= 0) {
-                    handleRunClick(val);
-                    setCustomRunsInput("");
-                    setShowMoreRuns(false);
-                  }
-                }}
-                className="flex items-center gap-1.5"
-              >
-                <Input
-                  type="number"
-                  min="0"
-                  max="50"
-                  value={customRunsInput}
-                  onChange={(e) => setCustomRunsInput(e.target.value)}
-                  placeholder="Custom..."
-                  aria-label="Custom runs"
-                  inputMode="numeric"
-                  className="h-9 w-24 text-xs font-bold"
-                />
-                <Button
-                  type="submit"
-                  size="sm"
-                  variant="secondary"
-                  className="h-9 px-3 text-xs font-bold"
-                  disabled={!customRunsInput}
-                >
-                  Score
-                </Button>
-              </form>
+              )}
             </div>
-          </div>
-        )}
-
-        {/* Extras: single row of toggles */}
-        <div
-          className="grid grid-cols-4 gap-1.5 sm:gap-2"
-          role="group"
-          aria-label="Extras"
-        >
-          {EXTRA_TYPES.map(({ type, label, activeClass }) => (
-            <button
-              key={type}
-              type="button"
-              onClick={() => handleExtraClick(type)}
-              disabled={disabled}
-              aria-pressed={selectedExtra === type}
-              aria-label={label}
+          ) : isFreeHit ? (
+            <p
               className={cn(
-                "h-11 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 sm:rounded-xl",
+                "flex h-full w-full items-center rounded-xl border px-3 text-xs font-semibold",
                 sunlightMode
-                  ? selectedExtra === type
-                    ? "border-2 border-black bg-black font-bold text-white shadow-none"
-                    : "border-2 border-black bg-white font-bold text-black shadow-none hover:bg-neutral-100"
-                  : selectedExtra === type
-                    ? `${activeClass} border-transparent font-bold`
-                    : "border border-border bg-background text-foreground hover:bg-muted",
+                  ? "border-2 border-black bg-amber-400 font-bold text-black"
+                  : "border-warning/50 bg-warning/15 text-warning dark:bg-warning/20",
               )}
             >
-              <span aria-hidden="true">{label}</span>
+              Free hit: the batter can be out only run out or obstructing the
+              field
+            </p>
+          ) : (
+            <p className="px-1 text-xs text-muted-foreground">
+              {lastBalls.length === 0
+                ? "New over: waiting for the first ball"
+                : "Tap a ball in the over above to correct it"}
+            </p>
+          )}
+        </div>
+
+        {/* The keys and the extras; More runs opens over them, so nothing
+            below moves. */}
+        <div className="relative flex flex-col gap-2 max-sm:flex-1 sm:gap-3.5">
+          {/* Run keypad: 4 columns on phones (two rows that grow to fill the screen), one row from sm up */}
+          <div
+            className="grid grid-cols-4 gap-1.5 max-sm:flex-1 max-sm:auto-rows-fr sm:grid-cols-8 sm:gap-2.5"
+            role="group"
+            aria-label="Runs scored"
+          >
+            {RUN_BUTTONS.map((runs) => {
+              const isFour = runs === 4;
+              const isSix = runs === 6;
+              const isFive = runs === 5;
+              const isDot = runs === 0;
+              const subLabel = getRunSubLabel(runs);
+              // Byes need a run: 0 is not a bye.
+              const noRun =
+                isDot &&
+                (selectedExtra === "bye" || selectedExtra === "leg_bye");
+              return (
+                <button
+                  key={runs}
+                  type="button"
+                  disabled={disabled || noRun}
+                  // Named by what the key shows ("4, Four"; with an extra
+                  // armed, "1, 2 Wd"), so voice control can say it (S12).
+                  aria-label={
+                    subLabel
+                      ? `${runs}, ${subLabel}`
+                      : `${runs} run${runs === 1 ? "" : "s"}`
+                  }
+                  title={
+                    isDot
+                      ? "Dot ball (0)"
+                      : isFour
+                        ? "Four (4)"
+                        : isSix
+                          ? "Six (6)"
+                          : `${runs} runs (${runs})`
+                  }
+                  className={cn(
+                    "score-display flex min-h-11 select-none flex-col items-center justify-center overflow-hidden rounded-xl border-2 px-1 text-2xl font-bold tabular-nums leading-none transition-colors active:opacity-80 disabled:opacity-50 sm:h-16 sm:min-h-14 sm:rounded-2xl sm:text-3xl",
+                    // An armed extra changes what every run button records.
+                    selectedExtra &&
+                      "ring-2 ring-extra/70 ring-offset-1 ring-offset-background",
+                    sunlightMode
+                      ? cn(
+                          "border-2 font-bold shadow-none",
+                          (isDot ||
+                            runs === 1 ||
+                            runs === 2 ||
+                            runs === 3 ||
+                            isFive) &&
+                            "border-black bg-white text-black hover:bg-neutral-100",
+                          isFour &&
+                            "border-black bg-emerald-600 text-white hover:bg-emerald-700",
+                          isSix &&
+                            "border-black bg-purple-700 text-white hover:bg-purple-800",
+                        )
+                      : cn(
+                          isDot &&
+                            "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
+                          runs === 1 &&
+                            "border-border bg-background text-foreground hover:bg-muted",
+                          runs === 2 &&
+                            "border-border bg-background text-foreground hover:bg-muted",
+                          runs === 3 &&
+                            "border-border bg-background text-foreground hover:bg-muted",
+                          isFive &&
+                            "border-border bg-background text-foreground hover:bg-muted",
+                          isFour &&
+                            "border-four bg-four text-four-foreground hover:bg-four/90",
+                          isSix &&
+                            "border-six bg-six text-six-foreground hover:bg-six/90",
+                        ),
+                  )}
+                  onClick={() => handleRunClick(runs)}
+                >
+                  <span className="leading-none">{runs}</span>{" "}
+                  {subLabel && (
+                    <span
+                      className={cn(
+                        "mt-1 font-sans text-xs font-semibold leading-none",
+                        sunlightMode
+                          ? isFour || isSix
+                            ? "text-white"
+                            : "text-black"
+                          : runs === 4
+                            ? "text-four-foreground"
+                            : runs === 6
+                              ? "text-six-foreground"
+                              : selectedExtra
+                                ? "text-extra"
+                                : "text-muted-foreground",
+                      )}
+                    >
+                      {subLabel}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+
+            {/* More runs button */}
+            <button
+              type="button"
+              disabled={disabled}
+              aria-label="More, 7 to 13 runs"
+              title="More run options (7, 8, 9, 10, 11, 12, 13, custom)"
+              onClick={() => setShowMoreRuns((prev) => !prev)}
+              className={cn(
+                "score-display flex min-h-11 select-none flex-col items-center justify-center overflow-hidden rounded-xl border-2 px-1 tabular-nums leading-none transition-colors active:opacity-80 disabled:opacity-50 sm:h-16 sm:min-h-14 sm:rounded-2xl",
+                sunlightMode
+                  ? showMoreRuns
+                    ? "border-2 border-black bg-black text-white shadow-none"
+                    : "border-2 border-black bg-white text-black shadow-none hover:bg-neutral-100"
+                  : showMoreRuns
+                    ? "border-primary bg-primary/15 text-primary"
+                    : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
+              )}
+            >
+              <span className="text-base font-semibold leading-none sm:text-lg">
+                More
+              </span>{" "}
+              <span className="mt-1 font-sans text-xs font-bold leading-none text-muted-foreground">
+                7 to 13
+              </span>
             </button>
-          ))}
+          </div>
+
+          {/* High runs (7 to 13+), over the keys and extras */}
+          {showMoreRuns && (
+            <div className="absolute inset-0 z-10 space-y-2.5 overflow-y-auto rounded-2xl border border-border bg-card p-3 shadow-float">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-foreground">
+                  More runs
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowMoreRuns(false)}
+                  className="-m-2 inline-flex h-11 w-11 items-center justify-center rounded-full text-muted-foreground hover:bg-muted"
+                  title="Close more runs"
+                  aria-label="Close more runs"
+                >
+                  <X className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                {[7, 8, 9, 10, 11, 12, 13].map((r) => (
+                  <Button
+                    key={r}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-11 min-w-11 rounded-xl text-sm font-bold"
+                    onClick={() => {
+                      handleRunClick(r);
+                      setShowMoreRuns(false);
+                    }}
+                  >
+                    {r}
+                  </Button>
+                ))}
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const val = Number(customRunsInput);
+                    if (!isNaN(val) && val >= 0) {
+                      handleRunClick(val);
+                      setCustomRunsInput("");
+                      setShowMoreRuns(false);
+                    }
+                  }}
+                  className="flex items-center gap-1.5"
+                >
+                  <Input
+                    type="number"
+                    min="0"
+                    max="50"
+                    value={customRunsInput}
+                    onChange={(e) => setCustomRunsInput(e.target.value)}
+                    placeholder="Custom..."
+                    aria-label="Custom runs"
+                    inputMode="numeric"
+                    className="h-11 w-24 text-base font-bold"
+                  />
+                  <Button
+                    type="submit"
+                    size="sm"
+                    variant="secondary"
+                    className="h-11 px-3 text-sm font-bold"
+                    disabled={!customRunsInput}
+                  >
+                    Score
+                  </Button>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* Extras: single row of toggles */}
+          <div
+            className="grid grid-cols-4 gap-1.5 sm:gap-2"
+            role="group"
+            aria-label="Extras"
+          >
+            {EXTRA_TYPES.map(({ type, label, activeClass }) => (
+              <button
+                key={type}
+                type="button"
+                onClick={() => handleExtraClick(type)}
+                disabled={disabled}
+                aria-pressed={selectedExtra === type}
+                aria-label={label}
+                className={cn(
+                  "h-11 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 sm:rounded-xl",
+                  sunlightMode
+                    ? selectedExtra === type
+                      ? "border-2 border-black bg-black font-bold text-white shadow-none"
+                      : "border-2 border-black bg-white font-bold text-black shadow-none hover:bg-neutral-100"
+                    : selectedExtra === type
+                      ? `${activeClass} border-transparent font-bold`
+                      : "border border-border bg-background text-foreground hover:bg-muted",
+                )}
+              >
+                <span aria-hidden="true">{label}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Primary actions: Wicket + Undo, set apart from the extras above so
             a hurried tap does not land on Wide / No ball instead */}
         <div
           className={cn(
-            "mt-1 grid gap-2 border-t border-border/70 pt-2.5 sm:gap-3 sm:pt-3",
+            "grid gap-2 border-t border-border/70 pt-2 sm:mt-1 sm:gap-3 sm:pt-3",
             onUndo ? "grid-cols-2" : "grid-cols-1",
           )}
           role="group"
@@ -1085,7 +1103,7 @@ export function ScoringPanel({
             variant="destructive"
             size="lg"
             className={cn(
-              "h-12 gap-1.5 rounded-xl text-sm font-semibold sm:gap-2 sm:rounded-2xl sm:text-sm",
+              "h-11 gap-1.5 rounded-xl text-sm font-semibold sm:h-12 sm:gap-2 sm:rounded-2xl sm:text-sm",
               sunlightMode
                 ? "border-2 border-black bg-red-600 font-bold text-white shadow-none hover:bg-red-700"
                 : "",
@@ -1107,7 +1125,7 @@ export function ScoringPanel({
             <span aria-hidden="true">
               Wicket<span className="hidden sm:inline"> (W)</span>
               {isFreeHit && (
-                <span className="ml-1 text-[0.625rem] font-bold tracking-normal text-destructive-foreground/85">
+                <span className="ml-1 text-xs font-bold tracking-normal text-destructive-foreground/85">
                   (free hit)
                 </span>
               )}
@@ -1156,7 +1174,7 @@ export function ScoringPanel({
           )}
         </div>
 
-        <p className="hidden text-center text-2xs text-muted-foreground sm:block">
+        <p className="hidden text-center text-xs text-muted-foreground sm:block">
           Keys 0–6 score · . dot · W wicket · U undo · S swap · D/N/B/L extras ·
           ? help
         </p>
@@ -1179,7 +1197,7 @@ export function ScoringPanel({
               (e.currentTarget as HTMLElement | null)?.focus();
             }}
           >
-            <DialogHeader className="text-center sm:text-center">
+            <DialogHeader>
               <div className="mx-auto flex items-center gap-2">
                 <Compass className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                 <DialogTitle className="text-lg font-semibold">

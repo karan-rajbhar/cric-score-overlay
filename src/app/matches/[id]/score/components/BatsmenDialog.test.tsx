@@ -113,6 +113,10 @@ describe("BatsmenDialog", () => {
       />,
     );
     fireEvent.click(screen.getByRole("radio", { name: /Virat Kohli/ }));
+    // Picking the non-striker now, the striker chosen stays marked (S13).
+    expect(screen.getByRole("radio", { name: /Virat Kohli/ })).toHaveAccessibleName(
+      /Striker/,
+    );
     fireEvent.click(screen.getByRole("radio", { name: /Rohit Sharma/ }));
     expect(onConfirm).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: /^Confirm/ }));

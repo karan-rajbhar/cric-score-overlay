@@ -37,9 +37,22 @@ describe("AppSidebar", () => {
   });
 
   it("lights the current page and only that", () => {
-    usePathname.mockReturnValue("/matches/create");
+    usePathname.mockReturnValue("/clubs/c1");
     render(<AppSidebar />);
-    expect(link("New match")).toHaveAttribute("aria-current", "page");
+    expect(link("Clubs")).toHaveAttribute("aria-current", "page");
     expect(link("Matches")).not.toHaveAttribute("aria-current");
+  });
+
+  it("holds places only, in the tab bar's order (N28)", () => {
+    render(<AppSidebar />);
+    expect(screen.queryByRole("link", { name: "New match" })).toBeNull();
+    expect(screen.getAllByRole("link").map((a) => a.getAttribute("aria-label") ?? a.textContent)).toEqual([
+      "Home",
+      "Matches",
+      "Clubs",
+      "Tournaments",
+      "Teams",
+      "Players",
+    ]);
   });
 });

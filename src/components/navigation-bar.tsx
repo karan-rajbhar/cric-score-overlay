@@ -1,18 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useState, useEffect, useSyncExternalStore } from "react";
 import { useAuth } from "~/lib/auth";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 import { ThemeToggle } from "~/components/ui/theme-toggle";
 import {
+  Home as HomeIcon,
   LogOut,
+  Mail,
   Search,
   Plus,
+  PlusCircle,
   PanelLeft,
-  Radio,
   Trophy,
   Users,
   Shield,
@@ -33,17 +35,45 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
-import { useSidebarStore } from "~/lib/stores/useSidebarStore";
+import { Avatar } from "~/components/ds/avatar";
+import {
+  sidebarModeOf,
+  useSidebarExpanded,
+  useSidebarStore,
+} from "~/lib/stores/useSidebarStore";
 import { useSignOut, useUsername } from "~/lib/hooks/useAccount";
+import { useSignInHref } from "~/lib/sign-in";
+
+const noSubscribe = () => () => {};
+
+/** "⌘K" on Apple keyboards, "Ctrl K" elsewhere (N15). */
+function useSearchShortcutLabel(): string {
+  return useSyncExternalStore(
+    noSubscribe,
+    () => (/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K"),
+    () => "Ctrl K",
+  );
+}
 
 export function NavigationBar() {
   const { user, loading } = useAuth();
   const router = useRouter();
-  const { signOut: handleSignOut, pending: signOutLoading } = useSignOut();
+  const {
+    signOut: handleSignOut,
+    pending: signOutLoading,
+    dialog: signOutDialog,
+  } = useSignOut();
   const [inviteOpen, setInviteOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const username = useUsername();
-  const { toggleCollapsed } = useSidebarStore();
+  const signInHref = useSignInHref();
+  const pathname = usePathname();
+  // The Search page has its own field: one search box per screen (N15).
+  const onSearchPage = pathname === "/search";
+  const shortcut = useSearchShortcutLabel();
+  const sidebar = useSidebarStore();
+  const { toggleCollapsed } = sidebar;
+  const sidebarOpen = useSidebarExpanded(sidebarModeOf(sidebar));
   useIosInstallHint(Boolean(user));
 
   // Keyboard shortcuts: Ctrl+K for search, Ctrl+B for the sidebar.
@@ -52,7 +82,13 @@ export function NavigationBar() {
       if (!e.metaKey && !e.ctrlKey) return;
       if (e.key === "k") {
         e.preventDefault();
-        document.getElementById("global-search-input")?.focus();
+        // The header field shows from lg, and not on Search: elsewhere the
+        // shortcut opens the Search page (N15).
+        const field =
+          document.getElementById("global-search-input") ??
+          document.getElementById("search-query");
+        if (field && field.offsetParent !== null) field.focus();
+        else router.push("/search");
       } else if (e.key === "b") {
         e.preventDefault();
         toggleCollapsed();
@@ -60,28 +96,30 @@ export function NavigationBar() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [toggleCollapsed]);
+  }, [toggleCollapsed, router]);
 
   return (
-    <nav className="sticky top-0 z-40 h-14 border-b border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85">
-      <div className="flex h-full items-center justify-between gap-2 px-3 sm:gap-3 sm:px-5">
+    <header className="sticky top-0 z-40 h-14 border-b border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85">
+      <div className="flex h-full items-center justify-between gap-2 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] sm:gap-3 sm:pl-[max(1.25rem,env(safe-area-inset-left))] sm:pr-[max(1.25rem,env(safe-area-inset-right))]">
         {/* Left: Sidebar toggle + Brand */}
         <div className="flex items-center gap-1.5 sm:gap-2.5">
           {/* Desktop sidebar collapse trigger */}
           <Button
             variant="ghost"
             size="sm"
-            className="hidden h-9 w-9 p-0 text-muted-foreground hover:text-foreground md:flex"
+            className="hidden h-9 w-9 p-0 text-muted-foreground hover:text-foreground md:flex [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11"
             onClick={toggleCollapsed}
             title="Toggle sidebar (Ctrl+B)"
             aria-label="Toggle sidebar"
+            aria-expanded={sidebarOpen}
+            aria-controls="app-sidebar"
           >
             <PanelLeft className="h-4 w-4 shrink-0" />
           </Button>
 
           <Link
             href={user ? "/dashboard" : "/"}
-            className="flex shrink-0 items-center gap-2 rounded-lg"
+            className="flex shrink-0 items-center gap-2 rounded-lg [@media(pointer:coarse)]:min-h-11"
             aria-label="CricScore home"
           >
             <BrandMark />
@@ -90,15 +128,16 @@ export function NavigationBar() {
         </div>
 
         {/* Center: Search */}
-        <div className="hidden w-full max-w-md items-center lg:flex">
+        <div
+          className={`hidden w-full max-w-md items-center ${onSearchPage ? "" : "lg:flex"}`}
+        >
           <form
             role="search"
             onSubmit={(e) => {
               e.preventDefault();
               const q = searchQuery.trim();
-              if (q.length >= 2) {
-                router.push(`/search?q=${encodeURIComponent(q)}`);
-              }
+              // Any text: the Search page says when it is too short (N15).
+              if (q) router.push(`/search?q=${encodeURIComponent(q)}`);
             }}
             className="relative w-full"
           >
@@ -112,15 +151,15 @@ export function NavigationBar() {
               spellCheck={false}
               id="global-search-input"
               type="search"
-              aria-label="Search matches, tournaments and players"
+              aria-label="Search"
               autoComplete="off"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search matches, tournaments, players"
+              placeholder="Search"
               className="h-10 w-full rounded-full border border-border bg-card pl-10 pr-14 text-sm transition-colors placeholder:text-muted-foreground focus-visible:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
             />
-            <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 select-none rounded-full border border-border bg-muted px-2 py-0.5 font-sans text-2xs font-medium text-muted-foreground sm:inline-block">
-              Ctrl K
+            <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 select-none rounded-full border border-border bg-muted px-2 py-0.5 font-sans text-xs font-medium text-muted-foreground sm:inline-block">
+              {shortcut}
             </kbd>
           </form>
         </div>
@@ -132,7 +171,7 @@ export function NavigationBar() {
             asChild
             variant="ghost"
             size="sm"
-            className="h-9 w-9 touch-manipulation p-0 text-muted-foreground hover:text-foreground lg:hidden"
+            className={`h-9 w-9 touch-manipulation p-0 text-muted-foreground hover:text-foreground lg:hidden [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11 ${onSearchPage ? "hidden" : ""}`}
             title="Search"
             aria-label="Search"
           >
@@ -153,6 +192,7 @@ export function NavigationBar() {
               <DropdownMenuTrigger asChild>
                 <Button
                   size="sm"
+                  className="[@media(pointer:coarse)]:h-11"
                 >
                   <Plus className="h-3.5 w-3.5 shrink-0" />
                   <span className="hidden sm:inline">Create</span>
@@ -166,16 +206,16 @@ export function NavigationBar() {
                   Create
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem asChild className="cursor-pointer text-xs">
+                <DropdownMenuItem asChild className="cursor-pointer">
                   <Link
                     href="/matches/create"
                     className="flex items-center gap-2"
                   >
-                    <Radio className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <PlusCircle className="h-4 w-4 shrink-0 text-muted-foreground" />
                     <span>New match</span>
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild className="cursor-pointer text-xs">
+                <DropdownMenuItem asChild className="cursor-pointer">
                   <Link
                     href="/teams/create"
                     className="flex items-center gap-2"
@@ -184,7 +224,7 @@ export function NavigationBar() {
                     <span>New team</span>
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild className="cursor-pointer text-xs">
+                <DropdownMenuItem asChild className="cursor-pointer">
                   <Link
                     href="/tournaments/create"
                     className="flex items-center gap-2"
@@ -193,7 +233,7 @@ export function NavigationBar() {
                     <span>New tournament</span>
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild className="cursor-pointer text-xs">
+                <DropdownMenuItem asChild className="cursor-pointer">
                   <Link
                     href="/clubs/create"
                     className="flex items-center gap-2"
@@ -213,12 +253,21 @@ export function NavigationBar() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
-                  className="flex h-9 w-9 touch-manipulation items-center justify-center rounded-full border border-border bg-muted text-xs font-semibold text-foreground transition-colors hover:bg-accent"
-                  aria-label="User menu"
+                  className="flex h-9 w-9 touch-manipulation items-center justify-center rounded-full transition-opacity [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
-                  {(user.user_metadata?.full_name ||
-                    user.email ||
-                    "U")[0]?.toUpperCase()}
+                  {/* Named by text, not aria-label: the initials it shows
+                      are part of the avatar, hidden from the name (X4). */}
+                  <span className="sr-only">User menu</span>
+                  {/* The same avatar as Home and More: photo, else the
+                      full name's initials and colour (N22). */}
+                  <Avatar
+                    name={
+                      (user.user_metadata?.full_name as string | undefined) ??
+                      "You"
+                    }
+                    src={user.user_metadata?.avatar_url as string | undefined}
+                    className="h-9 w-9 text-xs"
+                  />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent
@@ -230,51 +279,63 @@ export function NavigationBar() {
                     {user.user_metadata?.full_name || "CricScore User"}
                   </div>
                   {username && (
-                    <div className="font-mono text-xs text-muted-foreground">
+                    <div className="text-xs text-muted-foreground">
                       @{username}
                     </div>
                   )}
-                  <div className="truncate text-2xs text-muted-foreground">
+                  <div className="truncate text-xs text-muted-foreground">
                     {user.email}
                   </div>
                 </div>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem asChild className="cursor-pointer text-xs">
-                  <Link href="/dashboard">Home</Link>
+                <DropdownMenuItem asChild className="cursor-pointer">
+                  <Link href="/dashboard" className="flex items-center gap-2">
+                    <HomeIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span>Home</span>
+                  </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild className="cursor-pointer text-xs">
+                <DropdownMenuItem asChild className="cursor-pointer">
                   <Link
                     href={`/players/${username ? `@${username}` : user.id}`}
                     className="flex items-center gap-2"
                   >
-                    <UserIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <UserIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
                     <span>My profile</span>
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild className="cursor-pointer text-xs">
-                  <Link href="/teams">My teams</Link>
+                <DropdownMenuItem asChild className="cursor-pointer">
+                  <Link href="/teams" className="flex items-center gap-2">
+                    <Users className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span>My teams</span>
+                  </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild className="cursor-pointer text-xs">
-                  <Link href="/clubs">My clubs</Link>
+                <DropdownMenuItem asChild className="cursor-pointer">
+                  <Link href="/clubs" className="flex items-center gap-2">
+                    <Shield className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span>My clubs</span>
+                  </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onSelect={() => setInviteOpen(true)}
-                  className="flex cursor-pointer items-center gap-2 text-xs"
+                  className="flex cursor-pointer items-center gap-2"
                 >
-                  <UserPlus className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <UserPlus className="h-4 w-4 shrink-0 text-muted-foreground" />
                   <span>Invite someone</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild className="cursor-pointer text-xs">
-                  <Link href="/invitations">Manage invites</Link>
+                <DropdownMenuItem asChild className="cursor-pointer">
+                  <Link href="/invitations" className="flex items-center gap-2">
+                    <Mail className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span>Invites</span>
+                  </Link>
                 </DropdownMenuItem>
                 <InstallAppMenuItem />
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={handleSignOut}
                   disabled={signOutLoading}
-                  className="cursor-pointer text-xs text-destructive hover:bg-destructive/10 focus:bg-destructive/10"
+                  className="cursor-pointer text-destructive hover:bg-destructive/10 focus:bg-destructive/10"
                 >
-                  <LogOut className="mr-2 h-3.5 w-3.5 shrink-0" />
+                  <LogOut className="mr-2 h-4 w-4 shrink-0" />
                   <span>Sign out</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -291,12 +352,14 @@ export function NavigationBar() {
                 variant="ghost"
                 size="sm"
               >
-                <Link href="/auth/login">Sign in</Link>
+                {/* Comes back to this page after signing in (N31). */}
+                <Link href={signInHref}>Sign in</Link>
               </Button>
             </div>
           )}
         </div>
       </div>
-    </nav>
+      {signOutDialog}
+    </header>
   );
 }

@@ -12,11 +12,13 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import { removePlayerFromTeam, updatePlayerRole } from "~/app/teams/actions";
-import { formatPlayerRole } from "~/lib/cricket";
+import { roleMark, squadRoleLine } from "~/lib/cricket";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { ClaimProfileDialog } from "~/components/teams/claim-profile-dialog";
@@ -54,6 +56,14 @@ interface PlayerListProps {
   claims?: Record<string, PlayerClaim>;
   allowEdit?: boolean;
 }
+
+/** The roles a squad row's menu offers, in this order. */
+const SQUAD_ROLES = [
+  ["captain", "Captain"],
+  ["vice_captain", "Vice-captain"],
+  ["wicket_keeper", "Wicket-keeper"],
+  ["player", "Player"],
+] as const;
 
 export function PlayerList({
   teamId,
@@ -118,15 +128,6 @@ export function PlayerList({
       />
     );
   }
-  const roleOf = (role?: string) =>
-    role === "captain"
-      ? "Captain (c)"
-      : role === "vice_captain"
-        ? "Vice-captain (vc)"
-        : role === "wicket_keeper"
-          ? "Wicket-keeper (wk)"
-          : formatPlayerRole(role);
-
   const claimOf = (userId: string) => claims[userId];
 
   return (
@@ -134,33 +135,32 @@ export function PlayerList({
     <ListCard aria-label="Squad">
       {players.map((player) => {
         const name = player.user?.full_name ?? "Player";
-        const lead =
-          player.role_in_team === "captain" ||
-          player.role_in_team === "vice_captain" ||
-          player.role_in_team === "wicket_keeper";
+        const roleLine = squadRoleLine(player.role_in_team);
         return (
           <div
             key={player.id}
             className="flex min-h-14 items-center gap-3 px-4 py-2 [contain-intrinsic-size:auto_3.5rem] [content-visibility:auto]"
           >
+            {/* The avatar and the lines are the link, the whole row's
+                width short of the menu: not the 20px name alone (P8). */}
+            <Link
+              href={`/players/${player.user_id}`}
+              prefetch={false}
+              className="-my-2 -ml-4 flex min-h-14 min-w-0 flex-1 items-center gap-3 rounded-lg py-2 pl-4 transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+            >
             <Avatar name={name} src={player.user?.avatar_url} size="sm" />
             <span className="min-w-0 flex-1">
-              <Link
-                href={`/players/${player.user_id}`}
-                prefetch={false}
-                className="block truncate text-sm font-medium text-foreground hover:text-primary"
-              >
+              <span className="block truncate text-sm font-medium text-foreground">
                 {name}
-              </Link>
-              <span
-                className={
-                  lead
-                    ? "block truncate text-xs font-medium text-primary"
-                    : "block truncate text-xs text-muted-foreground"
-                }
-              >
-                {roleOf(player.role_in_team)}
+                {/* The role as one mark after the name, as on the match's
+                    Squads (P7). */}
+                {roleMark(player.role_in_team)}
               </span>
+              {roleLine && (
+                <span className="block truncate text-xs text-muted-foreground">
+                  {roleLine}
+                </span>
+              )}
               {claimOf(player.user_id)?.state === "placeholder" && (
                 <span className="mt-0.5 inline-block rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                   Not on CricScore
@@ -175,10 +175,12 @@ export function PlayerList({
               )}
             </span>
             {player.jersey_number != null && (
-              <span className="shrink-0 font-score text-sm tabular-nums text-muted-foreground">
-                #{player.jersey_number}
+              <span className="shrink-0 pr-1 font-score text-sm tabular-nums text-muted-foreground">
+                <span className="sr-only">Shirt number </span>#
+                {player.jersey_number}
               </span>
             )}
+            </Link>
             {allowEdit && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -196,32 +198,23 @@ export function PlayerList({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={() => handleRoleChange(player.user_id, "captain")}
+                  {/* The role as a choice with the current one ticked, so
+                      the keeper is not offered "Make wicket-keeper" (P8). */}
+                  <DropdownMenuLabel>Role</DropdownMenuLabel>
+                  <DropdownMenuRadioGroup
+                    value={player.role_in_team || "player"}
+                    onValueChange={(role) => {
+                      if (role !== (player.role_in_team || "player")) {
+                        void handleRoleChange(player.user_id, role);
+                      }
+                    }}
                   >
-                    Make captain
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() =>
-                      handleRoleChange(player.user_id, "vice_captain")
-                    }
-                  >
-                    Make vice-captain
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() =>
-                      handleRoleChange(player.user_id, "wicket_keeper")
-                    }
-                  >
-                    Make wicket-keeper
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => handleRoleChange(player.user_id, "player")}
-                  >
-                    Set as regular player
-                  </DropdownMenuItem>
+                    {SQUAD_ROLES.map(([role, label]) => (
+                      <DropdownMenuRadioItem key={role} value={role}>
+                        {label}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
                   {claimOf(player.user_id) && (
                     <>
                       <DropdownMenuSeparator />

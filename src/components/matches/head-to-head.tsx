@@ -1,5 +1,6 @@
 "use client";
 
+import { cardDate } from "~/lib/dates";
 import { Loader2 } from "lucide-react";
 import { TeamCrest } from "~/components/ds/avatar";
 import { Card, CardHeader } from "~/components/ds/card";
@@ -43,12 +44,15 @@ function Side({
       }
     >
       <TeamCrest {...teamRef(team)} size="md" />
+      {/* The crest names the side; under the figure, what it counts. The
+          name cut to "Strik..." said less (M16). */}
       <span className="min-w-0">
+        <span className="sr-only">{team.name}: </span>
         <span className="block font-score text-3xl font-semibold tabular-nums leading-none text-foreground">
           {wins}
         </span>
-        <span className="mt-1 block truncate text-xs text-muted-foreground">
-          {team.short_name || team.name}
+        <span className="mt-1 block text-xs text-muted-foreground">
+          {wins === 1 ? "win" : "wins"}
         </span>
       </span>
     </div>
@@ -191,16 +195,13 @@ function meetingSides(m: HistoricalMatch, team1: MatchTeam, team2: MatchTeam) {
     .sort((a, b) => a.order - b.order);
 }
 
-/** "Autumn Cup · 20 Jul 2024": where it was played, else the venue, and when. */
+/**
+ * "Sat 20 Jul 2024 · Autumn Cup": when, then where it was played (else the
+ * venue). The date first, so a long competition is what gets cut (M16).
+ */
 function meetingContext(m: HistoricalMatch) {
-  const when = m.scheduled_at
-    ? new Date(m.scheduled_at).toLocaleDateString("en-GB", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-      })
-    : null;
-  return [m.tournament_snapshot?.name ?? m.venue, when]
+  const when = m.scheduled_at ? cardDate(m.scheduled_at) : null;
+  return [when, m.tournament_snapshot?.name ?? m.venue]
     .filter(Boolean)
     .join(" · ");
 }

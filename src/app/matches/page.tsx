@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { setUrlParam } from "~/lib/url-state";
 import { Button } from "~/components/ui/button";
-import { Card } from "~/components/ds/card";
 import { Segmented } from "~/components/ds/tabs";
 import { Input } from "~/components/ui/input";
 import { MatchCard } from "~/components/matches/match-card";
@@ -13,12 +14,14 @@ import {
 } from "~/lib/hooks/useMatchQueries";
 import { MatchCardSkeleton } from "~/components/ui/skeleton";
 import { EmptyState } from "~/components/ui/empty-state";
+import { CouldNotLoad } from "~/components/ui/could-not-load";
 import {
   PageContainer,
   PageHeader,
   SectionHeader,
 } from "~/components/layout/page";
-import { Plus, Search, Radio, RotateCcw } from "lucide-react";
+import { CalendarDays, Plus, Radio, Search, Trophy } from "lucide-react";
+import { signInHref } from "~/lib/sign-in";
 import { useAuth } from "~/lib/auth";
 import type { Match } from "~/lib/match-types";
 import { matchGroupsOf } from "~/lib/match-groups";
@@ -30,11 +33,64 @@ const statusOptions = [
   { value: "completed", label: "Results" },
 ] as const;
 
+type StatusFilter = (typeof statusOptions)[number]["value"];
+const isStatusFilter = (v: string | null): v is StatusFilter =>
+  statusOptions.some((o) => o.value === v);
+
+// useSearchParams needs a Suspense boundary for the static shell.
 export default function MatchesPage() {
+  return (
+    <Suspense>
+      <Matches />
+    </Suspense>
+  );
+}
+
+/** What an empty list says, per status filter (M6). */
+const EMPTY: Record<
+  StatusFilter,
+  { icon: typeof Radio; title: string; description: string }
+> = {
+  all: {
+    icon: Radio,
+    title: "No matches yet",
+    description: "Matches appear here once they are scheduled or started.",
+  },
+  live: {
+    icon: Radio,
+    title: "Nothing live right now",
+    description: "No match is being scored at the moment.",
+  },
+  scheduled: {
+    icon: CalendarDays,
+    title: "No fixtures scheduled",
+    description: "Upcoming matches appear here once they are scheduled.",
+  },
+  completed: {
+    icon: Trophy,
+    title: "No results yet",
+    description: "Finished matches and their results appear here.",
+  },
+};
+
+function Matches() {
   const { user, loading: authLoading } = useAuth();
-  const [statusFilter, setStatusFilter] =
-    useState<(typeof statusOptions)[number]["value"]>("all");
-  const [searchQuery, setSearchQuery] = useState("");
+  // The filter and the search live in the URL (?status=, ?search=), so a
+  // reload, Back from a match or a shared link keeps them (M5).
+  const params = useSearchParams();
+  const fromUrl = params.get("status");
+  const [statusFilter, setStatus] = useState<StatusFilter>(
+    isStatusFilter(fromUrl) ? fromUrl : "all",
+  );
+  const [searchQuery, setSearch] = useState(params.get("search") ?? "");
+  const setStatusFilter = (next: StatusFilter) => {
+    setStatus(next);
+    setUrlParam("status", next, "all");
+  };
+  const setSearchQuery = (next: string) => {
+    setSearch(next);
+    setUrlParam("search", next.trim(), "");
+  };
 
   const {
     data: matchesData,
@@ -123,7 +179,10 @@ export default function MatchesPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative w-full sm:max-w-xs">
           <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground shrink-0" />
+          {/* The shared list search's size: 40px, 16px text on phones (no
+              zoom on focus in iOS Safari). */}
           <Input
+            type="search"
             autoCorrect="off"
             autoCapitalize="none"
             spellCheck={false}
@@ -131,7 +190,7 @@ export default function MatchesPage() {
             placeholder="Filter by team, title or venue…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-9 w-full pl-9"
+            className="h-10 w-full pl-9"
           />
         </div>
 
@@ -155,31 +214,16 @@ export default function MatchesPage() {
             <MatchCardSkeleton />
           </div>
         ) : error ? (
-          <Card className="mx-auto max-w-md space-y-4 p-6 text-center">
-            <div className="space-y-4">
-              <p className="text-sm font-medium text-destructive">{error}</p>
-              <Button
-                size="sm"
-                onClick={() => void refetch()}
-                className="gap-2"
-              >
-                <RotateCcw className="h-3.5 w-3.5 shrink-0" />
-                Try again
-              </Button>
-            </div>
-          </Card>
+          <CouldNotLoad what="matches" onRetry={() => void refetch()} />
         ) : filteredMatches.length === 0 ? (
+          // Says what is empty, per filter (M6).
           <EmptyState
-            icon={Radio}
-            title="No matches found"
+            icon={searchAll ? Search : EMPTY[statusFilter].icon}
+            title={searchAll ? "No matches found" : EMPTY[statusFilter].title}
             description={
               searchAll
                 ? `None of the latest matches match "${searchQuery.trim()}". Search all matches to look further back.`
-                : statusFilter === "live"
-                  ? "No matches are being scored right now."
-                  : statusFilter === "scheduled"
-                    ? "No upcoming matches on the schedule."
-                    : "No matches match the selected criteria."
+                : EMPTY[statusFilter].description
             }
             primaryAction={
               searchAll
@@ -192,7 +236,7 @@ export default function MatchesPage() {
                     }
                   : {
                       label: "Sign in",
-                      href: "/auth/login",
+                      href: signInHref("/matches"),
                     }
             }
           />

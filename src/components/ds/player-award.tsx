@@ -22,7 +22,7 @@ function FigureTile({
 }) {
   return (
     <div className="whitespace-nowrap rounded-xl bg-card px-3 py-2 shadow-soft ring-1 ring-border/40 sm:min-w-[6.5rem]">
-      <p className="text-2xs text-muted-foreground">{label}</p>
+      <p className="text-xs text-muted-foreground">{label}</p>
       <div
         className={cn(
           wide && "flex items-baseline justify-between gap-3 sm:block",
@@ -35,7 +35,7 @@ function FigureTile({
           <p
             className={cn(
               "font-score tabular-nums text-muted-foreground",
-              wide ? "text-xs sm:text-2xs" : "text-2xs",
+              wide ? "text-xs" : "text-xs",
             )}
           >
             {detail}

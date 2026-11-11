@@ -73,7 +73,7 @@ export default async function PlayersPage({
         name="q"
         value={q}
         label="Search players"
-        placeholder="Search by name or @handle…"
+        placeholder="Search by name or @username…"
       />
 
       {players.length > 0 && (

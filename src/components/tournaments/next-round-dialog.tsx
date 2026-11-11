@@ -33,11 +33,6 @@ import {
   SelectValue,
 } from "~/components/ui/select";
 
-/** Knockout and mixed tournaments get rounds; leagues get round-robin fixtures. */
-export function isBracketFormat(format: string | null | undefined): boolean {
-  return format === "knockout" || format === "mixed";
-}
-
 const GROUP_OPTIONS = [2, 3, 4, 5, 6, 7, 8];
 const QUALIFIER_OPTIONS = [1, 2, 3, 4];
 

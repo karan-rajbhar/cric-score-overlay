@@ -28,12 +28,34 @@ describe("QualificationCalculator", () => {
   it("eliminates nobody while every team has 3 matches left", () => {
     show(table(3));
     expect(screen.queryByText(/Eliminated/)).not.toBeInTheDocument();
-    expect(screen.getAllByText("3 gms")).toHaveLength(8);
+    expect(screen.getAllByText(/3 games left · Most it can reach/)).toHaveLength(8);
   });
 
   it("eliminates the bottom five once no match is left", () => {
     show(table(0));
     expect(screen.getAllByText(/Eliminated/)).toHaveLength(5);
+  });
+});
+
+describe("QualificationCalculator wording (T4)", () => {
+  it("never tells a side with no games left that it needs a win", () => {
+    const row = (teamId: string, points: number, remainingMatches: number) => ({
+      teamId,
+      teamName: teamId,
+      matchesPlayed: 2,
+      points,
+      netRunRate: 0,
+      remainingMatches,
+    });
+    show([row("Strikers", 4, 2), row("Thunder", 2, 0), row("Warriors", 2, 1), row("Titans", 0, 1)]);
+    const thunder = screen.getByText("Thunder").closest("div.rounded-lg")!;
+    expect(thunder).toHaveTextContent(/no games left and level on points/i);
+    expect(thunder).not.toHaveTextContent(/needs \d+ win/i);
+    const titans = screen.getByText("Titans").closest("div.rounded-lg")!;
+    expect(titans).toHaveTextContent("Needs 1 win from 1 game");
+    expect(
+      screen.getByRole("heading", { name: "Qualification calculator" }),
+    ).toBeInTheDocument();
   });
 });
 

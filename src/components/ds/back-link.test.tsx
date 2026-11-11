@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { noteVisit, resetVisits } from "~/lib/in-app-history";
 import { BackLink } from "./back-link";
@@ -65,5 +65,27 @@ describe("BackLink", () => {
     noteVisit("/matches/m1", 2);
     click({ ctrlKey: true });
     expect(back).not.toHaveBeenCalled();
+  });
+
+  it("is named for the parent only when it goes there (N25)", () => {
+    noteVisit("/matches/m1", 1);
+    const { rerender } = render(
+      <BackLink href="/players" aria-label="Back to Players" title="Back to Players">
+        <span aria-hidden="true">‹</span>
+      </BackLink>,
+    );
+    // Opened fresh: Back goes to the Players list, and says so.
+    expect(screen.getByRole("link")).toHaveAccessibleName("Back to Players");
+
+    // Came from a match: Back returns there, so it does not name Players.
+    act(() => noteVisit("/players/p1", 2));
+    rerender(
+      <BackLink href="/players" aria-label="Back to Players" title="Back to Players">
+        <span aria-hidden="true">‹</span>
+      </BackLink>,
+    );
+    const link = screen.getByRole("link");
+    expect(link).toHaveAccessibleName("Back");
+    expect(link).toHaveAttribute("title", "Back");
   });
 });

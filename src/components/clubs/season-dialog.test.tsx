@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 vi.mock("~/app/clubs/actions", () => ({
   createSeason: vi.fn(),
+  deleteSeason: vi.fn(),
 }));
 
 vi.mock("sonner", () => ({
@@ -20,29 +21,29 @@ describe("SeasonDialog Component", () => {
     vi.clearAllMocks();
   });
 
-  it("renders New Season trigger button", () => {
+  it("renders the Seasons button", () => {
     render(<SeasonDialog clubId="club-100" />);
 
-    expect(screen.getByRole("button", { name: /new season/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Seasons" })).toBeInTheDocument();
   });
 
   it("opens modal dialog when trigger button is clicked", () => {
     render(<SeasonDialog clubId="club-100" />);
 
-    fireEvent.click(screen.getByRole("button", { name: /new season/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Seasons" }));
 
-    expect(screen.getByRole("heading", { name: /create club season/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Seasons" })).toBeInTheDocument();
     expect(screen.getByLabelText(/season name/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/start date/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/end date/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/set as current active season/i)).toBeChecked();
+    expect(screen.getByLabelText(/make it the current season/i)).toBeChecked();
   });
 
   it("validates that season name is not empty", async () => {
     render(<SeasonDialog clubId="club-100" />);
 
-    fireEvent.click(screen.getByRole("button", { name: /new season/i }));
-    fireEvent.click(screen.getByRole("button", { name: /create season/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Seasons" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add season" }));
 
     expect(toast.error).toHaveBeenCalledWith("Please enter a season name");
     expect(createSeason).not.toHaveBeenCalled();
@@ -53,19 +54,19 @@ describe("SeasonDialog Component", () => {
 
     render(<SeasonDialog clubId="club-100" />);
 
-    fireEvent.click(screen.getByRole("button", { name: /new season/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Seasons" }));
 
     const nameInput = screen.getByLabelText(/season name/i);
     const startInput = screen.getByLabelText(/start date/i);
     const endInput = screen.getByLabelText(/end date/i);
-    const currentCheckbox = screen.getByLabelText(/set as current active season/i);
+    const currentCheckbox = screen.getByLabelText(/make it the current season/i);
 
     fireEvent.change(nameInput, { target: { value: "Premier League 2026" } });
     fireEvent.change(startInput, { target: { value: "2026-05-01" } });
     fireEvent.change(endInput, { target: { value: "2026-09-30" } });
     fireEvent.click(currentCheckbox); // toggles to false
 
-    fireEvent.click(screen.getByRole("button", { name: /create season/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Add season" }));
 
     await waitFor(() => {
       expect(createSeason).toHaveBeenCalledWith(
@@ -84,9 +85,9 @@ describe("SeasonDialog Component", () => {
 
     render(<SeasonDialog clubId="club-100" />);
 
-    fireEvent.click(screen.getByRole("button", { name: /new season/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Seasons" }));
     fireEvent.change(screen.getByLabelText(/season name/i), { target: { value: "Duplicate Season" } });
-    fireEvent.click(screen.getByRole("button", { name: /create season/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Add season" }));
 
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith("Season already exists");
@@ -99,13 +100,34 @@ describe("SeasonDialog Component", () => {
 
     render(<SeasonDialog clubId="club-100" />);
 
-    fireEvent.click(screen.getByRole("button", { name: /new season/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Seasons" }));
     fireEvent.change(screen.getByLabelText(/season name/i), { target: { value: "Error Season" } });
-    fireEvent.click(screen.getByRole("button", { name: /create season/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Add season" }));
 
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith("Failed to create season");
     });
     consoleSpy.mockRestore();
+  });
+
+  it("lists the seasons, each past one with a 44px delete (T5)", () => {
+    render(
+      <SeasonDialog
+        clubId="club-100"
+        seasons={[
+          { id: "s1", name: "2024 Championship", is_current: true },
+          { id: "s2", name: "2023 Summer League", is_current: false },
+        ]}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Seasons" }));
+    const list = screen.getByRole("list", { name: "Seasons" });
+    expect(list).toHaveTextContent("2024 ChampionshipCurrent");
+    expect(
+      screen.queryByRole("button", { name: "Delete the season 2024 Championship" }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Delete the season 2023 Summer League" }),
+    ).toHaveClass("h-11", "w-11");
   });
 });

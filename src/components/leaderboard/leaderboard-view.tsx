@@ -518,11 +518,11 @@ function LeaderSpotlightBanner({
                   {heroValue}
                 </span>
               </div>
-              <div className="text-2xs text-muted-foreground truncate">
+              <div className="text-xs text-muted-foreground truncate">
                 {heroLabel}
               </div>
               {contextStats && contextStats.length > 0 && (
-                <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-2xs text-muted-foreground border-t border-border/40 pt-1">
+                <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-muted-foreground border-t border-border/40 pt-1">
                   {contextStats.slice(0, 3).map((st) => (
                     <span key={st.label} className="truncate">
                       <span className="font-semibold text-foreground font-score tabular-nums">
@@ -565,7 +565,7 @@ function RankCard({
     <Card className="border-border/80 p-3.5">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2.5 min-w-0">
-          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-foreground font-semibold text-2xs">
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-foreground font-semibold text-xs">
             {rank}
           </span>
           <Initials name={name} fallback={fallback} className="h-8 w-8" />
@@ -573,7 +573,7 @@ function RankCard({
             <div className="font-semibold text-foreground text-sm truncate">
               {name}
             </div>
-            <div className="text-2xs text-muted-foreground truncate">
+            <div className="text-xs text-muted-foreground truncate">
               {subtitle}
             </div>
           </div>
@@ -583,11 +583,11 @@ function RankCard({
           <div className="text-base font-semibold font-score tabular-nums text-foreground">
             {hero.value}
           </div>
-          <div className="text-2xs text-muted-foreground">{hero.label}</div>
+          <div className="text-xs text-muted-foreground">{hero.label}</div>
         </div>
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/50 pt-2 text-2xs">
+      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/50 pt-2 text-xs">
         {stats.map((st) => (
           <div key={st.label} className="flex justify-between">
             <span className="text-muted-foreground">{st.label}:</span>
@@ -736,219 +736,123 @@ const LEADERBOARD_TABS = [
   { id: "mvp", label: "MVP" },
 ] as const;
 
+/** One highlight of the overview: what it counts, who leads, by how much. */
+function HighlightCard({
+  title,
+  name,
+  figure,
+  detail,
+  empty,
+}: {
+  title: string;
+  name?: string | null;
+  figure?: React.ReactNode;
+  detail?: string | false | null;
+  empty: string;
+}) {
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+        {name ? (
+          <>
+            <div className="mt-2 flex items-baseline justify-between gap-2">
+              <span className="min-w-0 truncate font-semibold text-foreground">
+                {name}
+              </span>
+              <span className="shrink-0 font-score text-2xl font-semibold tabular-nums text-foreground">
+                {figure}
+              </span>
+            </div>
+            {detail && (
+              <p className="mt-0.5 text-xs text-muted-foreground">{detail}</p>
+            )}
+          </>
+        ) : (
+          <p className="mt-2 text-xs text-muted-foreground">{empty}</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function OverviewTab({ view }: { view: LeaderboardState }) {
   const { data, showHighlights, setActiveTab } = view;
   return (
     <div className="space-y-6">
-      {/* Highlight Cards Grid */}
+      {/* Highlight cards: one look, titles saying what they count, not
+          a league's nicknames ("Orange cap"), T9. */}
       {showHighlights && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {/* Orange cap */}
-          <Card>
-            <CardHeader className="p-4 pb-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-foreground">
-                  Orange cap
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  Most runs
-                </span>
-              </div>
-            </CardHeader>
-            <CardContent className="p-4 pt-2">
-              {data.highlights.orangeCap ? (
-                <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="truncate font-semibold text-foreground">
-                      {data.highlights.orangeCap.name}
-                    </div>
-                    <div className="text-2xs text-muted-foreground">
-                      {data.highlights.orangeCap.innings} inn • Avg:{" "}
-                      {data.highlights.orangeCap.averageDisplay} • SR:{" "}
-                      {data.highlights.orangeCap.strikeRateDisplay}
-                    </div>
-                  </div>
-                  <div className="text-2xl font-semibold font-score tabular-nums text-foreground">
-                    {data.highlights.orangeCap.runs}
-                  </div>
-                </div>
-              ) : (
-                <div className="text-xs text-muted-foreground">
-                  No batting records yet
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Purple cap */}
-          <Card>
-            <CardHeader className="p-4 pb-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-foreground">
-                  Purple cap
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  Most wickets
-                </span>
-              </div>
-            </CardHeader>
-            <CardContent className="p-4 pt-2">
-              {data.highlights.purpleCap ? (
-                <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="truncate font-semibold text-foreground">
-                      {data.highlights.purpleCap.name}
-                    </div>
-                    <div className="text-2xs text-muted-foreground">
-                      {data.highlights.purpleCap.overs} ov • Avg:{" "}
-                      {data.highlights.purpleCap.averageDisplay} • Econ:{" "}
-                      {data.highlights.purpleCap.economyDisplay}
-                    </div>
-                  </div>
-                  <div className="text-2xl font-semibold font-score tabular-nums text-foreground">
-                    {data.highlights.purpleCap.wickets}
-                  </div>
-                </div>
-              ) : (
-                <div className="text-xs text-muted-foreground">
-                  No bowling records yet
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* MVP Leader */}
-          <Card>
-            <CardHeader className="p-4 pb-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-foreground">
-                  MVP leader
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  All-round points
-                </span>
-              </div>
-            </CardHeader>
-            <CardContent className="p-4 pt-2">
-              {data.highlights.mvpLeader ? (
-                <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="truncate font-semibold text-foreground">
-                      {data.highlights.mvpLeader.name}
-                    </div>
-                    <div className="text-2xs text-muted-foreground">
-                      {data.highlights.mvpLeader.summary}
-                    </div>
-                  </div>
-                  <div className="text-2xl font-semibold font-score tabular-nums text-foreground">
-                    {data.highlights.mvpLeader.totalPoints}
-                  </div>
-                </div>
-              ) : (
-                <div className="text-xs text-muted-foreground">
-                  No MVP records yet
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Most Sixes */}
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-muted-foreground">
-                  Most sixes
-                </span>
-              </div>
-              <div className="mt-2 flex items-baseline justify-between">
-                <div className="truncate font-semibold text-foreground">
-                  {data.highlights.mostSixes?.name ?? "—"}
-                </div>
-                <div className="text-xl font-semibold font-score tabular-nums text-foreground">
-                  {data.highlights.mostSixes?.sixes ?? 0}
-                </div>
-              </div>
-              <div className="mt-0.5 text-2xs text-muted-foreground">
-                {data.highlights.mostSixes
-                  ? `${data.highlights.mostSixes.runs} total runs • ${data.highlights.mostSixes.fours} fours`
-                  : "No sixes recorded"}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Highest Individual Score */}
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-muted-foreground">
-                  Highest individual score
-                </span>
-              </div>
-              <div className="mt-2 flex items-baseline justify-between">
-                <div className="truncate font-semibold text-foreground">
-                  {data.highlights.highestScore?.name ?? "—"}
-                </div>
-                <div className="text-xl font-semibold font-score tabular-nums text-foreground">
-                  {data.highlights.highestScore?.highestScoreDisplay ?? "—"}
-                </div>
-              </div>
-              <div className="mt-0.5 text-2xs text-muted-foreground">
-                {data.highlights.highestScore
-                  ? data.highlights.highestScore.highestScoreBalls
-                    ? `${data.highlights.highestScore.highestScoreBalls} balls • SR ${data.highlights.highestScore.highestScoreStrikeRateDisplay}`
-                    : `${data.highlights.highestScore.runs} total runs in tournament`
-                  : "No batting records"}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Best Bowling Inning */}
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-muted-foreground">
-                  Best bowling figures
-                </span>
-              </div>
-              <div className="mt-2 flex items-baseline justify-between">
-                <div className="truncate font-semibold text-foreground">
-                  {data.highlights.bestBowling?.name ?? "—"}
-                </div>
-                <div className="text-xl font-semibold font-score tabular-nums text-foreground">
-                  {data.highlights.bestBowling?.bestBowling.display ?? "—"}
-                </div>
-              </div>
-              <div className="mt-0.5 text-2xs text-muted-foreground">
-                {data.highlights.bestBowling
-                  ? `${data.highlights.bestBowling.wickets} total wkts • Econ ${data.highlights.bestBowling.economyDisplay}`
-                  : "No bowling figures recorded"}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Top Fielder */}
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-muted-foreground">
-                  Top fielder
-                </span>
-              </div>
-              <div className="mt-2 flex items-baseline justify-between">
-                <div className="truncate font-semibold text-foreground">
-                  {data.highlights.topFielder?.name ?? "—"}
-                </div>
-                <div className="text-xl font-semibold font-score tabular-nums text-foreground">
-                  {data.highlights.topFielder?.totalDismissals ?? 0}
-                </div>
-              </div>
-              <div className="mt-0.5 text-2xs text-muted-foreground">
-                {data.highlights.topFielder
-                  ? `${data.highlights.topFielder.catches} catches • ${data.highlights.topFielder.stumpings} st • ${data.highlights.topFielder.runOuts} ro`
-                  : "No dismissals recorded"}
-              </div>
-            </CardContent>
-          </Card>
+          <HighlightCard
+            title="Most runs"
+            name={data.highlights.orangeCap?.name}
+            figure={data.highlights.orangeCap?.runs}
+            detail={
+              data.highlights.orangeCap &&
+              `${data.highlights.orangeCap.innings} inn · avg ${data.highlights.orangeCap.averageDisplay} · SR ${data.highlights.orangeCap.strikeRateDisplay}`
+            }
+            empty="No batting records yet"
+          />
+          <HighlightCard
+            title="Most wickets"
+            name={data.highlights.purpleCap?.name}
+            figure={data.highlights.purpleCap?.wickets}
+            detail={
+              data.highlights.purpleCap &&
+              `${data.highlights.purpleCap.overs} ov · avg ${data.highlights.purpleCap.averageDisplay} · econ ${data.highlights.purpleCap.economyDisplay}`
+            }
+            empty="No bowling records yet"
+          />
+          <HighlightCard
+            title="Most valuable player"
+            name={data.highlights.mvpLeader?.name}
+            figure={data.highlights.mvpLeader?.totalPoints}
+            detail={data.highlights.mvpLeader?.summary}
+            empty="No records yet"
+          />
+          <HighlightCard
+            title="Most sixes"
+            name={data.highlights.mostSixes?.name}
+            figure={data.highlights.mostSixes?.sixes}
+            detail={
+              data.highlights.mostSixes &&
+              `${data.highlights.mostSixes.runs} runs · ${data.highlights.mostSixes.fours} fours`
+            }
+            empty="No sixes recorded"
+          />
+          <HighlightCard
+            title="Highest score"
+            name={data.highlights.highestScore?.name}
+            figure={data.highlights.highestScore?.highestScoreDisplay}
+            detail={
+              data.highlights.highestScore &&
+              (data.highlights.highestScore.highestScoreBalls
+                ? `${data.highlights.highestScore.highestScoreBalls} balls · SR ${data.highlights.highestScore.highestScoreStrikeRateDisplay}`
+                : `${data.highlights.highestScore.runs} runs in all`)
+            }
+            empty="No batting records yet"
+          />
+          <HighlightCard
+            title="Best bowling"
+            name={data.highlights.bestBowling?.name}
+            figure={data.highlights.bestBowling?.bestBowling.display}
+            detail={
+              data.highlights.bestBowling &&
+              `${data.highlights.bestBowling.wickets} wickets in all · econ ${data.highlights.bestBowling.economyDisplay}`
+            }
+            empty="No bowling figures recorded"
+          />
+          <HighlightCard
+            title="Top fielder"
+            name={data.highlights.topFielder?.name}
+            figure={data.highlights.topFielder?.totalDismissals}
+            detail={
+              data.highlights.topFielder &&
+              `${data.highlights.topFielder.catches} ct · ${data.highlights.topFielder.stumpings} st · ${data.highlights.topFielder.runOuts} run out`
+            }
+            empty="No dismissals recorded"
+          />
         </div>
       )}
 
@@ -981,7 +885,7 @@ function OverviewTab({ view }: { view: LeaderboardState }) {
                     className="flex items-center justify-between p-3"
                   >
                     <div className="flex items-center gap-2.5">
-                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted font-semibold text-2xs text-muted-foreground">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted font-semibold text-xs text-muted-foreground">
                         {idx + 1}
                       </span>
                       <Initials name={b.name} fallback="P" className="h-7 w-7" />
@@ -989,7 +893,7 @@ function OverviewTab({ view }: { view: LeaderboardState }) {
                         <div className="font-semibold text-foreground">
                           {b.name}
                         </div>
-                        <div className="text-2xs text-muted-foreground">
+                        <div className="text-xs text-muted-foreground">
                           {b.innings} inn • HS: {b.highestScoreDisplay} • SR:{" "}
                           {b.strikeRateDisplay}
                         </div>
@@ -999,7 +903,7 @@ function OverviewTab({ view }: { view: LeaderboardState }) {
                       <div className="text-sm font-semibold font-score tabular-nums text-foreground">
                         {b.runs}
                       </div>
-                      <div className="text-2xs text-muted-foreground">
+                      <div className="text-xs text-muted-foreground">
                         {b.fours}×4, {b.sixes}×6
                       </div>
                     </div>
@@ -1037,7 +941,7 @@ function OverviewTab({ view }: { view: LeaderboardState }) {
                     className="flex items-center justify-between p-3"
                   >
                     <div className="flex items-center gap-2.5">
-                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted font-semibold text-2xs text-muted-foreground">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted font-semibold text-xs text-muted-foreground">
                         {idx + 1}
                       </span>
                       <Initials name={bw.name} fallback="B" className="h-7 w-7" />
@@ -1045,7 +949,7 @@ function OverviewTab({ view }: { view: LeaderboardState }) {
                         <div className="font-semibold text-foreground">
                           {bw.name}
                         </div>
-                        <div className="text-2xs text-muted-foreground">
+                        <div className="text-xs text-muted-foreground">
                           {bw.overs} ov • Econ: {bw.economyDisplay} • BBI:{" "}
                           {bw.bestBowling.display}
                         </div>
@@ -1055,7 +959,7 @@ function OverviewTab({ view }: { view: LeaderboardState }) {
                       <div className="text-sm font-semibold font-score tabular-nums text-foreground">
                         {bw.wickets}
                       </div>
-                      <div className="text-2xs text-muted-foreground">
+                      <div className="text-xs text-muted-foreground">
                         Avg {bw.averageDisplay}
                       </div>
                     </div>
@@ -1108,7 +1012,7 @@ function BattingTab({ view }: { view: LeaderboardState }) {
             <button
               type="button"
               onClick={() => setBattingTableMode("focused")}
-              className={`rounded-md px-2.5 py-1 text-2xs font-medium min-h-[32px] sm:min-h-0 transition-all ${
+              className={`rounded-md px-2.5 py-1 text-xs font-medium min-h-[32px] sm:min-h-0 transition-all ${
                 battingTableMode === "focused"
                   ? "bg-card text-foreground shadow-xs font-semibold"
                   : "text-muted-foreground hover:text-foreground"
@@ -1119,7 +1023,7 @@ function BattingTab({ view }: { view: LeaderboardState }) {
             <button
               type="button"
               onClick={() => setBattingTableMode("all")}
-              className={`rounded-md px-2.5 py-1 text-2xs font-medium min-h-[32px] sm:min-h-0 transition-all ${
+              className={`rounded-md px-2.5 py-1 text-xs font-medium min-h-[32px] sm:min-h-0 transition-all ${
                 battingTableMode === "all"
                   ? "bg-card text-foreground shadow-xs font-semibold"
                   : "text-muted-foreground hover:text-foreground"
@@ -1184,7 +1088,7 @@ function BattingTab({ view }: { view: LeaderboardState }) {
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="border-b bg-muted/50 text-2xs font-semibold text-muted-foreground">
+                <thead className="border-b bg-muted/50 text-xs font-semibold text-muted-foreground">
                   <tr>
                     <th className="px-3 py-2.5 w-10 text-center">#</th>
                     <th className="px-3 py-2.5 min-w-[150px]">Player</th>
@@ -1219,7 +1123,7 @@ function BattingTab({ view }: { view: LeaderboardState }) {
                       </td>
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-2">
-                          <Initials name={b.name} fallback="P" className="h-6 w-6 text-2xs" />
+                          <Initials name={b.name} fallback="P" className="h-6 w-6 text-xs" />
                           <span className="font-semibold text-foreground truncate max-w-[160px]">
                             {b.name}
                           </span>
@@ -1262,7 +1166,7 @@ function BattingTab({ view }: { view: LeaderboardState }) {
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="border-b bg-muted/50 text-2xs font-semibold text-muted-foreground">
+                <thead className="border-b bg-muted/50 text-xs font-semibold text-muted-foreground">
                   <tr>
                     <th className="px-3 py-2.5 w-10 text-center">#</th>
                     <th className="px-3 py-2.5 min-w-[150px]">Player</th>
@@ -1379,7 +1283,7 @@ function BattingTab({ view }: { view: LeaderboardState }) {
                         </td>
                         <td className="px-3 py-2">
                           <div className="flex items-center gap-2">
-                            <Initials name={b.name} fallback="P" className="h-6 w-6 text-2xs" />
+                            <Initials name={b.name} fallback="P" className="h-6 w-6 text-xs" />
                             <span className="font-semibold text-foreground truncate max-w-[160px]">
                               {b.name}
                             </span>
@@ -1525,7 +1429,7 @@ function BowlingTab({ view }: { view: LeaderboardState }) {
             <button
               type="button"
               onClick={() => setBowlingTableMode("focused")}
-              className={`rounded-md px-2.5 py-1 text-2xs font-medium min-h-[32px] sm:min-h-0 transition-all ${
+              className={`rounded-md px-2.5 py-1 text-xs font-medium min-h-[32px] sm:min-h-0 transition-all ${
                 bowlingTableMode === "focused"
                   ? "bg-card text-foreground shadow-xs font-semibold"
                   : "text-muted-foreground hover:text-foreground"
@@ -1536,7 +1440,7 @@ function BowlingTab({ view }: { view: LeaderboardState }) {
             <button
               type="button"
               onClick={() => setBowlingTableMode("all")}
-              className={`rounded-md px-2.5 py-1 text-2xs font-medium min-h-[32px] sm:min-h-0 transition-all ${
+              className={`rounded-md px-2.5 py-1 text-xs font-medium min-h-[32px] sm:min-h-0 transition-all ${
                 bowlingTableMode === "all"
                   ? "bg-card text-foreground shadow-xs font-semibold"
                   : "text-muted-foreground hover:text-foreground"
@@ -1601,7 +1505,7 @@ function BowlingTab({ view }: { view: LeaderboardState }) {
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="border-b bg-muted/50 text-2xs font-semibold text-muted-foreground">
+                <thead className="border-b bg-muted/50 text-xs font-semibold text-muted-foreground">
                   <tr>
                     <th className="px-3 py-2.5 w-10 text-center">#</th>
                     <th className="px-3 py-2.5 min-w-[150px]">Player</th>
@@ -1635,7 +1539,7 @@ function BowlingTab({ view }: { view: LeaderboardState }) {
                       </td>
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-2">
-                          <Initials name={bw.name} fallback="B" className="h-6 w-6 text-2xs" />
+                          <Initials name={bw.name} fallback="B" className="h-6 w-6 text-xs" />
                           <span className="font-semibold text-foreground truncate max-w-[160px]">
                             {bw.name}
                           </span>
@@ -1675,7 +1579,7 @@ function BowlingTab({ view }: { view: LeaderboardState }) {
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="border-b bg-muted/50 text-2xs font-semibold text-muted-foreground">
+                <thead className="border-b bg-muted/50 text-xs font-semibold text-muted-foreground">
                   <tr>
                     <th className="px-3 py-2.5 w-10 text-center">#</th>
                     <th className="px-3 py-2.5 min-w-[150px]">Player</th>
@@ -1784,7 +1688,7 @@ function BowlingTab({ view }: { view: LeaderboardState }) {
                         </td>
                         <td className="px-3 py-2">
                           <div className="flex items-center gap-2">
-                            <Initials name={bw.name} fallback="B" className="h-6 w-6 text-2xs" />
+                            <Initials name={bw.name} fallback="B" className="h-6 w-6 text-xs" />
                             <span className="font-semibold text-foreground truncate max-w-[160px]">
                               {bw.name}
                             </span>
@@ -1964,7 +1868,7 @@ function FieldingTab({ view }: { view: LeaderboardState }) {
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="border-b bg-muted/50 text-2xs font-semibold text-muted-foreground">
+              <thead className="border-b bg-muted/50 text-xs font-semibold text-muted-foreground">
                 <tr>
                   <th className="px-3 py-2.5 w-10 text-center">#</th>
                   <th className="px-3 py-2.5 min-w-[150px]">Player</th>
@@ -2034,7 +1938,7 @@ function FieldingTab({ view }: { view: LeaderboardState }) {
                       </td>
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-2">
-                          <Initials name={f.name} fallback="F" className="h-6 w-6 text-2xs" />
+                          <Initials name={f.name} fallback="F" className="h-6 w-6 text-xs" />
                           <span className="font-semibold text-foreground truncate max-w-[180px]">
                             {f.name}
                           </span>
@@ -2168,7 +2072,7 @@ function MvpTab({ view }: { view: LeaderboardState }) {
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="border-b bg-muted/50 text-2xs font-semibold text-muted-foreground">
+              <thead className="border-b bg-muted/50 text-xs font-semibold text-muted-foreground">
                 <tr>
                   <th className="px-3 py-2.5 w-10 text-center">#</th>
                   <th className="px-3 py-2.5 min-w-[150px]">Player</th>
@@ -2239,7 +2143,7 @@ function MvpTab({ view }: { view: LeaderboardState }) {
                       </td>
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-2">
-                          <Initials name={m.name} fallback="P" className="h-6 w-6 text-2xs" />
+                          <Initials name={m.name} fallback="P" className="h-6 w-6 text-xs" />
                           <span className="font-semibold text-foreground truncate max-w-[160px]">
                             {m.name}
                           </span>
@@ -2344,7 +2248,7 @@ export function LeaderboardView({
             spellCheck={false}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-8 text-xs"
+            className="pl-8 sm:[@media(pointer:fine)]:text-xs"
           />
         </div>
       </div>

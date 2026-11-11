@@ -113,7 +113,7 @@ export function EditTeamDialog({ team }: { team: EditableTeam }) {
       </DialogTrigger>
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-md">
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-          <DialogHeader className="text-left">
+          <DialogHeader>
             <DialogTitle className="text-balance">Edit team</DialogTitle>
             <DialogDescription>
               Scorecards and fixtures show the new name.

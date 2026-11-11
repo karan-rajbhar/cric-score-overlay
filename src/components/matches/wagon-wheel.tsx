@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useId, useMemo, useState } from "react";
 import {
   Card,
   CardContent,
@@ -62,6 +62,7 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
     return active?.id ?? inningsList[0]?.id ?? "";
   }, [inningsList, match.current_innings]);
 
+  const filterId = useId();
   const [selectedInningsId, setSelectedInningsId] = useState<string>(defaultInningsId);
   const [selectedBatterId, setSelectedBatterId] = useState<string>("all");
   const [selectedSectorId, setSelectedSectorId] = useState<string | null>(null);
@@ -586,7 +587,7 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
             {/* Left Section: Runs, Balls, SR */}
             <div className="grid grid-cols-3 text-center px-1 sm:px-2">
               <div>
-                <div className="text-2xs font-medium text-muted-foreground">
+                <div className="text-xs font-medium text-muted-foreground">
                   Runs
                 </div>
                 <div className="font-score text-lg font-semibold tabular-nums text-foreground sm:text-2xl">
@@ -596,7 +597,7 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
                 </div>
               </div>
               <div>
-                <div className="text-2xs font-medium text-muted-foreground">
+                <div className="text-xs font-medium text-muted-foreground">
                   Balls
                 </div>
                 <div className="font-score text-lg font-semibold tabular-nums text-foreground sm:text-2xl">
@@ -606,7 +607,7 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
                 </div>
               </div>
               <div>
-                <div className="text-2xs font-medium text-muted-foreground">
+                <div className="text-xs font-medium text-muted-foreground">
                   SR
                 </div>
                 <div className="font-score text-lg font-semibold tabular-nums text-foreground sm:text-2xl">
@@ -620,7 +621,7 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
             {/* Right Section: Off-S, Leg-S */}
             <div className="grid grid-cols-2 text-center px-1 sm:px-2">
               <div>
-                <div className="text-2xs font-medium text-muted-foreground">
+                <div className="text-xs font-medium text-muted-foreground">
                   Off side
                 </div>
                 <div className="font-score text-lg font-semibold tabular-nums text-foreground sm:text-2xl">
@@ -630,7 +631,7 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
                 </div>
               </div>
               <div>
-                <div className="text-2xs font-medium text-muted-foreground">
+                <div className="text-xs font-medium text-muted-foreground">
                   Leg side
                 </div>
                 <div className="font-score text-lg font-semibold tabular-nums text-foreground sm:text-2xl">
@@ -657,7 +658,9 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
                 type="button"
                 onClick={() => handleToggleRunFilter(r)}
                 aria-pressed={active}
-                aria-label={`Show ${r}s only (${runCounts[r]})`}
+                // Named by what it shows ("1s 34"), as voice control
+                // needs (X4); the title says what a tap does.
+                title={`Show only the ${r}s`}
                 className={cn(
                   "flex flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                   active
@@ -671,7 +674,7 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
                     className={cn("h-2 w-2 rounded-full", SHOT_FILL[String(r)])}
                   />
                   {r}s
-                </span>
+                </span>{" "}
                 <span className="font-score text-base font-semibold tabular-nums text-foreground">
                   {runCounts[r]}
                 </span>
@@ -683,8 +686,11 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
         {/* Filters: innings and batter */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
           <div>
-            <label className="text-xs font-semibold text-muted-foreground mb-1 block">
-              Team
+            <label
+              id={`${filterId}-innings`}
+              className="text-xs font-semibold text-muted-foreground mb-1 block"
+            >
+              Innings
             </label>
             <Select
               value={selectedInningsId}
@@ -693,8 +699,11 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
                 setSelectedBatterId("all");
               }}
             >
-              <SelectTrigger className="h-10 w-full bg-background text-xs sm:text-sm">
-                <SelectValue placeholder="Team" />
+              <SelectTrigger
+                aria-labelledby={`${filterId}-innings`}
+                className="h-11 w-full bg-background text-xs sm:h-10 sm:text-sm"
+              >
+                <SelectValue placeholder="Innings" />
               </SelectTrigger>
               <SelectContent>
                 {inningsList.map((inn) => (
@@ -711,15 +720,24 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-muted-foreground mb-1 block">
-              Batsman
+            <label
+              id={`${filterId}-batter`}
+              className="text-xs font-semibold text-muted-foreground mb-1 block"
+            >
+              Batter
             </label>
             <Select
               value={selectedBatterId}
               onValueChange={setSelectedBatterId}
             >
-              <SelectTrigger className="h-10 w-full bg-background text-xs sm:text-sm">
-                <Users className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
+              <SelectTrigger
+                aria-labelledby={`${filterId}-batter`}
+                className="h-11 w-full bg-background text-xs sm:h-10 sm:text-sm"
+              >
+                <Users
+                  className="mr-1.5 h-3.5 w-3.5 text-muted-foreground"
+                  aria-hidden="true"
+                />
                 <SelectValue placeholder="All players" />
               </SelectTrigger>
               <SelectContent>
@@ -745,7 +763,7 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
           <button
             type="button"
             onClick={() => setShowDetailedBreakdown((prev) => !prev)}
-            className="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
+            className="flex min-h-11 w-full items-center justify-between rounded-lg px-2 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors md:min-h-8"
           >
             <span>Detailed scoring zones breakdown</span>
             {showDetailedBreakdown ? (
@@ -797,12 +815,12 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
                       </span>
                       <span className="font-score font-semibold tabular-nums">
                         {st.runs} runs{" "}
-                        <span className="text-2xs text-muted-foreground font-normal">
+                        <span className="text-xs text-muted-foreground font-normal">
                           ({pct}%)
                         </span>
                       </span>
                     </div>
-                    <div className="mt-1 flex items-center justify-between text-2xs text-muted-foreground">
+                    <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
                       <span>{st.balls} balls</span>
                       <span className="flex items-center gap-2">
                         {st.fours > 0 && (

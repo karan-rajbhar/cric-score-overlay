@@ -19,13 +19,22 @@ interface MatchListClient {
   from<T extends SourceName>(table: T): QueryBuilder<T>;
 }
 
+// The competition's name comes from the snapshots (hidden from `*`): no
+// tournament or club reads for a list (M2).
 const COLUMNS = `
   *,
+  tournament_snapshot,
+  club_snapshot,
   innings(id, team_id, innings_number, total_runs, total_wickets, total_overs, is_completed)
 `;
 
-/** A fixture stays listed this long after its start time (if not started). */
-const UPCOMING_GRACE_MS = 3 * 60 * 60 * 1000;
+/**
+ * A fixture stays listed this long after its start time while it has not
+ * started (as "Not started"), so a match that starts late (rain, a late
+ * side) is still found where people look for it (M3). Its scorers also see
+ * it on Home until they start, move or cancel it.
+ */
+const UPCOMING_GRACE_MS = 24 * 60 * 60 * 1000;
 /** Of "all": the share of the limit given to the next fixtures. */
 const ALL_UPCOMING_SHARE = 0.4;
 const FINISHED = ["completed", "abandoned", "cancelled"];

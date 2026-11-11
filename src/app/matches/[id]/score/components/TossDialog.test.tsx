@@ -10,7 +10,7 @@ const match = {
 
 function Harness({ onConfirm }: { onConfirm: (w: string, d: string) => void }) {
   const [winner, setWinner] = useState("");
-  const [decision, setDecision] = useState("bat");
+  const [decision, setDecision] = useState("");
   return (
     <TossDialog
       open
@@ -27,15 +27,22 @@ function Harness({ onConfirm }: { onConfirm: (w: string, d: string) => void }) {
 }
 
 describe("TossDialog", () => {
-  it("needs the toss winner before the match can start", () => {
+  it("needs the toss winner and the decision before the match can start", () => {
     render(<Harness onConfirm={vi.fn()} />);
-    const start = screen.getByRole("button", { name: "Start match" });
+    // Nothing preselected; the button says what is missing.
+    const start = screen.getByRole("button", { name: "Choose who won the toss" });
     expect(start).toBeDisabled();
     expect(start).toHaveAccessibleDescription("Choose who won the toss.");
-    expect(screen.getByRole("radio", { name: "Lions" })).toHaveAttribute(
-      "aria-checked",
-      "false",
-    );
+    for (const name of ["Lions", "Bat", "Bowl"]) {
+      expect(screen.getByRole("radio", { name })).toHaveAttribute(
+        "aria-checked",
+        "false",
+      );
+    }
+    fireEvent.click(screen.getByRole("radio", { name: "Lions" }));
+    expect(
+      screen.getByRole("button", { name: "Choose bat or bowl" }),
+    ).toBeDisabled();
   });
 
   it("records the toss in two taps and says who bats first", () => {
@@ -51,4 +58,41 @@ describe("TossDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Start match" }));
     expect(onConfirm).toHaveBeenCalledWith("t2", "bowl");
   });
+
+  it("says once when players are in both squads (S1)", () => {
+    const { rerender } = render(
+      <TossDialog
+        open
+        onOpenChange={() => {}}
+        match={match}
+        tossWinner=""
+        tossDecision=""
+        onTossWinnerChange={() => {}}
+        onTossDecisionChange={() => {}}
+        onConfirm={() => {}}
+        isProcessing={false}
+        sharedPlayers={3}
+      />,
+    );
+    expect(
+      screen.getByText(
+        "3 players are in both squads: they join the side they first bat or bowl for.",
+      ),
+    ).toBeInTheDocument();
+    rerender(
+      <TossDialog
+        open
+        onOpenChange={() => {}}
+        match={match}
+        tossWinner=""
+        tossDecision=""
+        onTossWinnerChange={() => {}}
+        onTossDecisionChange={() => {}}
+        onConfirm={() => {}}
+        isProcessing={false}
+      />,
+    );
+    expect(screen.queryByText(/in both squads/)).toBeNull();
+  });
 });
+

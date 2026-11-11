@@ -1,5 +1,8 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
+
+export const metadata: Metadata = { title: "Page not found" };
 
 export default function NotFound() {
   return (
@@ -13,13 +16,15 @@ export default function NotFound() {
       </h1>
 
       <p className="mb-8 max-w-md text-sm leading-relaxed text-muted-foreground">
-        The match, team, tournament or club you are looking for may have been
-        moved or deleted.
+        This page is not here. It may have been moved or deleted, or the link
+        is not complete.
       </p>
 
       <div className="flex flex-wrap items-center justify-center gap-3">
         <Button asChild>
-          <Link href="/dashboard">Home</Link>
+          {/* "/" sends a signed-in visitor on to Home, and keeps a
+              signed-out one off the sign-in wall (N20). */}
+          <Link href="/">Home</Link>
         </Button>
         <Button asChild variant="outline">
           <Link href="/matches">Matches</Link>

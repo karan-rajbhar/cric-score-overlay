@@ -589,7 +589,12 @@ export async function updateTournament(
   const description = (formData.get("description") as string)?.trim() || null;
   const venue = (formData.get("venue") as string)?.trim() || null;
   const season_id = (formData.get("season_id") as string) || null;
-  const is_public = formData.get("is_public") !== "false";
+  // A form that does not ask (Manage) leaves these as they are: saving
+  // there used to switch Last man stands and Golden ball off and make
+  // the tournament public again.
+  const is_public = formData.has("is_public")
+    ? formData.get("is_public") !== "false"
+    : undefined;
 
   const rules = tournamentRulesFrom(formData);
   if ("error" in rules) return { error: rules.error };
@@ -602,8 +607,12 @@ export async function updateTournament(
   const shape = tournamentShapeFrom(formData);
   if ("error" in shape) return { error: shape.error };
 
-  const last_man_stands = formData.get("last_man_stands") === "true";
-  const golden_ball = formData.get("golden_ball") === "true";
+  const last_man_stands = formData.has("last_man_stands")
+    ? formData.get("last_man_stands") === "true"
+    : undefined;
+  const golden_ball = formData.has("golden_ball")
+    ? formData.get("golden_ball") === "true"
+    : undefined;
 
   const { data: currentTourn } = await db
     .from("tournaments")
@@ -621,11 +630,11 @@ export async function updateTournament(
       overs_per_innings,
       ...(wickets_per_innings !== null ? { wickets_per_innings } : {}),
       ...(rawStatus ? { status: rawStatus } : {}),
-      last_man_stands,
-      golden_ball,
+      ...(last_man_stands !== undefined ? { last_man_stands } : {}),
+      ...(golden_ball !== undefined ? { golden_ball } : {}),
       venue,
       season_id: season_id && season_id !== "none" ? season_id : null,
-      is_public,
+      ...(is_public !== undefined ? { is_public } : {}),
       updated_at: new Date().toISOString(),
     })
     .eq("id", tournamentId);
@@ -644,6 +653,51 @@ export async function updateTournament(
   }
 
   return { success: true };
+}
+
+/**
+ * Closes a tournament whose end date has passed (T12): its status only.
+ * Registrations, generated fixtures and new rounds stop, as for any
+ * completed tournament (`isTournamentOver`).
+ */
+export async function completeTournament(tournamentId: string) {
+  const db = await createServerClient();
+  const {
+    data: { user },
+  } = await db.auth.getUser();
+  if (!user) return { error: "You must be logged in" };
+
+  const isTournAdmin = await checkTournamentAdminAuth(
+    db,
+    tournamentId,
+    user.id,
+  );
+  if (!isTournAdmin) {
+    return {
+      error: "Only tournament organizers or club admins can close this tournament",
+    };
+  }
+
+  const { data: current } = await db
+    .from("tournaments")
+    .select("club_id")
+    .eq("id", tournamentId)
+    .single();
+
+  const { error } = await db
+    .from("tournaments")
+    .update({ status: "completed", updated_at: new Date().toISOString() })
+    .eq("id", tournamentId);
+  if (error) {
+    console.error("completeTournament error:", error);
+    return { error: error.message };
+  }
+
+  await refreshLiveMatchesFor(db, { tournamentId });
+  revalidatePath(`/tournaments/${tournamentId}`);
+  revalidatePath("/tournaments");
+  if (current?.club_id) revalidatePath(`/clubs/${current.club_id}`);
+  return { success: true as const };
 }
 
 /**

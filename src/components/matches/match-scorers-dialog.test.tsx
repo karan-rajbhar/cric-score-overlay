@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { MatchScorersDialog } from "./match-scorers-dialog";
 import {
@@ -252,7 +252,6 @@ describe("MatchScorersDialog Component", () => {
   });
 
   it("removes a co-scorer when confirmed", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     vi.mocked(removeMatchScorer).mockResolvedValueOnce({
       success: true,
       error: null,
@@ -267,6 +266,14 @@ describe("MatchScorersDialog Component", () => {
 
     const removeBtn = screen.getByTitle("Remove scorer");
     fireEvent.click(removeBtn);
+
+    // The app's own dialog asks, keeping is the default (N37).
+    const ask = await screen.findByRole("dialog", {
+      name: "Remove Assistant Scorer as a scorer?",
+    });
+    expect(within(ask).getByRole("button", { name: "Keep" })).toHaveFocus();
+    expect(removeMatchScorer).not.toHaveBeenCalled();
+    fireEvent.click(within(ask).getByRole("button", { name: "Remove" }));
 
     await waitFor(() => {
       expect(removeMatchScorer).toHaveBeenCalledWith("match-1", "u-admin-1");

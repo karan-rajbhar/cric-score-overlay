@@ -380,7 +380,7 @@ export function WagonWheelSelector({
         </svg>
       </div>
 
-      <p className="mt-1.5 text-2xs font-medium text-muted-foreground">
+      <p className="mt-1.5 text-xs font-medium text-muted-foreground">
         Seen as on TV, from behind the bowler: the batter is at the top end. Tap
         where the ball went.
       </p>

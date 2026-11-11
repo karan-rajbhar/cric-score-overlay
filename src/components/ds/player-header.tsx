@@ -1,5 +1,6 @@
 import type * as React from "react";
 import { Avatar, TeamCrest } from "~/components/ds/avatar";
+import { FadingRow } from "~/components/ds/fading-row";
 import type { TeamRef } from "~/components/ds/score";
 import { cn } from "~/lib/utils";
 
@@ -110,9 +111,9 @@ export function ProfileHeader({
         <div className="min-w-0 flex-1">
           {/* One sideways line on phones, however many there are. */}
           {labels && (
-            <div className="no-scrollbar flex gap-1.5 max-md:overflow-x-auto md:flex-wrap [&>*]:shrink-0">
+            <FadingRow className="no-scrollbar flex gap-1.5 max-md:overflow-x-auto md:flex-wrap [&>*]:shrink-0">
               {labels}
-            </div>
+            </FadingRow>
           )}
           <h1 className="mt-2 text-balance text-[1.75rem] font-semibold leading-tight tracking-tight text-foreground sm:text-[2.25rem]">
             {name}

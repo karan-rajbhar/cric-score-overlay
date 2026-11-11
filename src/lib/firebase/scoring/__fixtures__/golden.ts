@@ -29,6 +29,11 @@
  * for the innings and its bowler; the dots after it (steps 7 to 9) are over
  * 1, with one strike swap in all and the new bowler kept, where the old
  * engine kept them in over 0, swapped strike and cleared the bowler on each.
+ * And when two new batters at once (the openers) began to take their
+ * places striker first, not in id order: every seed match's hashes moved,
+ * and replaying them with both orders differs only in the batting rows'
+ * `batting_position` (the synthetic scenarios' openers, a1 and a2, were in
+ * that order already).
  * Replaying
  * the same steps on the current engine and hashing the legacy-shaped view of
  * its storage (innings arrays and over documents expanded back into rows by

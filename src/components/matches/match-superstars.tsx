@@ -96,9 +96,12 @@ function LeaderCard({
 
 function PlayerRow({
   player,
+  team,
   onOpen,
 }: {
   player: SuperstarPlayer;
+  /** The side's short code: after the figures, which must not be cut. */
+  team: string;
   onOpen: () => void;
 }) {
   return (
@@ -115,8 +118,9 @@ function PlayerRow({
         <span className="block truncate text-sm font-medium text-foreground">
           {player.playerName}
         </span>
+        {/* What they did first, the side after (M8). */}
         <span className="block truncate text-xs text-muted-foreground">
-          {player.teamName} · {figuresOf(player) || ROLE[player.role]}
+          {figuresOf(player) || ROLE[player.role]} · {team}
         </span>
       </span>
       <span className="shrink-0 font-score text-lg font-semibold tabular-nums text-foreground">
@@ -336,7 +340,9 @@ export function MatchSuperstars({ match }: MatchSuperstarsProps) {
 
   const [leader, ...rest] = shown;
   return (
-    <div className="space-y-4">
+    // A reading width: on a wide screen a name and its rating stay close
+    // enough to pair at a glance (M19).
+    <div className="max-w-3xl space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Segmented
           label="Team"
@@ -358,7 +364,7 @@ export function MatchSuperstars({ match }: MatchSuperstarsProps) {
           variant="ghost"
           size="sm"
           onClick={() => setRulesOpen(true)}
-          className="text-muted-foreground"
+          className="text-muted-foreground max-md:min-h-11"
         >
           <Info aria-hidden="true" />
           How points work
@@ -379,6 +385,11 @@ export function MatchSuperstars({ match }: MatchSuperstarsProps) {
             <PlayerRow
               key={p.playerId}
               player={p}
+              team={
+                p.teamId === match.team1_id
+                  ? match.team1.short_name || match.team1.name
+                  : match.team2.short_name || match.team2.name
+              }
               onOpen={() => setSelected(p)}
             />
           ))}

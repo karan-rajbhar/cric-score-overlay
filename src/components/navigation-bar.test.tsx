@@ -7,6 +7,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({
     push: mockPush,
   }),
+  usePathname: () => window.location.pathname,
 }));
 
 const mockUseAuth = vi.fn();
@@ -37,11 +38,13 @@ const mockToggleMobile = vi.fn();
 
 vi.mock("~/lib/stores/useSidebarStore", () => ({
   useSidebarStore: () => ({
-    isCollapsed: false,
-    isMobileOpen: false,
+    collapsed: false,
+    narrowOpen: false,
     toggleCollapsed: mockToggleCollapsed,
     toggleMobile: mockToggleMobile,
   }),
+  sidebarModeOf: () => "auto",
+  useSidebarExpanded: () => true,
 }));
 
 describe("NavigationBar Component", () => {
@@ -50,6 +53,7 @@ describe("NavigationBar Component", () => {
   });
 
   it("renders Brand and unauthenticated buttons when user is logged out", () => {
+    window.history.replaceState(null, "", "/matches/m1?tab=scorecard");
     mockUseAuth.mockReturnValue({
       user: null,
       loading: false,
@@ -59,7 +63,11 @@ describe("NavigationBar Component", () => {
     render(<NavigationBar />);
 
     expect(screen.getByText("CricScore")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /sign in/i })).toBeInTheDocument();
+    // Signing in comes back to the page on screen (N31).
+    expect(screen.getByRole("link", { name: /sign in/i })).toHaveAttribute(
+      "href",
+      `/auth/login?redirect=${encodeURIComponent("/matches/m1?tab=scorecard")}`,
+    );
     // Invite-only: there is no sign-up link.
     expect(screen.queryByRole("link", { name: /get started|join/i })).not.toBeInTheDocument();
   });
@@ -79,7 +87,10 @@ describe("NavigationBar Component", () => {
 
     expect(screen.getByRole("button", { name: /create/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /user menu/i })).toBeInTheDocument();
-    expect(screen.getByText("K")).toBeInTheDocument(); // Avatar initial
+    // The same avatar as Home and More: the full name's initials (N22).
+    expect(screen.getByRole("button", { name: /user menu/i })).toHaveTextContent(
+      "KS",
+    );
   });
 
   it("triggers search navigation on query submission", () => {
@@ -91,11 +102,30 @@ describe("NavigationBar Component", () => {
 
     render(<NavigationBar />);
 
-    const searchInput = screen.getByPlaceholderText(/search matches/i);
+    const searchInput = screen.getByRole("searchbox", { name: "Search" });
     fireEvent.change(searchInput, { target: { value: "Ashes Cup" } });
     fireEvent.submit(searchInput.closest("form")!);
 
     expect(mockPush).toHaveBeenCalledWith("/search?q=Ashes%20Cup");
+
+    // One letter goes too: the Search page says it is too short (N15).
+    mockPush.mockClear();
+    fireEvent.change(searchInput, { target: { value: "a" } });
+    fireEvent.submit(searchInput.closest("form")!);
+    expect(mockPush).toHaveBeenCalledWith("/search?q=a");
+  });
+
+  it("opens Search from Ctrl+K when the header has no field (N15)", () => {
+    mockUseAuth.mockReturnValue({
+      user: null,
+      loading: false,
+      signOut: mockSignOut,
+    });
+    render(<NavigationBar />);
+    mockPush.mockClear();
+    // jsdom lays nothing out, so the field counts as hidden, as below lg.
+    fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+    expect(mockPush).toHaveBeenCalledWith("/search");
   });
 
   it("toggles the sidebar from its button and from Ctrl+B, as its title says", () => {
@@ -114,6 +144,10 @@ describe("NavigationBar Component", () => {
     const desktopCollapseBtn = screen.getByRole("button", {
       name: /toggle sidebar/i,
     });
+    // It says whether the sidebar is open, and which one (N26).
+    expect(desktopCollapseBtn).toHaveAttribute("aria-expanded", "true");
+    expect(desktopCollapseBtn).toHaveAttribute("aria-controls", "app-sidebar");
+    expect(screen.getByRole("banner")).toContainElement(desktopCollapseBtn);
     fireEvent.click(desktopCollapseBtn);
     expect(mockToggleCollapsed).toHaveBeenCalledTimes(1);
     fireEvent.keyDown(window, { key: "b", ctrlKey: true });

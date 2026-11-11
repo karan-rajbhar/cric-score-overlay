@@ -5,7 +5,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog";
@@ -19,7 +18,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-import { ShieldAlert, Award } from "lucide-react";
 import type { Team } from "~/lib/match-types";
 import { cn } from "~/lib/utils";
 
@@ -64,7 +62,8 @@ export function PenaltyBonusDialog({
   const [awardType, setAwardType] = useState<"penalty" | "bonus">("penalty");
   const [targetTeamId, setTargetTeamId] = useState<string | null>(null);
   const [runs, setRuns] = useState<number>(5);
-  const [reason, setReason] = useState<string>(COMMON_REASONS[0]!);
+  // No reason until the scorer picks one (S7): it goes on the record.
+  const [reason, setReason] = useState<string>("");
   const [customReason, setCustomReason] = useState("");
 
   // A fresh form each time it opens (the dialog stays mounted across
@@ -76,7 +75,7 @@ export function PenaltyBonusDialog({
       setAwardType("penalty");
       setTargetTeamId(null);
       setRuns(5);
-      setReason(COMMON_REASONS[0]!);
+      setReason("");
       setCustomReason("");
     }
   }
@@ -87,10 +86,12 @@ export function PenaltyBonusDialog({
   ].filter((t): t is { team: Team; side: string } => t !== null);
   const target = teams.find((t) => t.team.id === targetTeamId)?.team ?? null;
   const runsLabel = `${runs} run${runs === 1 ? "" : "s"}`;
+  const missingReason =
+    !reason || (reason === "Other" && !customReason.trim());
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!target || !runs) return;
+    if (!target || !runs || missingReason) return;
     const finalReason =
       reason === "Other" && customReason.trim() ? customReason.trim() : reason;
 
@@ -109,19 +110,12 @@ export function PenaltyBonusDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <form onSubmit={handleSubmit}>
+          {/* The scoring dialogs' one header: a title, one line, no icon
+              tile; and one footer, the main button full width (S8). */}
           <DialogHeader>
-            <div className="flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-destructive/10 text-destructive">
-                {awardType === "penalty" ? (
-                  <ShieldAlert className="h-4 w-4" aria-hidden="true" />
-                ) : (
-                  <Award className="h-4 w-4" aria-hidden="true" />
-                )}
-              </span>
-              <DialogTitle className="text-lg font-semibold">
-                Award penalty or bonus runs
-              </DialogTitle>
-            </div>
+            <DialogTitle className="text-lg font-semibold">
+              Award penalty or bonus runs
+            </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
               Runs to either side, recorded between balls (not a delivery).
             </DialogDescription>
@@ -140,10 +134,13 @@ export function PenaltyBonusDialog({
               >
                 <Button
                   type="button"
-                  variant={awardType === "penalty" ? "default" : "outline"}
+                  variant="outline"
                   size="sm"
                   aria-pressed={awardType === "penalty"}
-                  className="min-h-11 font-semibold"
+                  className={cn(
+                    "min-h-11 font-semibold",
+                    awardType === "penalty" && "border-primary bg-primary/10",
+                  )}
                   onClick={() => {
                     setAwardType("penalty");
                     setRuns(5);
@@ -153,10 +150,13 @@ export function PenaltyBonusDialog({
                 </Button>
                 <Button
                   type="button"
-                  variant={awardType === "bonus" ? "default" : "outline"}
+                  variant="outline"
                   size="sm"
                   aria-pressed={awardType === "bonus"}
-                  className="min-h-11 font-semibold"
+                  className={cn(
+                    "min-h-11 font-semibold",
+                    awardType === "bonus" && "border-primary bg-primary/10",
+                  )}
                   onClick={() => {
                     setAwardType("bonus");
                     setRuns(1);
@@ -211,7 +211,7 @@ export function PenaltyBonusDialog({
                 <Label htmlFor="penalty-runs" className="text-xs font-semibold">
                   Number of runs
                 </Label>
-                <span className="text-2xs text-muted-foreground">
+                <span className="text-xs text-muted-foreground">
                   A penalty is usually 5 runs
                 </span>
               </div>
@@ -224,7 +224,7 @@ export function PenaltyBonusDialog({
                   max={50}
                   value={runs}
                   onChange={(e) => setRuns(Number(e.target.value))}
-                  className="h-11 w-20 text-sm font-semibold tabular-nums"
+                  className="h-11 w-20 font-semibold tabular-nums"
                   required
                 />
                 <div className="flex flex-wrap gap-1">
@@ -232,11 +232,14 @@ export function PenaltyBonusDialog({
                     <Button
                       key={r}
                       type="button"
-                      variant={runs === r ? "default" : "outline"}
+                      variant="outline"
                       size="sm"
                       aria-pressed={runs === r}
                       onClick={() => setRuns(r)}
-                      className="h-11 min-w-11 px-2 text-xs font-semibold tabular-nums"
+                      className={cn(
+                        "h-11 min-w-11 px-2 text-xs font-semibold tabular-nums",
+                        runs === r && "border-primary bg-primary/10",
+                      )}
                     >
                       {r}
                     </Button>
@@ -251,8 +254,8 @@ export function PenaltyBonusDialog({
                 Reason
               </Label>
               <Select value={reason} onValueChange={setReason}>
-                <SelectTrigger id="penalty-reason" className="h-11 text-xs">
-                  <SelectValue />
+                <SelectTrigger id="penalty-reason" className="h-11 text-sm">
+                  <SelectValue placeholder="Choose a reason" />
                 </SelectTrigger>
                 <SelectContent>
                   {COMMON_REASONS.map((r) => (
@@ -274,35 +277,37 @@ export function PenaltyBonusDialog({
                   value={customReason}
                   onChange={(e) => setCustomReason(e.target.value)}
                   placeholder="Enter details"
-                  className="h-11 text-xs"
+                  className="h-11"
                   required
                 />
               </div>
             )}
           </div>
 
-          <DialogFooter className="flex flex-row items-center justify-end gap-2">
+          <div className="space-y-2">
+            <Button
+              type="submit"
+              disabled={isProcessing || !runs || !target || missingReason}
+              className="h-12 w-full font-semibold"
+            >
+              {isProcessing
+                ? "Awarding…"
+                : !target
+                  ? "Choose a team"
+                  : missingReason
+                    ? "Choose a reason"
+                    : `Award ${runsLabel} to ${target.name}`}
+            </Button>
             <Button
               type="button"
-              variant="outline"
-              className="min-h-11"
+              variant="ghost"
+              className="min-h-11 w-full"
               onClick={() => onOpenChange(false)}
               disabled={isProcessing}
             >
               Cancel
             </Button>
-            <Button
-              type="submit"
-              disabled={isProcessing || !runs || !target}
-              className="min-h-11 bg-destructive font-semibold text-destructive-foreground hover:bg-destructive"
-            >
-              {isProcessing
-                ? "Awarding…"
-                : target
-                  ? `Award ${runsLabel} to ${target.name}`
-                  : "Choose a team"}
-            </Button>
-          </DialogFooter>
+          </div>
         </form>
       </DialogContent>
     </Dialog>

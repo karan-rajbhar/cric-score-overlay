@@ -5,7 +5,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog";
@@ -19,7 +18,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-import { AlertTriangle } from "lucide-react";
 import type { Team } from "~/lib/match-types";
 
 interface AbandonMatchDialogProps {
@@ -53,18 +51,27 @@ export function AbandonMatchDialog({
   onConfirm,
   isProcessing = false,
 }: AbandonMatchDialogProps) {
-  const [reason, setReason] = useState<string>(ABANDON_REASONS[0]!);
-  const [resultType, setResultType] = useState<"abandoned" | "no_result" | "win">(
-    "abandoned",
-  );
+  // Nothing chosen for the scorer (S7): the reason and the result go into
+  // the result text, and a default went on the record unread.
+  const [reason, setReason] = useState<string>("");
+  const [resultType, setResultType] = useState<
+    "abandoned" | "no_result" | "win" | ""
+  >("");
   const [winningTeamId, setWinningTeamId] = useState<string>("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const busy = isProcessing || saving;
+  const missing = !reason
+    ? "Choose a reason"
+    : !resultType
+      ? "Choose the result"
+      : resultType === "win" && !winningTeamId
+        ? "Choose the winner"
+        : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (busy) return;
+    if (busy || missing || !resultType) return;
     setSaving(true);
     try {
       const done = await onConfirm({
@@ -84,15 +91,11 @@ export function AbandonMatchDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <form onSubmit={handleSubmit}>
+          {/* One header and one footer, as the other scoring dialogs (S8). */}
           <DialogHeader>
-            <div className="flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-destructive/10 text-destructive">
-                <AlertTriangle className="h-4 w-4" />
-              </span>
-              <DialogTitle className="text-lg font-semibold">
-                End the match early
-              </DialogTitle>
-            </div>
+            <DialogTitle className="text-lg font-semibold">
+              End the match early
+            </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
               Abandoned, no result, or awarded to a team (weather, light,
               a walkover).
@@ -105,8 +108,8 @@ export function AbandonMatchDialog({
                 Reason for abandonment
               </Label>
               <Select value={reason} onValueChange={setReason}>
-                <SelectTrigger id="abandon-reason" className="h-9 text-xs">
-                  <SelectValue />
+                <SelectTrigger id="abandon-reason" className="h-11 text-sm">
+                  <SelectValue placeholder="Choose a reason" />
                 </SelectTrigger>
                 <SelectContent>
                   {ABANDON_REASONS.map((r) => (
@@ -128,8 +131,8 @@ export function AbandonMatchDialog({
                   setResultType(v as "abandoned" | "no_result" | "win")
                 }
               >
-                <SelectTrigger id="abandon-result" className="h-9 text-xs font-semibold">
-                  <SelectValue />
+                <SelectTrigger id="abandon-result" className="h-11 text-sm">
+                  <SelectValue placeholder="Choose the result" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="abandoned">
@@ -155,7 +158,7 @@ export function AbandonMatchDialog({
                   onValueChange={setWinningTeamId}
                   required
                 >
-                  <SelectTrigger id="winning-team" className="h-9 text-xs font-semibold">
+                  <SelectTrigger id="winning-team" className="h-11 text-sm">
                     <SelectValue placeholder="Select winning team" />
                   </SelectTrigger>
                   <SelectContent>
@@ -175,7 +178,6 @@ export function AbandonMatchDialog({
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="e.g. Match halted at 7.2 overs due to thunderstorm..."
-                className="text-xs"
                 rows={3}
               />
             </div>
@@ -185,32 +187,33 @@ export function AbandonMatchDialog({
             </div>
           </div>
 
-          <DialogFooter className="flex flex-row items-center justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onOpenChange(false)}
-              disabled={busy}
-            >
-              Cancel
-            </Button>
+          <div className="space-y-2">
             <Button
               type="submit"
               variant="destructive"
-              size="sm"
-              disabled={busy || (resultType === "win" && !winningTeamId)}
-              className="font-semibold"
+              disabled={busy || Boolean(missing)}
+              className="h-12 w-full font-semibold"
             >
               {busy
                 ? "Saving…"
-                : resultType === "win"
+                : missing
+                  ? missing
+                  : resultType === "win"
                   ? "Award the match"
                   : resultType === "no_result"
                     ? "End with no result"
                     : "Abandon match"}
             </Button>
-          </DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              className="min-h-11 w-full"
+              onClick={() => onOpenChange(false)}
+              disabled={busy}
+            >
+              Cancel
+            </Button>
+          </div>
         </form>
       </DialogContent>
     </Dialog>

@@ -157,8 +157,9 @@ export function ClubStatsTab({
       {/* Leaderboards */}
       {leaderboardData ? (
         <LeaderboardView
-          title="Leaderboard"
-          subtitle={`The leading players across every ${clubName} match.`}
+          // The tab is Stats: the section says what it holds (T9).
+          title="Leading players"
+          subtitle={`Across every ${clubName} match.`}
           data={leaderboardData}
           showHighlights={true}
           downloads={(tab) => ({
@@ -190,7 +191,7 @@ export function ClubStatsTab({
                       className="flex items-center justify-between p-3.5"
                     >
                       <div className="flex items-center gap-2.5">
-                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-2xs font-semibold text-muted-foreground">
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">
                           {idx + 1}
                         </span>
                         <Initials
@@ -202,7 +203,7 @@ export function ClubStatsTab({
                           <div className="font-semibold text-foreground">
                             {b.name}
                           </div>
-                          <div className="text-2xs text-muted-foreground">
+                          <div className="text-xs text-muted-foreground">
                             {b.inningsCount} inn • HS: {b.highestScore} • SR:{" "}
                             {b.strikeRate}
                           </div>
@@ -213,7 +214,7 @@ export function ClubStatsTab({
                         <div className="font-score text-sm font-semibold tabular-nums text-foreground">
                           {b.runs}
                         </div>
-                        <div className="text-2xs text-muted-foreground">
+                        <div className="text-xs text-muted-foreground">
                           {b.fours} 4s, {b.sixes} 6s
                         </div>
                       </div>
@@ -246,7 +247,7 @@ export function ClubStatsTab({
                       className="flex items-center justify-between p-3.5"
                     >
                       <div className="flex items-center gap-2.5">
-                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-2xs font-semibold text-muted-foreground">
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">
                           {idx + 1}
                         </span>
                         <Initials
@@ -258,7 +259,7 @@ export function ClubStatsTab({
                           <div className="font-semibold text-foreground">
                             {bw.name}
                           </div>
-                          <div className="text-2xs text-muted-foreground">
+                          <div className="text-xs text-muted-foreground">
                             {bw.overs} ov • Econ: {bw.economy}
                           </div>
                         </div>
@@ -269,7 +270,7 @@ export function ClubStatsTab({
                           {bw.wickets}{" "}
                           <span className="text-xs font-normal">wkts</span>
                         </div>
-                        <div className="text-2xs text-muted-foreground">
+                        <div className="text-xs text-muted-foreground">
                           {bw.runs} runs conceded
                         </div>
                       </div>

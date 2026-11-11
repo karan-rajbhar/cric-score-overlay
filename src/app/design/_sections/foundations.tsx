@@ -213,7 +213,7 @@ function ColourSection() {
                 <p className="mt-1.5 truncate font-mono text-xs text-foreground">
                   {s.token}
                 </p>
-                <p className="truncate font-mono text-2xs text-muted-foreground">
+                <p className="truncate font-mono text-xs text-muted-foreground">
                   {hex[s.token] ?? " "}
                 </p>
                 <p className="truncate text-xs text-muted-foreground">
@@ -288,7 +288,13 @@ const TYPE = [
     name: "Label",
     className: "text-xs text-muted-foreground",
     sample: "Strike rate",
-    spec: "Urbanist 0.75rem / muted",
+    spec: "Urbanist 0.75rem / muted: the smallest text",
+  },
+  {
+    name: "Chart axis",
+    className: "font-score text-axis tabular-nums text-muted-foreground",
+    sample: "0   5   10   15   20",
+    spec: "Outfit 0.6875rem: axis ticks only",
   },
 ] as const;
 
@@ -308,7 +314,7 @@ function TypeSection() {
             <dd className={`min-w-0 truncate text-foreground ${t.className}`}>
               {t.sample}
             </dd>
-            <dd className="font-mono text-2xs text-muted-foreground">
+            <dd className="font-mono text-xs text-muted-foreground">
               {t.spec}
             </dd>
           </div>

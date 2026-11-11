@@ -11,14 +11,16 @@ import {
 } from "~/components/clubs/club-stats-tab";
 import { InviteMemberDialog } from "~/components/clubs/invite-member-dialog";
 import {
-  MemberRoleAction,
-  RemoveMemberButton,
+  MemberActions,
 } from "~/components/clubs/member-role-action";
 import { ShowMoreLink } from "~/components/layout/pager";
-import { Badge } from "~/components/ui/badge";
+import { Avatar } from "~/components/ds/avatar";
+import { Chip } from "~/components/ds/chip";
+import { PlayerLink } from "~/components/ds/player-link";
+import { shortDate } from "~/lib/dates";
+import { playerHrefOf } from "~/lib/player-href";
 import { Card, CardContent } from "~/components/ui/card";
 import { EmptyState } from "~/components/ui/empty-state";
-import { Initials } from "~/components/ui/initials";
 import { Users } from "lucide-react";
 import {
   clubMilestonesFromList,
@@ -298,54 +300,43 @@ async function MembersTab({ viewer, raw }: { viewer: ClubViewer; raw?: string })
               {typedMembers.map((m) => {
                 const isClubOwner = m.role === "owner";
                 const isClubAdmin = m.role === "admin";
+                const name = m.user?.full_name ?? "Unnamed member";
+                // The name has the first line to itself on a phone; the
+                // role and date go under it and the actions in a row menu
+                // (/design#spec-row-actions).
                 return (
-                  <div
-                    key={m.id}
-                    className="flex items-center justify-between gap-3 p-4"
-                  >
-                    <div className="flex min-w-0 items-center gap-3">
-                      <Initials name={m.user?.full_name} fallback="U" className="h-9 w-9 shrink-0" />
-                      <div className="min-w-0">
-                        <div className="truncate font-semibold text-foreground">
-                          {m.user?.full_name ?? "Unnamed member"}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          Joined{" "}
-                          {new Date(m.joined_at).toLocaleDateString()}
-                        </div>
+                  <div key={m.id} className="flex items-center gap-3 px-4 py-3">
+                    <Avatar name={name} src={m.user?.avatar_url} />
+                    <div className="min-w-0 flex-1">
+                      <div className="break-words font-semibold text-foreground">
+                        <PlayerLink name={name} href={playerHrefOf(m.user?.id)} />
+                      </div>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                        <Chip
+                          tone={
+                            isClubOwner
+                              ? "primary"
+                              : isClubAdmin
+                                ? "neutral"
+                                : "outline"
+                          }
+                          className="capitalize"
+                        >
+                          {m.role}
+                        </Chip>
+                        {m.joined_at && <span>Joined {shortDate(m.joined_at)}</span>}
                       </div>
                     </div>
-
-                    <div className="flex shrink-0 items-center gap-2">
-                      <Badge
-                        variant={
-                          isClubOwner
-                            ? "default"
-                            : isClubAdmin
-                              ? "secondary"
-                              : "outline"
-                        }
-                        className="text-xs capitalize"
-                      >
-                        {m.role}
-                      </Badge>
-                      {isOwner && !isClubOwner && (
-                        <MemberRoleAction
-                          clubId={club.id}
-                          membershipId={m.id}
-                          currentRole={m.role}
-                          userName={m.user?.full_name ?? "Member"}
-                        />
-                      )}
-                      {(isOwner || (isAdmin && !isClubAdmin)) &&
-                        !isClubOwner && (
-                          <RemoveMemberButton
-                            clubId={club.id}
-                            membershipId={m.id}
-                            userName={m.user?.full_name ?? "Member"}
-                          />
-                        )}
-                    </div>
+                    <MemberActions
+                      clubId={club.id}
+                      membershipId={m.id}
+                      currentRole={m.role}
+                      userName={name}
+                      canChangeRole={isOwner && !isClubOwner}
+                      canRemove={
+                        (isOwner || (isAdmin && !isClubAdmin)) && !isClubOwner
+                      }
+                    />
                   </div>
                 );
               })}

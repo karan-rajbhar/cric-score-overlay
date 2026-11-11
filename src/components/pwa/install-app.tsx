@@ -53,9 +53,9 @@ export function InstallAppMenuItem() {
   return (
     <DropdownMenuItem
       onSelect={install}
-      className="flex cursor-pointer items-center gap-2 text-xs"
+      className="flex cursor-pointer items-center gap-2"
     >
-      <Download className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+      <Download className="h-4 w-4 shrink-0 text-muted-foreground" />
       <span>Install app</span>
     </DropdownMenuItem>
   );

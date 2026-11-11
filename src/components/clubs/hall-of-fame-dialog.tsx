@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useConfirm } from "~/components/ui/confirm-dialog";
 import {
   Dialog,
   DialogContent,
@@ -21,7 +22,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-import { Plus, Trash2, Loader2 } from "lucide-react";
+import { Loader2, MoreHorizontal, Plus, Trash2 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu";
 import { inductHallOfFame, removeHallOfFame } from "~/app/clubs/actions";
 import { toast } from "sonner";
 
@@ -47,11 +54,11 @@ export function HallOfFameDialog({ clubId, members }: HallOfFameDialogProps) {
 
   const handleSave = async () => {
     if (!playerId) {
-      toast.error("Please select a player to induct");
+      toast.error("Choose who to add");
       return;
     }
     if (!title.trim()) {
-      toast.error("Please provide an induction title or honor");
+      toast.error("Give the honour a title");
       return;
     }
 
@@ -69,7 +76,7 @@ export function HallOfFameDialog({ clubId, members }: HallOfFameDialogProps) {
       if (res.error) {
         toast.error(res.error);
       } else {
-        toast.success("Player added to the Hall of Fame");
+        toast.success("Added to the hall of fame");
         setOpen(false);
         setTitle("");
         setDescription("");
@@ -78,7 +85,7 @@ export function HallOfFameDialog({ clubId, members }: HallOfFameDialogProps) {
       }
     } catch (err) {
       console.error("Hall of Fame induction error:", err);
-      toast.error("Failed to induct player");
+      toast.error("Could not add them to the hall of fame");
     } finally {
       setIsSaving(false);
     }
@@ -89,24 +96,24 @@ export function HallOfFameDialog({ clubId, members }: HallOfFameDialogProps) {
       <DialogTrigger asChild>
         <Button size="sm" className="gap-1.5">
           <Plus className="h-4 w-4" />
-          Add to Hall of Fame
+          Add to hall of fame
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-xl">Hall of Fame induction</DialogTitle>
+          {/* Sentence case, as the tab says "Hall of fame" (T11). */}
+          <DialogTitle className="text-xl">Add to the hall of fame</DialogTitle>
           <DialogDescription>
-            Recognise a player or record holder in the club&apos;s Hall of
-            Fame.
+            Recognise a player for a record, a title or long service.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
           <div className="space-y-2">
-            <Label htmlFor="player">Select member / legend</Label>
+            <Label htmlFor="player">Member</Label>
             <Select value={playerId} onValueChange={setPlayerId}>
               <SelectTrigger id="player">
-                <SelectValue placeholder="Choose a member..." />
+                <SelectValue placeholder="Choose a member" />
               </SelectTrigger>
               <SelectContent>
                 {members.map((m) => (
@@ -139,42 +146,42 @@ export function HallOfFameDialog({ clubId, members }: HallOfFameDialogProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="title">Honor / title</Label>
+            <Label htmlFor="title">Honour</Label>
             <Input
               id="title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Inaugural Captain & Record Centurion"
+              placeholder="e.g. First captain and first centurion"
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="metric">Record metric (optional)</Label>
+            <Label htmlFor="metric">Record (optional)</Label>
             <Input
               id="metric"
               value={recordMetric}
               onChange={(e) => setRecordMetric(e.target.value)}
-              placeholder="e.g. 1,420 Runs @ 54.6 | 148* (56b)"
+              placeholder="e.g. 1,420 runs at 54.6, best 148*"
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="season">Season / era (optional)</Label>
+            <Label htmlFor="season">Season or years (optional)</Label>
             <Input
               id="season"
               value={seasonOrYear}
               onChange={(e) => setSeasonOrYear(e.target.value)}
-              placeholder="e.g. 2024/25 or 2020-Present"
+              placeholder="e.g. 2024/25, or 2020 to now"
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="description">Citation / description</Label>
+            <Label htmlFor="description">Citation (optional)</Label>
             <Textarea
               id="description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Describe their contribution and landmark moments..."
+              placeholder="What they did for the club"
               rows={3}
             />
           </div>
@@ -188,7 +195,7 @@ export function HallOfFameDialog({ clubId, members }: HallOfFameDialogProps) {
             onClick={handleSave}
             disabled={isSaving}
           >
-            {isSaving ? "Inducting..." : "Confirm Induction"}
+            {isSaving ? "Adding…" : "Add to hall of fame"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -206,11 +213,17 @@ export function RemoveHallOfFameButton({
   playerName: string;
 }) {
   const [loading, setLoading] = useState(false);
+  const [ask, confirmDialog] = useConfirm();
 
-  const handleRemove = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!confirm(`Remove ${playerName} from the Club Hall of Fame?`)) return;
+  const handleRemove = async () => {
+    const ok = await ask({
+      title: `Remove ${playerName} from the hall of fame?`,
+      description: "Their records stay; only the hall of fame entry goes.",
+      cancelLabel: "Keep",
+      confirmLabel: "Remove",
+      destructive: true,
+    });
+    if (!ok) return;
 
     setLoading(true);
     try {
@@ -218,31 +231,48 @@ export function RemoveHallOfFameButton({
       if (res?.error) {
         toast.error(res.error);
       } else {
-        toast.success(`Removed ${playerName} from Hall of Fame`);
+        toast.success(`Removed ${playerName} from the hall of fame`);
       }
     } catch (err) {
       console.error("Failed to remove Hall of Fame inductee:", err);
-      toast.error("Failed to remove inductee");
+      toast.error("Could not remove them");
     } finally {
       setLoading(false);
     }
   };
 
+  // A ⋯ menu with Remove named, not a bare bin in the card's corner (T11).
   return (
-    <Button
-      variant="ghost"
-      size="icon"
-      disabled={loading}
-      onClick={handleRemove}
-      className="h-6 w-6 text-muted-foreground hover:text-destructive"
-      title={`Remove ${playerName} from Hall of Fame`}
-    >
-      {loading ? (
-        <Loader2 className="h-3 w-3 animate-spin" />
-      ) : (
-        <Trash2 className="h-3.5 w-3.5" />
-      )}
-    </Button>
+    <>
+      {confirmDialog}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            disabled={loading}
+            className="-mr-2 -mt-2 h-11 w-11 shrink-0 text-muted-foreground"
+            aria-label={`Actions for ${playerName}`}
+          >
+            {loading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <MoreHorizontal className="h-4 w-4" />
+            )}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem
+            className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+            // After the menu has let go of the focus, so the dialog keeps it.
+            onSelect={() => window.setTimeout(() => void handleRemove(), 0)}
+          >
+            <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />
+            Remove from hall of fame
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>
   );
 }
 

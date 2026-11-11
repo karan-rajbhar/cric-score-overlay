@@ -52,7 +52,7 @@ function revealTab(root: HTMLElement | null, value: string, smooth: boolean) {
  * A tab changed from further down a long screen opens at its top, just under
  * tabs pinned to the screen (`PinnedTabs`, however the tab was chosen).
  */
-function settleUnderPinnedTabs(root: HTMLElement | null) {
+export function settleUnderPinnedTabs(root: HTMLElement | null) {
   const bar = root?.querySelector<HTMLElement>(":scope > [data-pinned-tabs]");
   if (!root || !bar) return;
   const stuckAt = Number.parseFloat(getComputedStyle(bar).top) || 0;

@@ -26,6 +26,8 @@ interface TossDialogProps {
   onTossDecisionChange: (v: string) => void;
   onConfirm: () => void;
   isProcessing: boolean;
+  /** Players in both teams' squads (S1). */
+  sharedPlayers?: number;
 }
 
 /** Two taps: who won the toss, then bat or bowl. */
@@ -39,6 +41,7 @@ export function TossDialog({
   onTossDecisionChange,
   onConfirm,
   isProcessing,
+  sharedPlayers = 0,
 }: TossDialogProps) {
   const winnerLabel = useId();
   const decisionLabel = useId();
@@ -46,22 +49,35 @@ export function TossDialog({
   const teams = [match.team1, match.team2];
   const winner = teams.find((t) => t.id === tossWinner);
   const loser = teams.find((t) => t.id !== tossWinner);
-  const batting = winner
-    ? tossDecision === "bat"
-      ? winner
-      : loser
-    : undefined;
+  const decided = tossDecision === "bat" || tossDecision === "bowl";
+  const batting =
+    winner && decided ? (tossDecision === "bat" ? winner : loser) : undefined;
+  // The button says what is still missing (S7, /design#spec-choice-dialog).
+  const missing = !winner
+    ? "Choose who won the toss"
+    : !decided
+      ? "Choose bat or bowl"
+      : null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader className="text-left">
+        <DialogHeader>
           <DialogTitle>Toss</DialogTitle>
           <DialogDescription>
             Record the toss to start the match. The opening batters and
             bowler come next.
           </DialogDescription>
         </DialogHeader>
+        {/* Said once, here: a player in both squads is offered to both
+            sides until they bat or bowl for one (S1). */}
+        {sharedPlayers > 0 && (
+          <p className="rounded-lg bg-muted/60 px-3 py-2 text-sm text-muted-foreground">
+            {sharedPlayers === 1
+              ? "1 player is in both squads: they join the side they first bat or bowl for."
+              : `${sharedPlayers} players are in both squads: they join the side they first bat or bowl for.`}
+          </p>
+        )}
         <div className="space-y-4">
           <div>
             <p id={winnerLabel} className="text-sm font-medium">
@@ -132,18 +148,18 @@ export function TossDialog({
           >
             {winner && batting
               ? `${winner.name} won the toss and chose to ${tossDecision}. ${batting.name} bat first.`
-              : "Choose who won the toss."}
+              : `${missing}.`}
           </p>
           <Button
             className="h-12 w-full text-sm font-semibold"
             onClick={onConfirm}
-            disabled={!winner || isProcessing}
+            disabled={Boolean(missing) || isProcessing}
             aria-describedby={statusId}
           >
             {isProcessing && (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
             )}
-            Start match
+            {missing ?? "Start match"}
           </Button>
         </div>
       </DialogContent>

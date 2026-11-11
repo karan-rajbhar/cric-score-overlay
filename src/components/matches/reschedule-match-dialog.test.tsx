@@ -47,7 +47,7 @@ describe("Reschedule", () => {
     const { rerender } = render(<MatchMoreMenu match={fixture} />);
     await openMenu();
     expect(
-      await screen.findByRole("menuitem", { name: "Reschedule" }),
+      await screen.findByRole("menuitem", { name: "Change date, venue or umpires" }),
     ).toBeInTheDocument();
 
     fireEvent.keyDown(document.activeElement ?? document.body, {
@@ -56,7 +56,7 @@ describe("Reschedule", () => {
     rerender(<MatchMoreMenu match={{ ...fixture, status: "live" }} />);
     await openMenu();
     await screen.findByRole("menuitem", { name: "Stream this match" });
-    expect(screen.queryByRole("menuitem", { name: "Reschedule" })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Change date, venue or umpires" })).toBeNull();
   });
 
   it("is not offered to co-scorers", async () => {
@@ -64,7 +64,7 @@ describe("Reschedule", () => {
     render(<MatchMoreMenu match={fixture} />);
     await openMenu();
     await screen.findByRole("menuitem", { name: "Stream this match" });
-    expect(screen.queryByRole("menuitem", { name: "Reschedule" })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Change date, venue or umpires" })).toBeNull();
   });
 
   it("starts from the match and sends the new time, venue and umpires", async () => {

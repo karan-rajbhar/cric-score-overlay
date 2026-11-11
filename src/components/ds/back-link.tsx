@@ -1,8 +1,9 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import type * as React from "react";
 import Link from "next/link";
-import { backTarget } from "~/lib/in-app-history";
+import { backTarget, subscribeVisits } from "~/lib/in-app-history";
 
 /**
  * Back: returns where the person came from inside the app, else goes to
@@ -22,6 +23,15 @@ export function BackLink({
   href: string;
   avoid?: string;
 }) {
+  // Going back through history, it says "Back", not "Back to <parent>":
+  // it is not going there (N25). The server renders the parent's name.
+  const viaHistory = useSyncExternalStore(
+    subscribeVisits,
+    () => backTarget(avoid) !== null,
+    () => false,
+  );
+  const named = (label: string | undefined) =>
+    viaHistory && label ? "Back" : label;
   return (
     <Link
       href={href}
@@ -33,6 +43,8 @@ export function BackLink({
         window.history.back();
       }}
       {...props}
+      aria-label={named(props["aria-label"])}
+      title={named(props.title)}
     />
   );
 }

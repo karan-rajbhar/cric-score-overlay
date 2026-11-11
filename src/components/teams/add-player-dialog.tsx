@@ -22,11 +22,21 @@ import { toast } from "sonner";
 import { usePlayerSearch, useSameNameCheck } from "~/lib/hooks/usePlayerSearch";
 import { NETWORK_ERROR_MESSAGE } from "~/lib/network-error";
 import { lookUpPlayers } from "~/lib/player-lookup";
-import { typedHandle, type FoundPlayer } from "~/lib/player-search";
+import {
+  foundPlayerHint,
+  typedHandle,
+  whyNotAddable,
+  type FoundPlayer,
+} from "~/lib/player-search";
+import { Avatar } from "~/components/ds/avatar";
 import { rememberPlayer } from "~/lib/recent-players";
 
 interface AddPlayerDialogProps {
   teamId: string;
+  /** "Already in <team>" for someone found who is in the squad. */
+  teamName?: string;
+  /** Who is in the squad now: found, they are listed but cannot be added. */
+  squadIds?: readonly string[];
   /** The team's club: its members come first in a search. */
   clubId?: string | null;
   onSuccess?: () => void;
@@ -38,6 +48,8 @@ interface AddPlayerDialogProps {
  */
 export function AddPlayerDialog({
   teamId,
+  teamName = "the squad",
+  squadIds = [],
   clubId,
   onSuccess,
 }: AddPlayerDialogProps) {
@@ -53,7 +65,14 @@ export function AddPlayerDialog({
     [clubId],
   );
   const search = usePlayerSearch(searchable ? trimmed : "", find);
-  const results = search.players;
+  // Each found person says who they are, or why they cannot be added
+  // (P1, /design#spec-add-player): someone in this squad stays listed.
+  const inSquad = new Set(squadIds);
+  const results = search.players.map((p) =>
+    inSquad.has(p.id)
+      ? { ...p, teams: [...new Set([...(p.teams ?? []), teamName])] }
+      : p,
+  );
   const sameName = useSameNameCheck(trimmed, results);
 
   const finish = (message: string) => {
@@ -143,68 +162,47 @@ export function AddPlayerDialog({
             <SameNameNote twin={sameName.twin} />
           )}
 
-          {/* Right under the name box, so it shows while the phone keyboard
-              is open (below the results it was out of sight). */}
-          {searchable && handle === null && (
-            <Button
-              type="button"
-              variant="secondary"
-              className="w-full"
-              onClick={() => void createNew()}
-              disabled={busy !== null || search.status === "searching"}
-            >
-              {busy === "new" ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <UserPlus className="mr-2 h-4 w-4" />
-              )}
-              <span className="truncate">
-                {sameName.asking
-                  ? `Yes, add a second “${trimmed}”`
-                  : `Add “${trimmed}” as a new player`}
-              </span>
-            </Button>
-          )}
-
           {searchable && (
             <div
               className="space-y-2 sm:max-h-[300px] sm:overflow-y-auto"
               aria-label="Registered players"
               role="group"
             >
-              {results.map((user) => (
-                <button
-                  key={user.id}
-                  type="button"
-                  disabled={busy !== null}
-                  onClick={() => void addExisting(user)}
-                  className="flex min-h-11 w-full items-center justify-between rounded-md border p-3 text-left transition-colors hover:bg-muted disabled:opacity-60"
-                >
-                  <div className="flex min-w-0 items-center gap-3">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium">
-                      {user.name.substring(0, 1)}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">
+              {results.map((user) => {
+                const blocked = whyNotAddable(user, teamName);
+                return (
+                  <Button
+                    key={user.id}
+                    type="button"
+                    variant="outline"
+                    disabled={busy !== null || blocked !== null}
+                    onClick={() => void addExisting(user)}
+                    className="h-auto min-h-14 w-full justify-start gap-3 py-2 text-left"
+                  >
+                    <Avatar name={user.name} size="sm" />
+                    {/* The name keeps its line; the hint says who they are
+                        or why they cannot be added. */}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium">
                         {user.name}
-                      </p>
-                      {user.username && (
-                        <p className="truncate font-mono text-xs text-muted-foreground">
-                          @{user.username}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  {busy === user.id ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <UserPlus
-                      className="h-4 w-4 shrink-0 text-primary"
-                      aria-hidden="true"
-                    />
-                  )}
-                </button>
-              ))}
+                      </span>
+                      <span className="block truncate text-xs font-normal text-muted-foreground">
+                        {blocked ?? foundPlayerHint(user)}
+                      </span>
+                    </span>
+                    {busy === user.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                    ) : (
+                      !blocked && (
+                        <UserPlus
+                          className="h-4 w-4 shrink-0 text-primary"
+                          aria-hidden="true"
+                        />
+                      )
+                    )}
+                  </Button>
+                );
+              })}
 
               <PlayerSearchNote
                 search={search}
@@ -212,6 +210,29 @@ export function AddPlayerDialog({
                 listed={results.length}
               />
             </div>
+          )}
+
+          {/* Last, and the quiet button: creating is a separate choice from
+              picking, made once the search has answered (P1). */}
+          {searchable && handle === null && (
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 w-full justify-start gap-2"
+              onClick={() => void createNew()}
+              disabled={busy !== null || search.status === "searching"}
+            >
+              {busy === "new" ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <UserPlus className="h-4 w-4" aria-hidden="true" />
+              )}
+              <span className="truncate">
+                {sameName.asking
+                  ? `Yes, add a second “${trimmed}”`
+                  : `Add “${trimmed}” as a new player`}
+              </span>
+            </Button>
           )}
         </div>
       </DialogContent>

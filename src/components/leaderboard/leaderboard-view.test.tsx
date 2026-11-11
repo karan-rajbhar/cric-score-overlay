@@ -72,9 +72,11 @@ describe("LeaderboardView Component", () => {
     render(<LeaderboardView data={mockData} title="Tournament Leaderboard" />);
 
     expect(screen.getByText("Tournament Leaderboard")).toBeInTheDocument();
-    expect(screen.getByText("Orange cap")).toBeInTheDocument();
-    expect(screen.getByText("Purple cap")).toBeInTheDocument();
-    expect(screen.getByText("MVP leader")).toBeInTheDocument();
+    // Titles say what they count, all at one size (T9).
+    for (const title of ["Most runs", "Most wickets", "Most valuable player"]) {
+      expect(screen.getByRole("heading", { level: 3, name: title })).toBeInTheDocument();
+    }
+    expect(screen.queryByText("Orange cap")).not.toBeInTheDocument();
 
     // Check top run scorer in highlight card
     expect(screen.getAllByText("Virat Kohli").length).toBeGreaterThan(0);

@@ -15,13 +15,15 @@ export function ProfileTeams({ teams }: { teams: PlayerTeamMembership[] }) {
         <li key={tm.id}>
           <Link
             href={`/teams/${tm.team.id}`}
-            className="inline-flex max-w-full items-center gap-2 rounded-full bg-card py-1 pl-1 pr-3 text-sm font-medium text-foreground shadow-soft ring-1 ring-border/40 transition-colors hover:bg-accent"
+            // The crest's short code ("STR", not "S"), 44px to tap on
+            // phones (P10).
+            className="inline-flex min-h-11 max-w-full items-center gap-2 rounded-full bg-card py-1 pl-1 pr-3 text-sm font-medium text-foreground shadow-soft ring-1 ring-border/40 transition-colors hover:bg-accent md:min-h-9"
           >
             <TeamCrest
               name={tm.team.name}
               shortName={tm.team.short_name}
               logoUrl={tm.team.logo_url}
-              size="xs"
+              size="sm"
             />
             <span className="truncate">{tm.team.name}</span>
             {tm.jersey_number != null && (
@@ -29,7 +31,7 @@ export function ProfileTeams({ teams }: { teams: PlayerTeamMembership[] }) {
                 #{tm.jersey_number}
               </span>
             )}
-            {tm.role_in_team && (
+            {tm.role_in_team && tm.role_in_team !== "player" && (
               <span className="text-xs font-normal text-muted-foreground">
                 {formatPlayerRole(tm.role_in_team)}
               </span>
@@ -87,23 +89,32 @@ function FigureCard({ title, figures }: { title: string; figures: Figure[] }) {
   );
 }
 
+/**
+ * A card per discipline the player has something in (P4): pass null for
+ * one they have not taken part in, and it is left out, not drawn as zeros.
+ */
 export function CareerCards({
   batting,
   bowling,
   fielding,
 }: {
-  batting: Figure[];
-  bowling: Figure[];
+  batting: Figure[] | null;
+  bowling: Figure[] | null;
   /** Absent for a season: fielding is kept for the whole career only. */
-  fielding?: Figure[];
+  fielding?: Figure[] | null;
 }) {
+  const cards = [
+    batting && { title: "Batting", figures: batting },
+    bowling && { title: "Bowling", figures: bowling },
+    fielding && { title: "Fielding", figures: fielding },
+  ].filter((c): c is { title: string; figures: Figure[] } => Boolean(c));
+  if (cards.length === 0) return null;
+  const cols = ["", "", "md:grid-cols-2", "md:grid-cols-3"][cards.length];
   return (
-    <div
-      className={`grid grid-cols-1 gap-4 ${fielding ? "md:grid-cols-3" : "md:grid-cols-2"}`}
-    >
-      <FigureCard title="Batting" figures={batting} />
-      <FigureCard title="Bowling" figures={bowling} />
-      {fielding && <FigureCard title="Fielding" figures={fielding} />}
+    <div className={`grid grid-cols-1 gap-4 ${cols}`}>
+      {cards.map((c) => (
+        <FigureCard key={c.title} title={c.title} figures={c.figures} />
+      ))}
     </div>
   );
 }

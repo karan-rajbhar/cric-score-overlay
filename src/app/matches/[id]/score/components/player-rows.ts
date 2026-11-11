@@ -58,6 +58,31 @@ function rosterOf<T extends PickablePlayer>(
 const nameOf = (p: PickablePlayer) => p.user?.full_name || "Unknown";
 
 /**
+ * Who may play for this side today (`sideRuleOf` in `~/lib/match-players`):
+ * a reason means they played for the other side, and their row is shown
+ * disabled with it rather than left out. `alsoIn` names the other squad
+ * of someone in both, so the scorer knows why they are offered twice.
+ */
+export interface SideRules {
+  unavailable?: (playerId: string) => string | null;
+  alsoIn?: ReadonlyMap<string, string>;
+}
+
+/** The side's reason against a player, or a note that they are in both squads. */
+function applySide(row: PickerRow, side: SideRules = {}): boolean {
+  const reason = side.unavailable?.(row.id) ?? null;
+  if (reason) {
+    row.disabledReason = reason;
+    return true;
+  }
+  const other = side.alsoIn?.get(row.id);
+  if (other && !row.note) {
+    row.note = `Also in ${other}${other.endsWith("s") ? "'" : "'s"} squad`;
+  }
+  return false;
+}
+
+/**
  * Batting candidates, ordered: yet to bat (batting order, then roster order;
  * in batting order, nobody preselected), retired hurt (may resume), the pair at the crease
  * (picking one swaps the slots), then dismissed batters (disabled).
@@ -70,6 +95,7 @@ export function buildBatterRows({
   bowlerId,
   strikerId,
   nonStrikerId,
+  side,
 }: {
   players: PickablePlayer[];
   performances?: BattingPerformance[];
@@ -78,6 +104,7 @@ export function buildBatterRows({
   bowlerId?: string | null;
   strikerId?: string | null;
   nonStrikerId?: string | null;
+  side?: SideRules;
 }): { rows: PickerRow[] } {
   const perfs = new Map(performances.map((p) => [p.user_id, p]));
   const roster = rosterOf(players, [excludeIds, bowlerId]);
@@ -86,6 +113,7 @@ export function buildBatterRows({
   const retired: PickerRow[] = [];
   const crease: PickerRow[] = [];
   const out: Array<{ row: PickerRow; position: number }> = [];
+  const otherSide: PickerRow[] = [];
 
   roster.forEach((p, index) => {
     const perf = perfs.get(p.user_id);
@@ -99,7 +127,9 @@ export function buildBatterRows({
         : null,
     };
     const isOut = perf?.is_out || dismissedIds?.has(p.user_id);
-    if (p.user_id === strikerId || p.user_id === nonStrikerId) {
+    if (!perf && applySide(row, side)) {
+      otherSide.push(row);
+    } else if (p.user_id === strikerId || p.user_id === nonStrikerId) {
       row.tag = p.user_id === strikerId ? "Striker" : "Non-striker";
       crease.push(row);
     } else if (isOut) {
@@ -123,6 +153,7 @@ export function buildBatterRows({
       ...retired,
       ...crease,
       ...out.map((o) => o.row),
+      ...otherSide,
     ],
   };
 }
@@ -147,6 +178,7 @@ export function buildBowlerRows({
   currentBowlerId,
   lastOverBowlerId,
   oversPerInnings,
+  side,
 }: {
   players: PickablePlayer[];
   performances?: BowlingPerformance[];
@@ -155,6 +187,7 @@ export function buildBowlerRows({
   currentBowlerId?: string | null;
   lastOverBowlerId?: string | null;
   oversPerInnings?: number | null;
+  side?: SideRules;
 }): { rows: PickerRow[]; onlyEligibleId: string | null } {
   const perfs = new Map(performances.map((p) => [p.user_id, p]));
   const quota = bowlerQuota(oversPerInnings);
@@ -183,7 +216,9 @@ export function buildBowlerRows({
           : figures,
       tag: p.user_id === currentBowlerId ? "Bowling" : null,
     };
-    if (lastOverBowlerId && p.user_id === lastOverBowlerId) {
+    if (!perf && applySide(row, side)) {
+      blocked.push(row);
+    } else if (lastOverBowlerId && p.user_id === lastOverBowlerId) {
       row.disabledReason = "Bowled last over";
       blocked.push(row);
     } else if (left === 0) {
@@ -209,21 +244,29 @@ export function buildFielderRows({
   players,
   bowlerId,
   keeperFirst = false,
+  side,
 }: {
   players: PickablePlayer[];
   bowlerId?: string | null;
   keeperFirst?: boolean;
+  side?: SideRules;
 }): PickerRow[] {
-  const rows = rosterOf(players).map<PickerRow>((p) => ({
+  const all = rosterOf(players).map<PickerRow>((p) => ({
     id: p.user_id,
     name: nameOf(p),
     username: p.user?.username,
     role: roleLabel(p.role_in_team),
     tag: p.user_id === bowlerId ? "Bowler" : null,
   }));
-  if (!keeperFirst) return rows;
-  return [
-    ...rows.filter((r) => r.role === "(wk)"),
-    ...rows.filter((r) => r.role !== "(wk)"),
-  ];
+  const otherSide = all.filter(
+    (r) => r.id !== bowlerId && applySide(r, side),
+  );
+  const rows = all.filter((r) => !otherSide.includes(r));
+  const ordered = keeperFirst
+    ? [
+        ...rows.filter((r) => r.role === "(wk)"),
+        ...rows.filter((r) => r.role !== "(wk)"),
+      ]
+    : rows;
+  return [...ordered, ...otherSide];
 }

@@ -53,7 +53,7 @@ export function InningsScore({
         )}
       >
         {innings.runs}/{innings.wickets}
-      </span>
+      </span>{" "}
       <span
         className={cn(
           "font-score text-xs tabular-nums text-muted-foreground",

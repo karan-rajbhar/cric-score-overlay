@@ -207,7 +207,7 @@ export function DlsCalculatorModal({
           </div>
           <p
             id="dls-t1-overs-hint"
-            className="-mt-2 text-2xs text-muted-foreground"
+            className="-mt-2 text-xs text-muted-foreground"
           >
             As scheduled at the start, even if the first innings was all out.
           </p>
@@ -220,7 +220,7 @@ export function DlsCalculatorModal({
               <div className="min-w-0 space-y-1.5">
                 <Label
                   htmlFor="dls-overs-bowled"
-                  className="text-2xs text-muted-foreground"
+                  className="text-xs text-muted-foreground"
                 >
                   Overs bowled
                 </Label>
@@ -240,7 +240,7 @@ export function DlsCalculatorModal({
               <div className="min-w-0 space-y-1.5">
                 <Label
                   htmlFor="dls-wickets-lost"
-                  className="text-2xs text-muted-foreground"
+                  className="text-xs text-muted-foreground"
                 >
                   Wickets down
                 </Label>
@@ -257,7 +257,7 @@ export function DlsCalculatorModal({
                 />
               </div>
             </div>
-            <p id="dls-stop-hint" className="text-2xs text-muted-foreground">
+            <p id="dls-stop-hint" className="text-xs text-muted-foreground">
               Leave both at 0 if the chase had not started.
             </p>
           </fieldset>
@@ -304,7 +304,7 @@ export function DlsCalculatorModal({
                 <p className="text-xs font-semibold">
                   Par score if play does not resume
                 </p>
-                <p className="text-2xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   The chasing side wins above par and ties on it.
                 </p>
               </div>

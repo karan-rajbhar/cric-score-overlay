@@ -112,7 +112,7 @@ export function PointsOverrideDialog({
               onChange={(e) => setAdjustment(e.target.value)}
               placeholder="e.g. -1 for penalty, +0.5 for bonus"
             />
-            <p className="text-2xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               Negative values subtract points (e.g. -1.0 for slow over rate).
               Positive values award bonus points.
             </p>

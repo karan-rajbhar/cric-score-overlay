@@ -39,6 +39,11 @@ interface AuthContextType {
   signInWithGoogle: (loginHint?: string) => Result;
   /** Why a redirect sign-in failed after returning to the app, if it did. */
   redirectError: AuthError | null;
+  /**
+   * Back from Google's page and still making the session (redirect sign-in,
+   * phones): the sign-in screen says so instead of looking untouched (N3).
+   */
+  signingIn: boolean;
   signOut: () => Promise<void>;
 }
 
@@ -163,7 +168,9 @@ async function syncServerSession(user: FirebaseUser | null): Promise<void> {
       code: INVITE_ONLY_CODE,
     });
   }
-  if (!res.ok) throw new Error("Could not establish a server session");
+  if (!res.ok) {
+    throw new Error("Could not sign you in. Check your connection and try again.");
+  }
 }
 
 export function AuthProvider({
@@ -186,6 +193,7 @@ export function AuthProvider({
   // Nothing is pending when the server already named the user.
   const [loading, setLoading] = useState(!isOverlay && !initialUser);
   const [redirectError, setRedirectError] = useState<AuthError | null>(null);
+  const [signingIn, setSigningIn] = useState(false);
   const router = useRouter();
   const syncedUidRef = useRef<string | null>(null);
   /** Signed in locally but the server session still needs syncing. */
@@ -321,14 +329,17 @@ export function AuthProvider({
   // popup path does, and keep the error (e.g. invite-only) for the login page.
   useEffect(() => {
     if (isOverlay || !takeRedirectPending()) return;
-    getRedirectResult(getFirebaseAuth())
+    void Promise.resolve()
+      .then(() => setSigningIn(true))
+      .then(() => getRedirectResult(getFirebaseAuth()))
       .then(async (result) => {
         if (result) await finishSignIn(result.user);
       })
       .catch((err: unknown) => {
         console.error("Google redirect sign-in failed:", err);
         setRedirectError(toAuthError(err));
-      });
+      })
+      .finally(() => setSigningIn(false));
   }, [isOverlay, finishSignIn]);
 
   const signInWithGoogle = useCallback(
@@ -391,6 +402,7 @@ export function AuthProvider({
         loading,
         signInWithGoogle,
         redirectError,
+        signingIn,
         signOut,
       }}
     >

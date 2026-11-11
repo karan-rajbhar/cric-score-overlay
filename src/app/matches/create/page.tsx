@@ -1,11 +1,11 @@
 "use client";
 
-import { BackLink } from "~/components/ds/back-link";
+import { ScreenBar } from "~/components/ds/screen";
+import { SignInRequired } from "~/components/ui/sign-in-required";
 import { useId, useMemo, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, ChevronDown, ChevronLeft, Loader2, RotateCcw } from "lucide-react";
+import { AlertCircle, ChevronDown, Loader2, RotateCcw } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
@@ -468,15 +468,13 @@ function MatchSetupForm({ userId }: { userId: string }) {
 
   return (
     <PageContainer size="form" stack={false}>
-      <Button variant="ghost" size="sm" asChild className="-ml-2 mb-2">
-        <BackLink href={backHref}>
-          <ChevronLeft className="mr-1 h-4 w-4 shrink-0" aria-hidden="true" />
-          Back
-        </BackLink>
-      </Button>
-      <h1 className="text-balance text-2xl font-semibold">New match</h1>
+      {/* The round Back of every screen, and the page's heading, as the
+          other create forms (F3, F6). */}
+      <ScreenBar backHref={backHref} title="New match" />
       {context && (
-        <p className="mt-1 text-sm text-muted-foreground">For {context}</p>
+        <p className="mt-2 text-center text-sm text-muted-foreground">
+          For {context}
+        </p>
       )}
 
       <form onSubmit={submit} className="mt-5 space-y-4" noValidate>
@@ -696,7 +694,12 @@ function MatchSetupForm({ userId }: { userId: string }) {
               className="space-y-4 border-t px-4 pb-5 pt-4 sm:px-6"
             >
               <div>
-                <Label htmlFor={ids.title}>Match title</Label>
+                {/* Optional fields say so, as the design system's Field
+                    does; required ones carry no mark (F4). */}
+                <Label htmlFor={ids.title}>
+                  Match title{" "}
+                  <span className="font-normal text-muted-foreground">(optional)</span>
+                </Label>
                 <Input
                   id={ids.title}
                   value={title}
@@ -709,7 +712,10 @@ function MatchSetupForm({ userId }: { userId: string }) {
                 </p>
               </div>
               <div>
-                <Label htmlFor={ids.venue}>Venue</Label>
+                <Label htmlFor={ids.venue}>
+                  Venue{" "}
+                  <span className="font-normal text-muted-foreground">(optional)</span>
+                </Label>
                 <Input
                   id={ids.venue}
                   value={venue}
@@ -820,7 +826,9 @@ function MatchSetupForm({ userId }: { userId: string }) {
 
         {/* Phones: sticks just above the floating tab bar (MobileTabBar:
             a 4.25rem bar over max(0.75rem, safe area)), never under it. */}
-        <div className="sticky bottom-[calc(4.25rem+max(0.75rem,env(safe-area-inset-bottom)))] z-10 -mx-4 border-t bg-background px-4 pb-3 pt-3 sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0">
+        {/* No tab bar under it on this task screen (F2): it sits at the
+            bottom edge, above the home indicator. */}
+        <div className="sticky bottom-0 z-10 -mx-4 border-t bg-background px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0">
           {submitError && (
             <p
               role="alert"
@@ -910,19 +918,10 @@ function CreateMatchGate() {
   }
   if (!user) {
     return (
-      <div className="flex min-h-[50vh] items-center justify-center">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-6 text-center">
-            <h1 className="mb-2 text-xl font-semibold">Sign in required</h1>
-            <p className="mb-4 text-muted-foreground">
-              Sign in to create and score a match.
-            </p>
-            <Button asChild>
-              <Link href="/auth/login?redirect=/matches/create">Sign in</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+      <SignInRequired
+        title="Sign in to start a match"
+        allows="Start a match to score it ball by ball and share it live."
+      />
     );
   }
   return <MatchSetupForm userId={user.id} />;

@@ -17,6 +17,8 @@ import {
   formatStatus,
   formatTournamentFormat,
   formatPlayerRole,
+  roleMark,
+  squadRoleLine,
   formatClubType,
   formatTeamType,
   scoreLine,
@@ -570,7 +572,18 @@ describe("cricket math & formatting utilities", () => {
   describe("formatPlayerRole", () => {
     it("formats known player roles", () => {
       expect(formatPlayerRole("captain")).toBe("Captain");
-      expect(formatPlayerRole("vice_captain")).toBe("Vice Captain");
+      expect(formatPlayerRole("vice_captain")).toBe("Vice-captain");
+    });
+
+    it("marks a squad role after the name, with a line only for others (M10, P7)", () => {
+      expect(roleMark("captain")).toBe(" (c)");
+      expect(roleMark("vice_captain")).toBe(" (vc)");
+      expect(roleMark("wicket_keeper")).toBe(" (wk)");
+      expect(roleMark("player")).toBe("");
+      expect(squadRoleLine("player")).toBeNull();
+      expect(squadRoleLine(null)).toBeNull();
+      expect(squadRoleLine("captain")).toBeNull();
+      expect(squadRoleLine("all_rounder")).toBe("All-rounder");
       expect(formatPlayerRole("wicket_keeper")).toBe("Wicket-keeper");
       expect(formatPlayerRole("all_rounder")).toBe("All-rounder");
       expect(formatPlayerRole("batsman")).toBe("Batter");

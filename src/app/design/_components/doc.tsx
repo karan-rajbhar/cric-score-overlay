@@ -39,12 +39,15 @@ export function DocSection({
 
 /** One component or token group: a title, usage notes and the live example. */
 export function Specimen({
+  id,
   title,
   usage,
   className,
   bodyClassName,
   children,
 }: {
+  /** An anchor, for documents that point at this specimen (`/design#id`). */
+  id?: string;
   title: string;
   usage?: React.ReactNode;
   className?: string;
@@ -53,7 +56,7 @@ export function Specimen({
 }) {
   return (
     // min-w-0: as a grid cell, don't grow to fit a wide table inside.
-    <div className={cn("min-w-0 space-y-3", className)}>
+    <div id={id} className={cn("min-w-0 scroll-mt-24 space-y-3", className)}>
       <div>
         <h3 className="text-base font-semibold text-foreground">{title}</h3>
         {usage && (
@@ -77,7 +80,7 @@ export function Specimen({
 /** Small caption under a variant inside a specimen. */
 export function Caption({ children }: { children: React.ReactNode }) {
   return (
-    <p className="mt-2 font-mono text-2xs text-muted-foreground">{children}</p>
+    <p className="mt-2 font-mono text-xs text-muted-foreground">{children}</p>
   );
 }
 

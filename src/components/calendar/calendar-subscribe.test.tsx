@@ -22,7 +22,7 @@ describe("CalendarSubscribe", () => {
     Object.assign(navigator, { clipboard: { writeText } });
     render(<CalendarSubscribe scope="tournament" id="r1" name="Championship" />);
     const trigger = screen.getByRole("button", {
-      name: "Add Championship fixtures to your calendar",
+      name: "Add to calendar: Championship fixtures",
     });
     fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
     const subscribe = await screen.findByRole("menuitem", { name: "Subscribe in calendar app" });

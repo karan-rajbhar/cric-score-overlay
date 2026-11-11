@@ -32,15 +32,16 @@ function MatchLine({
   date: string | null;
 }) {
   const when = shortDate(date);
+  // The title when known, else the date is the link (P3): never "Match".
   return (
     <span className="block min-w-0 truncate text-xs text-muted-foreground">
       <Link
         href={`/matches/${matchId}`}
         className="underline-offset-2 hover:text-foreground hover:underline"
       >
-        {title ?? "Match"}
+        {title ?? when ?? "Open the match"}
       </Link>
-      {when && <> · {when}</>}
+      {title && when && <> · {when}</>}
     </span>
   );
 }
@@ -73,9 +74,9 @@ function Best({ label, best }: { label: string; best: BestFigure | null }) {
 }
 
 /**
- * Hundreds, fifties, 3 and 5 wicket hauls and best figures, from the
- * records the player page already loaded (no reads). Nothing when the
- * player has no completed innings yet.
+ * Best batting and bowling and the latest milestones (hundreds, fifties,
+ * 3 and 5 wicket hauls), from the records the player page already loaded
+ * (no reads). Nothing when there are none yet.
  */
 export function PlayerMilestones({
   batting,
@@ -86,13 +87,10 @@ export function PlayerMilestones({
 }) {
   if (batting.length === 0 && bowling.length === 0) return null;
   const m = playerMilestones(batting, bowling);
-  const counts: [label: string, value: number][] = [
-    ["Hundreds", m.hundreds],
-    ["Fifties", m.fifties],
-    ["5 wickets", m.fiveWickets],
-    ["3 wickets", m.threeWickets],
-  ];
   const listed = m.milestones.slice(0, MAX_LISTED);
+  // The counts of fifties, hundreds and hauls are on the Batting and
+  // Bowling cards: here the bests and the latest milestones (P4).
+  if (!m.bestBatting && !m.bestBowling && listed.length === 0) return null;
 
   return (
     <Card>
@@ -102,19 +100,9 @@ export function PlayerMilestones({
         className="pb-3"
       />
       <div className="space-y-4 px-4 pb-4 sm:px-5 sm:pb-5">
-        <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {counts.map(([label, value]) => (
-            <div key={label} className="rounded-xl bg-muted p-3">
-              <dt className="text-xs text-muted-foreground">{label}</dt>
-              <dd className="mt-1 font-score text-xl font-semibold tabular-nums text-foreground">
-                {value}
-              </dd>
-            </div>
-          ))}
-        </dl>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <Best label="Best batting" best={m.bestBatting} />
-          <Best label="Best bowling" best={m.bestBowling} />
+          {m.bestBatting && <Best label="Best batting" best={m.bestBatting} />}
+          {m.bestBowling && <Best label="Best bowling" best={m.bestBowling} />}
         </div>
         {listed.length > 0 && (
           <section aria-labelledby="milestones-recent">

@@ -122,10 +122,13 @@ export function RescheduleMatchDialog({
       )}
       <DialogContent className="sm:max-w-md">
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-          <DialogHeader className="text-left">
-            <DialogTitle className="text-balance">Reschedule match</DialogTitle>
+          <DialogHeader>
+            <DialogTitle className="text-balance">
+              Change date, venue or umpires
+            </DialogTitle>
             <DialogDescription>
-              Change when and where it is played, before it starts.
+              When and where it is played, and who umpires. Only before it
+              starts.
             </DialogDescription>
           </DialogHeader>
           <div>

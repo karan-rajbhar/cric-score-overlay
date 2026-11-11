@@ -2,9 +2,9 @@
 
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { toast } from "sonner";
 import { getTotalPendingCount } from "~/lib/offline-queue";
 import { initInstallPrompt } from "~/lib/pwa/install-prompt";
+import { setUpdateOffer } from "~/lib/pwa/update-offer";
 import {
   cacheCurrentPage,
   removeServiceWorkers,
@@ -13,7 +13,6 @@ import {
   shouldRegisterServiceWorker,
 } from "~/lib/pwa/service-worker";
 
-const UPDATE_TOAST_ID = "sw-update";
 const PENDING_RECHECK_MS = 15_000;
 
 function registrationEnv() {
@@ -37,7 +36,7 @@ function whenIdle(fn: () => void): () => void {
 
 /**
  * Registers `public/sw.js` in production (https, not localhost), offers a
- * quiet "Reload" when a new version is waiting, and otherwise removes any
+ * quiet "Reload" when a new version is waiting (`UpdateStrip`), and otherwise removes any
  * worker on this origin (dev, `NEXT_PUBLIC_SW_DISABLED=true`).
  */
 export function ServiceWorkerRegistrar() {
@@ -70,22 +69,20 @@ export function ServiceWorkerRegistrar() {
         recheck = window.setTimeout(() => offerUpdate(reg), PENDING_RECHECK_MS);
         return;
       }
-      toast("New version available", {
-        id: UPDATE_TOAST_ID,
-        duration: Infinity,
-        closeButton: true,
-        action: {
-          label: "Reload",
-          onClick: () => {
-            // A ball may have been queued since the prompt appeared.
-            if (getTotalPendingCount() > 0 || !reg.waiting) {
-              toast.info("Reload after your offline balls have synced.");
-              offerUpdate(reg);
-              return;
-            }
-            reloading = true;
-            reg.waiting.postMessage({ type: "SKIP_WAITING" });
-          },
+      // A strip at the top of the page, not a toast (N12).
+      setUpdateOffer({
+        reload: () => {
+          // A ball may have been queued since the offer appeared.
+          if (getTotalPendingCount() > 0 || !reg.waiting) {
+            setUpdateOffer({
+              reload: () => undefined,
+              note: "The new version loads once your offline balls have synced.",
+            });
+            offerUpdate(reg);
+            return;
+          }
+          reloading = true;
+          reg.waiting.postMessage({ type: "SKIP_WAITING" });
         },
       });
     };

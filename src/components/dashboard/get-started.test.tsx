@@ -26,7 +26,7 @@ describe("GetStarted", () => {
     getOnboardingProgress.mockResolvedValue({ ...empty, teamId: "t1" });
     render(<GetStarted userId="u1" />);
     expect(
-      await screen.findByRole("heading", { name: "Get started" }),
+      await screen.findByRole("heading", { name: "Set up a team and your first match" }),
     ).toBeInTheDocument();
     expect(screen.getByText(/1 of 4/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /add players/i })).toHaveAttribute(
@@ -48,16 +48,16 @@ describe("GetStarted", () => {
     const user = userEvent.setup();
     const { unmount } = render(<GetStarted userId="u1" />);
     await user.click(
-      await screen.findByRole("button", { name: /dismiss get started/i }),
+      await screen.findByRole("button", { name: /dismiss the set-up checklist/i }),
     );
-    expect(screen.queryByRole("heading", { name: "Get started" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Set up a team and your first match" })).toBeNull();
     expect(localStorage.getItem(getStartedKey("u1"))).toBe("dismissed");
     unmount();
 
     getOnboardingProgress.mockClear();
     render(<GetStarted userId="u1" />);
     expect(getOnboardingProgress).not.toHaveBeenCalled();
-    expect(screen.queryByRole("heading", { name: "Get started" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Set up a team and your first match" })).toBeNull();
   });
 
   it("stays hidden once the required steps are done", async () => {
@@ -71,6 +71,6 @@ describe("GetStarted", () => {
     await waitFor(() =>
       expect(localStorage.getItem(getStartedKey("u2"))).toBe("done"),
     );
-    expect(screen.queryByRole("heading", { name: "Get started" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Set up a team and your first match" })).toBeNull();
   });
 });

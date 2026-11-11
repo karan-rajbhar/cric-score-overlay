@@ -60,8 +60,10 @@ export function ScreenBar({
   return (
     <div
       className={cn(
+        // The side tracks never give way to the title: a long one ends in
+        // an ellipsis before the buttons (M1, /design#spec-long-title).
         title
-          ? "grid grid-cols-[1fr_minmax(0,auto)_1fr] items-center gap-2"
+          ? "grid grid-cols-[minmax(max-content,1fr)_minmax(0,auto)_minmax(max-content,1fr)] items-center gap-2"
           : "flex items-center justify-between gap-2",
         className,
       )}
@@ -86,7 +88,7 @@ export function ScreenBar({
           {title}
         </h1>
       )}
-      <div className="flex min-w-0 items-center gap-2 justify-self-end">
+      <div className="flex items-center gap-2 justify-self-end">
         {action}
       </div>
     </div>

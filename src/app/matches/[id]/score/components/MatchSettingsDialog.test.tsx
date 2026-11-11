@@ -70,7 +70,9 @@ describe("MatchSettingsDialog (Mid-Game Rules & Format Adjustment)", () => {
       />,
     );
 
-    expect(screen.getByText(/match settings & rules/i)).toBeInTheDocument();
+    // One name, as the menu item, and no jargon (S9).
+    expect(screen.getByText("Match settings")).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent(/stumps-grade|MCC|dragged/i);
     expect(screen.getByLabelText(/match format/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/overs per innings/i)).toHaveValue(20);
     expect(screen.getByLabelText(/target runs/i)).toHaveValue(161);

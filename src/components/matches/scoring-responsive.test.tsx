@@ -1,8 +1,13 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { ScoringPanel } from "./scoring-panel";
 import { LiveMatchHUD } from "./live-match-hud";
 import type { Match, Innings } from "~/lib/match-types";
+
+/** A run key by its figure, armed extra or not ("4, Four", "1, 2 Wd", "2 runs"); not an over chip ("4, ball 3: ..."). */
+const runKey = (n: number) =>
+  screen.getByRole("button", { name: new RegExp(`^${n}(?: runs?$|, (?!ball))`) });
+
 
 describe("Scoring Page UI & Responsive Inspection (Mobile & Desktop)", () => {
   const mockMatchChasing: Match = {
@@ -157,9 +162,9 @@ describe("Scoring Page UI & Responsive Inspection (Mobile & Desktop)", () => {
       );
 
       // Boundaries 4 and 6 are directly accessible
-      const fourBtn = screen.getByRole("button", { name: /4.*four/i });
-      const sixBtn = screen.getByRole("button", { name: /6.*six/i });
-      const dotBtn = screen.getByRole("button", { name: /0 runs/i });
+      const fourBtn = runKey(4);
+      const sixBtn = runKey(6);
+      const dotBtn = runKey(0);
 
       expect(fourBtn).toBeInTheDocument();
       expect(sixBtn).toBeInTheDocument();
@@ -234,10 +239,12 @@ describe("Scoring Page UI & Responsive Inspection (Mobile & Desktop)", () => {
       expect(wideBtn).toHaveAttribute("aria-pressed", "true");
 
       // Verify staged delivery alert banner is visible
-      expect(screen.getByText(/wide selected/i)).toBeInTheDocument();
+      expect(
+        within(screen.getByTestId("keypad-status")).getByText(/wide selected/i),
+      ).toBeInTheDocument();
 
       // Tap 0 (1 Wide recorded)
-      const dotBtn = screen.getByRole("button", { name: /0 runs/i });
+      const dotBtn = runKey(0);
       fireEvent.click(dotBtn);
 
       expect(onScore).toHaveBeenCalledWith(
@@ -325,7 +332,7 @@ describe("Scoring Page UI & Responsive Inspection (Mobile & Desktop)", () => {
       const panelCard = screen.getByRole("group", { name: /runs scored/i }).closest("[data-sunlight]");
       expect(panelCard).toHaveAttribute("data-sunlight", "true");
 
-      const fourBtn = screen.getByRole("button", { name: /4.*four/i });
+      const fourBtn = runKey(4);
       expect(fourBtn.className).toContain("border-2");
       expect(fourBtn.className).toContain("border-black");
     });

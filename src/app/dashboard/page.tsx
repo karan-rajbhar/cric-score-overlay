@@ -1,5 +1,7 @@
 "use client";
 
+import { CouldNotLoad } from "~/components/ui/could-not-load";
+import { isLateFixture } from "~/lib/dates";
 import { matchFormatLabel } from "~/lib/cricket";
 import { cn } from "~/lib/utils";
 import { useSyncExternalStore } from "react";
@@ -26,7 +28,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { GetStarted } from "~/components/dashboard/get-started";
 import { FollowingMatches } from "~/components/follow/following-matches";
 import { PageContainer } from "~/components/layout/page";
-import type { Match } from "~/lib/match-types";
+import { competitionNameOf, type Match } from "~/lib/match-types";
 
 const noSubscribe = () => () => {};
 
@@ -52,7 +54,8 @@ function UpcomingGroups({ matches }: { matches: Match[] }) {
   for (const m of [...matches].sort((a, b) =>
     (a.scheduled_at ?? "").localeCompare(b.scheduled_at ?? ""),
   )) {
-    const name = m.tournament?.name ?? m.club?.name ?? "Friendly matches";
+    // The snapshot names the competition on list rows (M2).
+    const name = competitionNameOf(m) ?? "Friendly matches";
     groups.set(name, [...(groups.get(name) ?? []), m]);
   }
   return (
@@ -65,13 +68,19 @@ function UpcomingGroups({ matches }: { matches: Match[] }) {
         >
           {items.map((m) => {
             const start = matchStart(m.scheduled_at);
+            const late = isLateFixture(m);
             return (
               <FixtureCard
                 key={m.id}
                 bare
                 href={`/matches/${m.id}`}
-                date={start?.date ?? "Date to be confirmed"}
+                date={
+                  start
+                    ? `${late ? "Was due " : ""}${start.date}`
+                    : "Date to be confirmed"
+                }
                 time={start?.time ?? "TBC"}
+                status={late ? "Not started" : "Upcoming"}
                 home={teamRef(m.team1)}
                 away={teamRef(m.team2)}
                 venue={m.venue}
@@ -92,14 +101,24 @@ function UpcomingGroups({ matches }: { matches: Match[] }) {
 export default function Dashboard() {
   const { user } = useAuth();
   const greeting = useGreeting();
-  const { data: liveData, isLoading: liveLoading } = useMatchesQuery({
+  const {
+    data: liveData,
+    isLoading: liveLoading,
+    isError: liveFailed,
+    refetch: refetchLive,
+  } = useMatchesQuery({
     status: "live",
   });
   const { data: upcomingData } = useMatchesQuery({
     status: "scheduled",
     limit: 6,
   });
-  const { data: recentData, isLoading: recentLoading } = useMatchesQuery({
+  const {
+    data: recentData,
+    isLoading: recentLoading,
+    isError: recentFailed,
+    refetch: refetchRecent,
+  } = useMatchesQuery({
     status: "completed",
     limit: 6,
   });
@@ -113,8 +132,12 @@ export default function Dashboard() {
     staleTime: 30 * 1000,
   });
   const liveMatches = liveData ?? [];
-  const myUpcoming = myUpcomingData ?? [];
-  const myUpcomingIds = new Set(myUpcoming.map((m) => m.id));
+  // The user's own fixtures whose time has passed without a start go in
+  // their own section, after the ones still to come (N10).
+  const mine = myUpcomingData ?? [];
+  const myLate = mine.filter((m) => isLateFixture(m));
+  const myUpcoming = mine.filter((m) => !isLateFixture(m));
+  const myUpcomingIds = new Set(mine.map((m) => m.id));
   const upcoming = (upcomingData ?? []).filter(
     (m) => !myUpcomingIds.has(m.id),
   );
@@ -130,12 +153,13 @@ export default function Dashboard() {
   };
 
   const fullName = (user?.user_metadata?.full_name as string | undefined) ?? "";
-  const firstName = fullName.split(" ")[0] || "there";
+  const firstName = fullName.trim().split(/\s+/)[0] ?? "";
 
   return (
     <PageContainer>
       <GreetingBar
         name={firstName}
+        avatarName={fullName}
         greeting={greeting}
         photoUrl={user?.user_metadata?.avatar_url as string | undefined}
         actions={
@@ -150,10 +174,14 @@ export default function Dashboard() {
             >
               <Search />
             </Link>
+            {/* Phones only: from md the header's Create holds it (N28). */}
             <Link
               href="/matches/create"
               aria-label="New match"
-              className={buttonVariants({ variant: "primary", size: "icon" })}
+              className={cn(
+                buttonVariants({ variant: "primary", size: "icon" }),
+                "md:hidden",
+              )}
             >
               <Plus />
             </Link>
@@ -161,11 +189,13 @@ export default function Dashboard() {
         }
       />
 
-      {user && <GetStarted userId={user.id} />}
-
-      <section aria-label="Live matches">
+      {/* Not a landmark: the carousel is the "Live matches" section (N21). */}
+      <div>
         {liveLoading && liveMatches.length === 0 ? (
           <div className={`${cardSurface} h-72 animate-pulse`} />
+        ) : liveFailed && liveMatches.length === 0 ? (
+          // A failed read is not "no live matches" (/design#spec-could-not-load).
+          <CouldNotLoad what="live matches" onRetry={() => void refetchLive()} />
         ) : liveMatches.length > 0 ? (
           <Carousel label="Live matches" gridFromMd>
             {liveMatches.map((m) => (
@@ -189,12 +219,26 @@ export default function Dashboard() {
             </Button>
           </div>
         )}
-      </section>
+      </div>
+
+      {/* Under the live matches, not above them (N11). */}
+      {user && <GetStarted userId={user.id} />}
 
       {myUpcoming.length > 0 && (
         <section className="space-y-4">
           <SectionHeader title="Your upcoming matches" />
           <UpcomingGroups matches={myUpcoming} />
+        </section>
+      )}
+
+      {myLate.length > 0 && (
+        <section className="space-y-4">
+          <SectionHeader title="Not started" />
+          <p className="-mt-2 text-sm text-muted-foreground">
+            Your matches whose start time has passed. Start, reschedule or
+            cancel them from the match page.
+          </p>
+          <UpcomingGroups matches={myLate} />
         </section>
       )}
       <FollowingMatches />
@@ -203,7 +247,7 @@ export default function Dashboard() {
         <section className="space-y-4">
           <SectionHeader
             title={myUpcoming.length > 0 ? "Other upcoming matches" : "Upcoming"}
-            href="/matches"
+            href="/matches?status=scheduled"
             actionLabel="See more"
           />
           <UpcomingGroups matches={upcoming} />
@@ -211,13 +255,19 @@ export default function Dashboard() {
       )}
 
       <section className="space-y-4">
-        <SectionHeader title="Results" href="/matches" actionLabel="See more" />
+        <SectionHeader
+          title="Results"
+          href="/matches?status=completed"
+          actionLabel="See more"
+        />
         {recentLoading && recentMatches.length === 0 ? (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             <MatchCardSkeleton />
             <MatchCardSkeleton />
             <MatchCardSkeleton />
           </div>
+        ) : recentFailed && recentMatches.length === 0 ? (
+          <CouldNotLoad what="results" onRetry={() => void refetchRecent()} />
         ) : recentMatches.length > 0 ? (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {recentMatches.map((match) => (

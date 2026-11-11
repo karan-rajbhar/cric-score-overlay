@@ -33,19 +33,9 @@ export function ClubMembershipButton({
     );
   }
 
-  if (isOwner) {
-    return (
-      <Button
-        variant="secondary"
-        size="sm"
-        disabled
-        className="cursor-default gap-1.5"
-      >
-        <UserCheck className="h-4 w-4 text-primary" />
-        Club owner
-      </Button>
-    );
-  }
+  // The owner cannot leave: the header says who they are (a chip), and
+  // there is no button to show (T6).
+  if (isOwner) return null;
 
   const handleToggle = () => {
     startTransition(async () => {

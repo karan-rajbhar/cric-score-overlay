@@ -145,7 +145,7 @@ function Segmented<T extends string>({
           onClick={() => onChange(o.value)}
           className={cn(
             pillTab,
-            "h-8 px-3.5",
+            "h-8 px-3.5 max-sm:h-11",
             o.value === value &&
               "bg-card text-foreground shadow-sm hover:text-foreground",
           )}

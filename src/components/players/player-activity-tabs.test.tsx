@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -216,21 +216,43 @@ describe("PlayerActivityTabs", () => {
       />,
     );
 
+    // The table (from lg up).
+    const table = within(screen.getByRole("table"));
     // Should display opponents
-    expect(screen.getByText("vs Riverside Warriors")).toBeInTheDocument();
-    expect(screen.getByText("vs City Titans")).toBeInTheDocument();
+    expect(table.getByText("vs Riverside Warriors")).toBeInTheDocument();
+    expect(table.getByText("vs City Titans")).toBeInTheDocument();
 
     // Scores & Out statuses
-    expect(screen.getByText("54")).toBeInTheDocument();
-    expect(screen.getByText("32*")).toBeInTheDocument();
-    expect(screen.getAllByText("not out").length).toBeGreaterThanOrEqual(1);
+    expect(table.getByText("54")).toBeInTheDocument();
+    expect(table.getByText("32*")).toBeInTheDocument();
+    expect(table.getAllByText("not out").length).toBeGreaterThanOrEqual(1);
 
     // Formatted dismissal text using formatHowOut
-    expect(screen.getByText("c Steve White b Mark Thomas")).toBeInTheDocument();
+    expect(table.getByText("c Steve White b Mark Thomas")).toBeInTheDocument();
 
     // Strike rates
-    expect(screen.getByText("142.1")).toBeInTheDocument();
-    expect(screen.getByText("160.0")).toBeInTheDocument();
+    expect(table.getByText("142.1")).toBeInTheDocument();
+    expect(table.getByText("160.0")).toBeInTheDocument();
+  });
+
+  it("shows each innings on phones as one row with nothing off screen (P2)", () => {
+    render(
+      <Activity
+        teams={mockTeams}
+        batting={mockBatting}
+        bowling={mockBowling}
+        matches={mockMatches}
+      />,
+    );
+    const row = screen.getByRole("link", { name: /vs Riverside Warriors/ });
+    expect(row).toHaveAttribute("href", "/matches/m-1");
+    expect(row).toHaveTextContent("54 (38)");
+    expect(row).toHaveTextContent(
+      "6 fours, 2 sixes · c Steve White b Mark Thomas · Metropolitan Strikers won by 16 runs",
+    );
+    expect(
+      screen.getByRole("link", { name: /vs City Titans/ }),
+    ).toHaveTextContent("32* (20)");
   });
 
   it("renders bowling figures and details on the bowling tab", () => {
@@ -244,9 +266,14 @@ describe("PlayerActivityTabs", () => {
       />,
     );
 
-    expect(screen.getByText("2/24")).toBeInTheDocument();
-    expect(screen.getByText("4.0")).toBeInTheDocument();
-    expect(screen.getByText("6.00")).toBeInTheDocument(); // Economy rate
+    const table = within(screen.getByRole("table"));
+    expect(table.getByText("2/24")).toBeInTheDocument();
+    expect(table.getByText("4.0")).toBeInTheDocument();
+    expect(table.getByText("6.00")).toBeInTheDocument(); // Economy rate
+    // The phone row: figures, overs, maidens and economy.
+    const row = screen.getByRole("link", { name: /vs Riverside Warriors/ });
+    expect(row).toHaveTextContent("2/24 (4.0 ov)");
+    expect(row).toHaveTextContent("1 maiden · econ 6.00");
   });
 
   it("renders team memberships on the teams tab", () => {
@@ -261,9 +288,9 @@ describe("PlayerActivityTabs", () => {
     );
 
     expect(screen.getByText("Metropolitan Strikers")).toBeInTheDocument();
-    // Role, shirt number and club on one line.
+    // Role (in words, once: P7), shirt number and club on one line.
     expect(
-      screen.getByText("Captain (c) · #18 · Metropolitan Cricket Club"),
+      screen.getByText("Captain · #18 · Metropolitan Cricket Club"),
     ).toBeInTheDocument();
   });
 
@@ -305,8 +332,8 @@ describe("PlayerActivityTabs", () => {
       />,
     );
 
-    // The same status chip as the match cards.
-    expect(screen.getByText("Upcoming")).toBeInTheDocument();
+    // The same status chip as the match cards, in the table and the row.
+    expect(screen.getAllByText("Upcoming")).toHaveLength(2);
   });
 
   describe("before the matches are read", () => {

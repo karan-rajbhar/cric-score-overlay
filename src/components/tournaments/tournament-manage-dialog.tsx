@@ -491,7 +491,7 @@ export function TournamentManageDialog({
                 Deleting this tournament removes its points table, its team registrations and the fixtures that have not started. Matches that started or finished stay, with their scorecards, as matches outside any tournament. This cannot be undone.
               </p>
               <div className="mt-4 space-y-2">
-                <Label htmlFor="confirm-del" className="text-2xs font-medium text-foreground">
+                <Label htmlFor="confirm-del" className="text-xs font-medium text-foreground">
                   Type <span className="font-semibold text-destructive">{tournament.name}</span> to confirm:
                 </Label>
                 <Input

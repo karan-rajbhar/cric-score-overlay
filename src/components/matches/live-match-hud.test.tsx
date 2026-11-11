@@ -273,11 +273,13 @@ const endInningsFixture = {
   innings_number: 1,
   total_runs: 142,
   total_wickets: 6,
-  total_overs: 17.2,
+  // The last over: the scoreboard offers End innings only near the end.
+  total_overs: 19.2,
+  total_balls: 116,
   fall_of_wickets: [],
 } as unknown as Innings;
 
-function renderHud(innings_number = 1) {
+function renderHud(innings_number = 1, innings: Partial<Innings> = {}) {
   const onEndInnings = vi.fn();
   const match = {
     id: "m1",
@@ -287,12 +289,12 @@ function renderHud(innings_number = 1) {
     overs_per_innings: 20,
     wickets_per_innings: 10,
     balls_per_over: 6,
-    innings: [{ ...endInningsFixture, innings_number }],
+    innings: [{ ...endInningsFixture, innings_number, ...innings }],
   } as unknown as Match;
   render(
     <LiveMatchHUD
       match={match}
-      currentInnings={{ ...endInningsFixture, innings_number }}
+      currentInnings={{ ...endInningsFixture, innings_number, ...innings }}
       striker={null}
       nonStriker={null}
       bowler={null}
@@ -305,6 +307,20 @@ function renderHud(innings_number = 1) {
 }
 
 describe("LiveMatchHUD end innings", () => {
+  it("keeps End innings off the scoreboard mid-innings (S13)", () => {
+    renderHud(1, { total_overs: 12, total_balls: 72 } as Partial<Innings>);
+    expect(screen.queryByRole("button", { name: "End innings" })).toBeNull();
+  });
+
+  it("shows it with one wicket left, whatever the over", () => {
+    renderHud(1, {
+      total_overs: 12,
+      total_balls: 72,
+      total_wickets: 9,
+    } as Partial<Innings>);
+    expect(screen.getByRole("button", { name: "End innings" })).toBeInTheDocument();
+  });
+
   it("asks for confirmation and can be cancelled", async () => {
     const { onEndInnings, user } = renderHud();
     await user.click(screen.getByRole("button", { name: "End innings" }));

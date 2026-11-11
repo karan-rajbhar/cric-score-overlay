@@ -5,15 +5,24 @@ import { cn } from "~/lib/utils";
 import { Avatar } from "~/components/ds/avatar";
 import { Button } from "~/components/ds/button";
 
-/** Home header: avatar, "Good afternoon" over the name, round actions. */
+/**
+ * Home header: avatar, "Good afternoon" over the first name, round
+ * actions. The greeting is the screen's h1 ("Good afternoon, John"); with
+ * no name it is the greeting alone. The avatar takes the full name, so a
+ * person has the same initials and colour everywhere (N21, N22).
+ */
 export function GreetingBar({
   name,
+  avatarName,
   greeting,
   photoUrl,
   actions,
   className,
 }: {
+  /** The first name, or empty when the account has none. */
   name: string;
+  /** The name the avatar is drawn from (default `name`). */
+  avatarName?: string;
   greeting: string;
   photoUrl?: string | null;
   actions?: React.ReactNode;
@@ -21,13 +30,25 @@ export function GreetingBar({
 }) {
   return (
     <div className={cn("flex items-center gap-3", className)}>
-      <Avatar name={name} src={photoUrl} size="md" />
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm text-muted-foreground">{greeting}</p>
-        <p className="truncate text-lg font-semibold leading-tight text-foreground">
-          {name}
-        </p>
-      </div>
+      <Avatar name={avatarName || name || greeting} src={photoUrl} size="md" />
+      <h1 className="min-w-0 flex-1">
+        {name ? (
+          <>
+            <span className="block truncate text-sm font-normal text-muted-foreground">
+              {greeting}
+              <span className="sr-only">,</span>
+            </span>{" "}
+            {/* Two lines before it is cut: a long first name stays whole. */}
+            <span className="line-clamp-2 break-words text-lg font-semibold leading-tight text-foreground">
+              {name}
+            </span>
+          </>
+        ) : (
+          <span className="block truncate text-lg font-semibold leading-tight text-foreground">
+            {greeting}
+          </span>
+        )}
+      </h1>
       {actions && <div className="flex shrink-0 gap-2">{actions}</div>}
     </div>
   );
@@ -86,7 +107,7 @@ function TabFace({ item }: { item: TabBarItem }) {
       </span>
       <span
         className={cn(
-          "text-2xs leading-none",
+          "text-xs leading-none",
           active
             ? "font-semibold text-foreground"
             : "font-medium text-muted-foreground",

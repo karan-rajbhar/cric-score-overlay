@@ -1,7 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { ScoringPanel, readBallLabel } from "./scoring-panel";
+
+/** A run key by its figure, armed extra or not ("4, Four", "1, 2 Wd", "2 runs"); not an over chip ("4, ball 3: ..."). */
+const runKey = (n: number) =>
+  screen.getByRole("button", { name: new RegExp(`^${n}(?: runs?$|, (?!ball))`) });
+
 
 describe("ScoringPanel with Wagon Wheel selection", () => {
   const defaultProps = {
@@ -25,7 +30,7 @@ describe("ScoringPanel with Wagon Wheel selection", () => {
   it("opens the wagon wheel selection dialog when a run button is clicked (Stumps app style)", () => {
     render(<ScoringPanel {...defaultProps} />);
 
-    const fourButton = screen.getByRole("button", { name: /4.*four/i });
+    const fourButton = runKey(4);
     fireEvent.click(fourButton);
 
     // Wagon wheel shot selection dialog should appear
@@ -38,7 +43,7 @@ describe("ScoringPanel with Wagon Wheel selection", () => {
     render(<ScoringPanel {...defaultProps} onScore={onScore} />);
 
     // Click 4 runs
-    const fourButton = screen.getByRole("button", { name: /4.*four/i });
+    const fourButton = runKey(4);
     fireEvent.click(fourButton);
 
     // Modal is open; click Cover on the wagon wheel selector
@@ -66,10 +71,10 @@ describe("ScoringPanel with Wagon Wheel selection", () => {
   });
 
   it.each([
-    ["a dot ball", null, "0 runs (dot ball)", 0, undefined],
-    ["a wide", "wide", "1 run", 0, { type: "wide", runs: 2 }],
-    ["a bye", "bye", "1 run", 0, { type: "bye", runs: 1 }],
-    ["a leg bye", "leg bye", "1 run", 0, { type: "leg_bye", runs: 1 }],
+    ["a dot ball", null, 0, 0, undefined],
+    ["a wide", "wide", 1, 0, { type: "wide", runs: 2 }],
+    ["a bye", "bye", 1, 0, { type: "bye", runs: 1 }],
+    ["a leg bye", "leg bye", 1, 0, { type: "leg_bye", runs: 1 }],
   ] as const)(
     "scores %s straight away: no shot direction to pick",
     (_label, extra, runsButton, runs, extras) => {
@@ -80,7 +85,7 @@ describe("ScoringPanel with Wagon Wheel selection", () => {
           screen.getByRole("button", { name: new RegExp(`^${extra}`, "i") }),
         );
       }
-      fireEvent.click(screen.getByRole("button", { name: runsButton }));
+      fireEvent.click(runKey(runsButton));
       expect(
         screen.queryByText(/select shot direction/i),
       ).not.toBeInTheDocument();
@@ -92,7 +97,7 @@ describe("ScoringPanel with Wagon Wheel selection", () => {
     const onScore = vi.fn();
     render(<ScoringPanel {...defaultProps} onScore={onScore} />);
 
-    const sixButton = screen.getByRole("button", { name: /6 runs|6.*six/i });
+    const sixButton = runKey(6);
     fireEvent.click(sixButton);
 
     const skipButton = screen.getByRole("button", {
@@ -112,7 +117,7 @@ describe("ScoringPanel with Wagon Wheel selection", () => {
     fireEvent.click(noBallButton);
 
     // Click 4 runs
-    const fourButton = screen.getByRole("button", { name: /4.*four/i });
+    const fourButton = runKey(4);
     fireEvent.click(fourButton);
 
     // Modal appears with No Ball context
@@ -138,7 +143,7 @@ describe("ScoringPanel with Wagon Wheel selection", () => {
         wagonWheelPrompt={false}
       />,
     );
-    const fiveBtn = screen.getByRole("button", { name: /^5 runs$/i });
+    const fiveBtn = runKey(5);
     fireEvent.click(fiveBtn);
 
     expect(onScore).toHaveBeenCalledWith(5, undefined, undefined);
@@ -153,7 +158,7 @@ describe("ScoringPanel with Wagon Wheel selection", () => {
         wagonWheelPrompt={false}
       />,
     );
-    const moreBtn = screen.getByRole("button", { name: /more run options/i });
+    const moreBtn = screen.getByRole("button", { name: "More, 7 to 13 runs" });
     fireEvent.click(moreBtn);
 
     expect(screen.getByText(/^more runs$/i)).toBeInTheDocument();
@@ -245,7 +250,9 @@ describe("ScoringPanel with Wagon Wheel selection", () => {
     expect(wideButton.className).toContain("bg-black");
     expect(wideButton.className).toContain("text-white");
     expect(
-      screen.getByText(/selected: tap the runs/i),
+      within(screen.getByTestId("keypad-status")).getByText(
+        /selected: tap the runs/i,
+      ),
     ).toBeInTheDocument();
   });
 
@@ -259,7 +266,7 @@ describe("ScoringPanel with Wagon Wheel selection", () => {
       />,
     );
 
-    const fourBtn = screen.getByRole("button", { name: /4.*four/i });
+    const fourBtn = runKey(4);
     fireEvent.click(fourBtn);
 
     expect(onScore).toHaveBeenCalledWith(4, undefined, undefined);
@@ -428,9 +435,9 @@ describe("ScoringPanel's This over", () => {
     expect(balls).toHaveTextContent("Retired hurt, not a ball");
     // Numbered without the retirement; extras read in words.
     expect(
-      screen.getByRole("button", { name: "Ball 2: No ball + 4 runs" }),
+      screen.getByRole("button", { name: /^nb\+4, ball 2: No ball \+ 4 runs/ }),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Ball 3: Wide" }));
+    fireEvent.click(screen.getByRole("button", { name: /^wd, ball 3: Wide/ }));
     expect(onSelectBall).toHaveBeenCalledWith(3);
     // 1 + (1 + 4) + 1 runs, and retired hurt is not a wicket.
     expect(screen.getByText("7r")).toBeInTheDocument();
@@ -465,7 +472,7 @@ describe("ScoringPanel: byes off a no-ball and other prompts", () => {
 
     fireEvent.click(screen.getByRole("radio", { name: "Byes" }));
     expect(screen.getByText(/tap the byes they ran/i)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "2 runs" }));
+    fireEvent.click(runKey(2));
     expect(onScore).toHaveBeenCalledWith(
       0,
       { type: "no_ball", runs: 3, noBallRuns: "bye" },
@@ -476,7 +483,7 @@ describe("ScoringPanel: byes off a no-ball and other prompts", () => {
     expect(
       screen.getByRole("radio", { name: "Off the bat" }),
     ).toHaveAttribute("aria-checked", "true");
-    fireEvent.click(screen.getByRole("button", { name: "4 runs (four)" }));
+    fireEvent.click(runKey(4));
     expect(onScore).toHaveBeenLastCalledWith(
       4,
       { type: "no_ball", runs: 1 },
@@ -488,10 +495,10 @@ describe("ScoringPanel: byes off a no-ball and other prompts", () => {
     const onScore = vi.fn();
     render(<ScoringPanel {...props} onScore={onScore} />);
     fireEvent.click(screen.getByRole("button", { name: "Bye" }));
-    expect(screen.getByRole("button", { name: "0 runs (dot ball)" })).toBeDisabled();
+    expect(runKey(0)).toBeDisabled();
     fireEvent.keyDown(window, { key: "0" });
     expect(onScore).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "1 run" }));
+    fireEvent.click(runKey(1));
     expect(onScore).toHaveBeenCalledWith(0, { type: "bye", runs: 1 }, undefined);
   });
 
@@ -552,5 +559,67 @@ describe("readBallLabel", () => {
       runs: 1,
     });
     expect(readBallLabel("W+nb+1")).toMatchObject({ kind: "wicket", runs: 2 });
+  });
+});
+
+describe("ScoringPanel: one status row above the keys", () => {
+  // The keys must not move between taps (S3 of the UI/UX audit): every
+  // notice that comes and goes lives in this one fixed-height row.
+  const defaultProps = {
+    onScore: vi.fn(),
+    onWicket: vi.fn(),
+    onUndo: vi.fn(),
+    currentOver: 4,
+    currentBall: 2,
+    lastBalls: ["1", "4", "0"],
+    wagonWheelPrompt: false,
+  };
+  const row = () => screen.getByTestId("keypad-status");
+
+  it("holds the hint, an armed extra with its no-ball choice, and a free hit", () => {
+    const { rerender } = render(<ScoringPanel {...defaultProps} />);
+    expect(row()).toHaveClass("h-11");
+    expect(row()).toHaveTextContent(/tap a ball in the over/i);
+
+    fireEvent.click(screen.getByRole("button", { name: "No ball" }));
+    expect(
+      within(row()).getByRole("radiogroup", { name: /no-ball were/ }),
+    ).toBeInTheDocument();
+    fireEvent.click(within(row()).getByRole("button", { name: "Cancel" }));
+    expect(row()).not.toHaveTextContent(/no ball/i);
+
+    rerender(<ScoringPanel {...defaultProps} isFreeHit />);
+    expect(row()).toHaveTextContent(/free hit/i);
+  });
+
+  it("holds what Undo took back, and the wait for the server", () => {
+    const { rerender } = render(
+      <ScoringPanel
+        {...defaultProps}
+        onRedo={() => undefined}
+        undoNotice={{
+          label: "4",
+          position: "3.6",
+          players: "Starc to Kohli",
+          note: null,
+          pending: false,
+          canRedo: true,
+        }}
+      />,
+    );
+    expect(within(row()).getByText(/ball removed/i)).toBeInTheDocument();
+    expect(
+      within(row()).getByRole("button", { name: "Restore ball" }),
+    ).toBeInTheDocument();
+
+    rerender(<ScoringPanel {...defaultProps} waitingNote="Saving." />);
+    expect(within(row()).getByRole("status")).toHaveTextContent("Saving.");
+  });
+
+  it("opens More runs over the keys instead of above the extras", () => {
+    render(<ScoringPanel {...defaultProps} />);
+    fireEvent.click(screen.getByRole("button", { name: "More, 7 to 13 runs" }));
+    const panel = screen.getByText("More runs").closest("div.absolute");
+    expect(panel).not.toBeNull();
   });
 });

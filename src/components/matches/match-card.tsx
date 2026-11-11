@@ -1,5 +1,6 @@
 "use client";
 
+import { cardDate, isLateFixture, timeOfDay } from "~/lib/dates";
 import type * as React from "react";
 import Link from "next/link";
 import { PlayCircle } from "lucide-react";
@@ -18,7 +19,7 @@ import {
 } from "~/lib/cricket";
 import type { InningsRef } from "~/components/ds/score";
 import { useLiveListMatch } from "~/lib/hooks/useMatchQueries";
-import type { Match } from "~/lib/match-types";
+import { competitionNameOf, type Match } from "~/lib/match-types";
 import { liveLine, ref, teamRef } from "./match-hero";
 
 interface MatchCardProps {
@@ -30,18 +31,10 @@ interface MatchCardProps {
   detail?: React.ReactNode;
 }
 
-/** "Sat 25 Oct" and "14:00" for a fixture's start. */
+/** "Sat 25 Oct" (the year when not this one) and "14:00" for a fixture's start. */
 export function matchStart(iso?: string | null) {
   if (!iso) return null;
-  const d = new Date(iso);
-  return {
-    date: d.toLocaleDateString("en-GB", {
-      weekday: "short",
-      day: "numeric",
-      month: "short",
-    }),
-    time: d.toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit" }),
-  };
+  return { date: cardDate(iso), time: timeOfDay(iso) };
 }
 
 /** "158 for 9 (20.0 overs)": a score as it is read aloud. */
@@ -88,7 +81,7 @@ export function MatchCard({
   const bpo =
     match.balls_per_over && match.balls_per_over > 0 ? match.balls_per_over : 6;
   const format = matchFormatLabel(match);
-  const competition = match.tournament?.name ?? match.club?.name;
+  const competition = competitionNameOf(match);
 
   const action = showActions &&
     canScore &&
@@ -103,20 +96,28 @@ export function MatchCard({
 
   if (match.status === "scheduled") {
     const start = matchStart(match.scheduled_at);
+    // Its time has passed and it has not started: say so (M3, M17).
+    const late = isLateFixture(match);
     return (
       <FixtureCard
         href={href}
         label={[
-          `${match.team1.name} versus ${match.team2.name}, upcoming`,
-          start ? `${start.date} at ${start.time}` : "date to be confirmed",
+          `${match.team1.name} versus ${match.team2.name}, ${late ? "not started" : "upcoming"}`,
+          start
+            ? `${late ? "was due" : ""} ${start.date} at ${start.time}`.trim()
+            : "date to be confirmed",
           match.venue,
         ]
           .filter(Boolean)
           .join(", ")}
-        date={[start?.date ?? "Date to be confirmed", competition]
+        date={[
+          start ? `${late ? "Was due " : ""}${start.date}` : "Date to be confirmed",
+          competition,
+        ]
           .filter(Boolean)
           .join(" · ")}
         time={start?.time ?? "TBC"}
+        status={late ? "Not started" : "Upcoming"}
         home={teamRef(match.team1)}
         away={teamRef(match.team2)}
         venue={match.venue}
@@ -170,7 +171,16 @@ export function MatchCard({
         ],
         note: result ?? chase,
       })}
-      competition={competition ? `${competition} · ${format}` : format}
+      // A result says when it was played (M4); a live one is today.
+      competition={[
+        status === "live" || status === "innings_break"
+          ? null
+          : cardDate(match.scheduled_at ?? match.actual_start_time),
+        competition,
+        format,
+      ]
+        .filter(Boolean)
+        .join(" · ")}
       status={status}
       first={first}
       second={second}

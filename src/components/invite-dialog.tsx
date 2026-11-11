@@ -77,7 +77,6 @@ export function InviteDialog({
           ? user.user_metadata.full_name
           : undefined;
       setShareText(inviteMessage(name, res.shareEmail));
-      setEmail("");
     }
   };
 
@@ -108,6 +107,30 @@ export function InviteDialog({
             the invite message yourself.
           </DialogDescription>
         </DialogHeader>
+        {/* Once saved, the result takes the form's place (N18): the
+            message to send is the main thing, and another invite is a
+            quiet choice; the emptied, required field used to turn red. */}
+        {result?.ok && shareText ? (
+          <div className="space-y-4">
+            <p role="status" className="text-sm text-foreground">
+              Invite saved for{" "}
+              <span className="font-medium">{email.trim()}</span>. Send them
+              the message below.
+            </p>
+            <InviteShare text={shareText} />
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full"
+              onClick={() => {
+                reset();
+                setEmail("");
+              }}
+            >
+              Invite someone else
+            </Button>
+          </div>
+        ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="invite-email">Google email</Label>
@@ -138,7 +161,7 @@ export function InviteDialog({
             {pending ? "Saving…" : "Create invite"}
           </Button>
         </form>
-        {shareText && <InviteShare text={shareText} />}
+        )}
       </DialogContent>
     </Dialog>
   );

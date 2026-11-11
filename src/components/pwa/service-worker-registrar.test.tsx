@@ -1,8 +1,6 @@
-import { act, render } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const toast = vi.hoisted(() => Object.assign(vi.fn(), { info: vi.fn() }));
-vi.mock("sonner", () => ({ toast }));
 vi.mock("next/navigation", () => ({ usePathname: () => "/matches/m1/score" }));
 
 const allowRegistration = vi.hoisted(() => ({ value: false }));
@@ -19,6 +17,8 @@ vi.mock("~/lib/pwa/service-worker", async (importOriginal) => {
 });
 
 import { ServiceWorkerRegistrar } from "./service-worker-registrar";
+import { UpdateStrip } from "./update-strip";
+import { setUpdateOffer } from "~/lib/pwa/update-offer";
 import { removeServiceWorkers } from "~/lib/pwa/service-worker";
 import { enqueueAction } from "~/lib/offline-queue";
 
@@ -41,6 +41,7 @@ beforeEach(() => {
   localStorage.clear();
   vi.clearAllMocks();
   allowRegistration.value = false;
+  setUpdateOffer(null);
 });
 
 afterEach(() => {
@@ -75,25 +76,27 @@ describe("ServiceWorkerRegistrar", () => {
     const postMessage = vi.fn();
     installServiceWorker({ waiting: { postMessage } as never, addEventListener: vi.fn() });
 
-    render(<ServiceWorkerRegistrar />);
+    render(
+      <>
+        <ServiceWorkerRegistrar />
+        <UpdateStrip />
+      </>,
+    );
     await act(async () => undefined);
-    expect(toast).not.toHaveBeenCalled();
+    expect(screen.queryByRole("status")).toBeNull();
 
     localStorage.clear(); // the queue synced
     await act(async () => {
       await vi.advanceTimersByTimeAsync(15_000);
     });
-    expect(toast).toHaveBeenCalledWith(
-      "New version available",
-      expect.objectContaining({ id: "sw-update" }),
+    // A strip in the page, not a toast (N12).
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "A new version of CricScore is ready.",
     );
     expect(postMessage).not.toHaveBeenCalled();
 
     // Reload asks the waiting worker to take over.
-    const { action } = toast.mock.calls[0]![1] as {
-      action: { onClick: () => void };
-    };
-    action.onClick();
+    fireEvent.click(screen.getByRole("button", { name: "Reload" }));
     expect(postMessage).toHaveBeenCalledWith({ type: "SKIP_WAITING" });
   });
 });

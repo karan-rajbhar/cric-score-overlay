@@ -1,5 +1,6 @@
 "use client";
 
+import { shortDate } from "~/lib/dates";
 import { setUrlParam } from "~/lib/url-state";
 import { useRef, useState, useTransition } from "react";
 import type * as React from "react";
@@ -164,12 +165,7 @@ interface PlayerActivityTabsProps {
 }
 
 function formatDate(dateStr?: string | null) {
-  if (!dateStr) return "TBD";
-  return new Date(dateStr).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  return shortDate(dateStr) || "Date to be confirmed";
 }
 
 /** First cell of a batting or bowling row: the opponent and the match. */
@@ -193,9 +189,9 @@ function MatchOpponentCell({
         )}
         <div className="min-w-0">
           <p className="truncate text-xs font-semibold text-foreground">
-            vs {opponent ? opponent.name : (match?.title ?? "Match")}
+            vs {opponentName(match, opponent)}
           </p>
-          <div className="flex items-center gap-1.5 text-2xs text-muted-foreground">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <span>{formatDate(match?.scheduled_at)}</span>
             {match && namedFormat(match) && (
               <>
@@ -237,6 +233,90 @@ function MatchResultCells({ match }: { match?: PerformanceMatch | null }) {
         )}
       </TableCell>
     </>
+  );
+}
+
+/** "2 fours, 1 six"; empty when there were none. */
+function boundariesOf(fours: number, sixes: number) {
+  const parts: string[] = [];
+  if (fours) parts.push(`${fours} ${fours === 1 ? "four" : "fours"}`);
+  if (sixes) parts.push(`${sixes} ${sixes === 1 ? "six" : "sixes"}`);
+  return parts.join(", ");
+}
+
+function opponentName(
+  match: PerformanceMatch | null | undefined,
+  opponent: PerformanceTeam | null,
+) {
+  return opponent ? opponent.name : (match?.title ?? "Match");
+}
+
+/**
+ * One innings or spell on a phone (P2): the opponent beside the figures,
+ * then the date, the details and the result on a line that may wrap, so
+ * nothing sits off the edge of a table. The table takes over from `lg`, where it fits.
+ */
+function PerformanceRow({
+  match,
+  opponent,
+  figure,
+  aside,
+  details,
+  figureClassName,
+}: {
+  match?: PerformanceMatch | null;
+  opponent: PerformanceTeam | null;
+  figure: string;
+  /** Beside the figure, smaller: balls faced, overs bowled. */
+  aside: string;
+  details: Array<string | false | null | undefined>;
+  figureClassName?: string;
+}) {
+  const body = (
+    <>
+      {opponent && (
+        <TeamLogo
+          name={opponent.name}
+          shortName={opponent.short_name}
+          logoUrl={opponent.logo_url}
+          className="mt-0.5 h-8 w-8 shrink-0 text-xs"
+        />
+      )}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline gap-3">
+          <p className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+            vs {opponentName(match, opponent)}
+          </p>
+          <p className="shrink-0 tabular-nums">
+            <span
+              className={`font-score text-base font-bold ${figureClassName ?? "text-foreground"}`}
+            >
+              {figure}
+            </span>{" "}
+            <span className="text-xs text-muted-foreground">{aside}</span>
+          </p>
+        </div>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          {[formatDate(match?.scheduled_at), ...details]
+            .filter(Boolean)
+            .join(" · ")}
+          {match && !match.result_description && (
+            <MatchStatusChip status={match.status} className="ml-1.5" />
+          )}
+        </p>
+      </div>
+    </>
+  );
+  const row = "flex items-start gap-3 px-4 py-3";
+  return match ? (
+    <Link
+      href={`/matches/${match.id}`}
+      className={`${row} transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none`}
+    >
+      {body}
+    </Link>
+  ) : (
+    <div className={row}>{body}</div>
   );
 }
 
@@ -336,7 +416,32 @@ export function PlayerActivityTabs({
             description="Innings from scored matches will appear here."
           />
         ) : (
-          <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
+          <>
+          <ListCard className="lg:hidden">
+            {batting.map((bp) => (
+              <PerformanceRow
+                key={bp.id}
+                match={bp.match}
+                opponent={getOpponent(bp.match)}
+                figure={`${bp.runs_scored}${bp.is_out ? "" : "*"}`}
+                aside={`(${bp.balls_faced})`}
+                figureClassName={
+                  bp.runs_scored >= 50 ? "text-warning" : undefined
+                }
+                details={[
+                  boundariesOf(bp.fours, bp.sixes),
+                  formatHowOut(
+                    bp.is_out,
+                    bp.dismissal_type,
+                    bp.bowler?.full_name,
+                    bp.fielder?.full_name,
+                  ),
+                  bp.match?.result_description,
+                ]}
+              />
+            ))}
+          </ListCard>
+          <div className="hidden overflow-hidden rounded-lg border bg-card shadow-sm lg:block">
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -353,7 +458,9 @@ export function PlayerActivityTabs({
                     <TableHead className="text-center">6s</TableHead>
                     <TableHead className="min-w-[180px]">Dismissal</TableHead>
                     <TableHead className="min-w-[180px]">Result</TableHead>
-                    <TableHead className="w-[80px] text-right"></TableHead>
+                    <TableHead className="w-[80px] text-right">
+                      <span className="sr-only">Scorecard</span>
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -438,6 +545,7 @@ export function PlayerActivityTabs({
               </Table>
             </div>
           </div>
+          </>
         )}
       </TabsContent>
 
@@ -454,7 +562,31 @@ export function PlayerActivityTabs({
             description="Bowling spells and wickets from matches will appear here as the player bowls."
           />
         ) : (
-          <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
+          <>
+          <ListCard className="lg:hidden">
+            {bowling.map((bp) => (
+              <PerformanceRow
+                key={bp.id}
+                match={bp.match}
+                opponent={getOpponent(bp.match)}
+                figure={`${bp.wickets_taken}/${bp.runs_conceded}`}
+                aside={`(${Number(bp.overs_bowled).toFixed(1)} ov)`}
+                figureClassName={
+                  bp.wickets_taken >= 3 ? "text-primary" : undefined
+                }
+                details={[
+                  bp.maidens > 0 &&
+                    `${bp.maidens} ${bp.maidens === 1 ? "maiden" : "maidens"}`,
+                  `econ ${economyRate(
+                    bp.runs_conceded,
+                    bp.balls_bowled || ballsFromOvers(Number(bp.overs_bowled)),
+                  )}`,
+                  bp.match?.result_description,
+                ]}
+              />
+            ))}
+          </ListCard>
+          <div className="hidden overflow-hidden rounded-lg border bg-card shadow-sm lg:block">
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -474,7 +606,9 @@ export function PlayerActivityTabs({
                       Extras (wd/nb)
                     </TableHead>
                     <TableHead className="min-w-[180px]">Result</TableHead>
-                    <TableHead className="w-[80px] text-right"></TableHead>
+                    <TableHead className="w-[80px] text-right">
+                      <span className="sr-only">Scorecard</span>
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -544,6 +678,7 @@ export function PlayerActivityTabs({
               </Table>
             </div>
           </div>
+          </>
         )}
       </TabsContent>
 
@@ -605,14 +740,11 @@ export function PlayerActivityTabs({
         ) : (
           <ListCard aria-label="Teams">
             {teams.map((tm) => {
+              // The role in words, once; nothing for a plain player (P7).
               const role =
-                tm.role_in_team === "captain"
-                  ? "Captain (c)"
-                  : tm.role_in_team === "vice_captain"
-                    ? "Vice-captain (vc)"
-                    : tm.role_in_team === "wicket_keeper"
-                      ? "Wicket-keeper (wk)"
-                      : formatPlayerRole(tm.role_in_team);
+                !tm.role_in_team || tm.role_in_team === "player"
+                  ? null
+                  : formatPlayerRole(tm.role_in_team);
               return (
                 <ListRow
                   key={tm.id}

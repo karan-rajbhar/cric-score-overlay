@@ -63,15 +63,19 @@ function StandingTableRow({
   withAction: boolean;
 }) {
   const status = row.status ? STATUS[row.status] : null;
+  // Phones: two lines before the name is cut, as an organiser's adjust
+  // column takes room from it ("a name is the last thing to be cut").
+  const nameClass =
+    "min-w-0 text-left max-sm:line-clamp-2 max-sm:break-words sm:truncate";
   const name = row.href ? (
     <Link
       href={row.href}
-      className="truncate hover:text-primary hover:underline"
+      className={cn(nameClass, "hover:text-primary hover:underline")}
     >
       {row.team.name}
     </Link>
   ) : (
-    <span className="truncate">{row.team.name}</span>
+    <span className={nameClass}>{row.team.name}</span>
   );
   return (
     <tr
@@ -101,7 +105,7 @@ function StandingTableRow({
           {status && (
             <span
               className={cn(
-                "inline-flex h-5 shrink-0 items-center rounded-full px-1.5 font-sans text-2xs font-semibold",
+                "inline-flex h-5 shrink-0 items-center rounded-full px-1.5 font-sans text-xs font-semibold",
                 status.cls,
               )}
               title={status.label}
@@ -120,7 +124,7 @@ function StandingTableRow({
       <td className={cn(figCell, "font-semibold text-foreground")}>
         {row.points}
         {row.adjustment && (
-          <span className="block text-2xs font-normal text-muted-foreground">
+          <span className="block text-xs font-normal text-muted-foreground">
             {row.adjustment}
           </span>
         )}

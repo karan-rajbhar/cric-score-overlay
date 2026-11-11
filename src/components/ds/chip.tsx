@@ -18,7 +18,7 @@ export const chipVariants = cva(
         outline: "border border-border bg-card text-foreground",
       },
       size: {
-        sm: "h-5 px-2 text-2xs",
+        sm: "h-5 px-2 text-xs",
         md: "h-6 px-2.5 text-xs",
       },
     },

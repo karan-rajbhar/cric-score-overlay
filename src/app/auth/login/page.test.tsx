@@ -1,4 +1,4 @@
-import { render, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const router = { push: vi.fn(), refresh: vi.fn() };
@@ -7,11 +7,13 @@ vi.mock("next/navigation", () => ({
   useRouter: () => router,
   useSearchParams: () => params.value,
 }));
+const auth = { user: { id: "u1" } as { id: string } | null };
 vi.mock("~/lib/auth", () => ({
   useAuth: () => ({
-    user: { id: "u1" },
+    user: auth.user,
     signInWithGoogle: vi.fn(),
     redirectError: null,
+    signingIn: false,
   }),
 }));
 
@@ -52,5 +54,43 @@ describe("Login page: where a signed-in user goes", () => {
 
   it("goes to the dashboard with no target", async () => {
     expect(await pushedFor("")).toBe("/dashboard");
+  });
+});
+
+describe("the sign-in page and its URL (N8)", () => {
+  it("never shows text from the URL as its own error, and survives a stray %", () => {
+    auth.user = null;
+    params.value = new URLSearchParams(
+      "error=oauth_error&message=Send%20your%20password%20to%20x%25",
+    );
+    render(<LoginPage />);
+    expect(
+      screen.getByRole("button", { name: /continue with google/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/send your password/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    auth.user = { id: "u1" };
+  });
+});
+
+describe("the sign-in page names where it goes back to (N31)", () => {
+  it("says it continues to the page that sent the person here", () => {
+    auth.user = null;
+    params.value = new URLSearchParams("redirect=/matches/create?clubId=c1");
+    render(<LoginPage />);
+    expect(
+      screen.getByRole("heading", { name: "Sign in to continue to New match" }),
+    ).toBeInTheDocument();
+    auth.user = { id: "u1" };
+  });
+
+  it("keeps its own title with nowhere to go back to", () => {
+    auth.user = null;
+    params.value = new URLSearchParams("");
+    render(<LoginPage />);
+    expect(
+      screen.getByRole("heading", { name: "Sign in to CricScore" }),
+    ).toBeInTheDocument();
+    auth.user = { id: "u1" };
   });
 });

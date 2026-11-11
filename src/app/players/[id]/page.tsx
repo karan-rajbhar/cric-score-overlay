@@ -412,7 +412,9 @@ export default async function PlayerPage({
           role={playingRoleLabel(user.playing_role) ?? undefined}
           detail={playerDetailLine(user, [
             user.username ? `@${user.username}` : null,
-            ownEmail,
+            // Public pages hold no contact details: say this one is
+            // theirs alone (P10).
+            ownEmail ? `${ownEmail} (only you can see this)` : null,
           ])}
           photoUrl={user.avatar_url}
           actions={
@@ -453,8 +455,8 @@ export default async function PlayerPage({
                 runs: totalRuns,
                 wickets: totalWickets,
                 catches: stats?.total_catches ?? 0,
+                // Matches are in the tiles above (P4).
                 batting: [
-                  ["Matches", totalMatches],
                   ["Runs", totalRuns],
                   ["Average", stats?.batting_average ?? "–"],
                   ["Strike rate", stats?.strike_rate ?? "–"],

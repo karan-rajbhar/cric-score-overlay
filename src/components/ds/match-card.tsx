@@ -1,4 +1,4 @@
-import type * as React from "react";
+import * as React from "react";
 import Link from "next/link";
 import { Trophy } from "lucide-react";
 import { cn } from "~/lib/utils";
@@ -24,7 +24,7 @@ function TeamScoreRow({ team, innings, dim }: Side) {
         )}
       >
         {team.name}
-      </span>
+      </span>{" "}
       {innings ? (
         <InningsScore innings={innings} size="sm" dim={dim} inline />
       ) : (
@@ -58,10 +58,14 @@ function CardLink({
   children: React.ReactNode;
 }) {
   const hover = href && "transition-shadow hover:shadow-float";
+  const summaryId = React.useId();
+  // The card is named by what it shows, so "tap Riverside Warriors" works
+  // with voice control (WCAG 2.5.3, X4); the spoken summary ("94 for 5")
+  // is its description.
   const body = href ? (
     <Link
       href={href}
-      aria-label={label}
+      aria-describedby={summaryId}
       className={cn(
         "flex flex-1 flex-col",
         focusRing,
@@ -76,6 +80,11 @@ function CardLink({
   );
   return (
     <article className={cn("flex min-w-0 flex-col", hover, className)}>
+      {href && (
+        <span id={summaryId} className="sr-only">
+          {label}
+        </span>
+      )}
       {body}
       {action && (
         <div className="flex gap-2 border-t border-border px-4 py-3">
@@ -103,8 +112,8 @@ export function MatchCard({
 }: {
   href?: string;
   /**
-   * The link's name for screen readers, which replaces what the card
-   * shows: give the status, scores and result too ("A versus B" without).
+   * The card's spoken summary, its description (its name is what it
+   * shows): give the status, scores and result too ("A versus B" without).
    */
   label?: string;
   competition: React.ReactNode;
@@ -124,7 +133,7 @@ export function MatchCard({
       action={action}
     >
       <div className="flex items-center justify-between gap-3 px-4 pt-4 text-xs text-muted-foreground">
-        <span className="truncate">{competition}</span>
+        <span className="truncate">{competition}</span>{" "}
         <MatchStatusChip status={status} />
       </div>
       <div className="space-y-3 px-4 py-4">
@@ -164,6 +173,7 @@ export function FixtureCard({
   venue,
   action,
   bare = false,
+  status = "Upcoming",
   className,
 }: {
   href?: string;
@@ -171,6 +181,8 @@ export function FixtureCard({
   label?: string;
   date: React.ReactNode;
   time: React.ReactNode;
+  /** Under the time: "Upcoming", or "Not started" once it has passed. */
+  status?: React.ReactNode;
   home: TeamRef;
   away: TeamRef;
   venue?: React.ReactNode;
@@ -194,7 +206,7 @@ export function FixtureCard({
           <p className="whitespace-nowrap font-score text-xl font-semibold tabular-nums text-primary">
             {time}
           </p>
-          <p className="mt-0.5 text-xs text-muted-foreground">Upcoming</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">{status}</p>
         </div>
         <FixtureSide team={away} />
       </div>

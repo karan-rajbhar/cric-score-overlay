@@ -36,8 +36,8 @@ describe("ClubMembershipButton Component", () => {
     expect(link).toHaveAttribute("href", "/auth/login?redirect=/clubs/club-123");
   });
 
-  it("renders disabled owner button when user is club owner", () => {
-    render(
+  it("shows no button to the owner, who cannot leave (T6)", () => {
+    const { container } = render(
       <ClubMembershipButton
         clubId="club-123"
         isMember={true}
@@ -45,10 +45,7 @@ describe("ClubMembershipButton Component", () => {
         isAuthenticated={true}
       />
     );
-
-    const button = screen.getByRole("button", { name: /club owner/i });
-    expect(button).toBeInTheDocument();
-    expect(button).toBeDisabled();
+    expect(container).toBeEmptyDOMElement();
   });
 
   it("calls joinClub and shows success toast when non-member clicks Join Club", async () => {

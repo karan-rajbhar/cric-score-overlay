@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { matchShareSummary } from "~/lib/match-share";
 import { loadShareMatch, requestOrigin } from "~/lib/match-share-server";
 import {
@@ -20,12 +21,8 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
-  const match = await cachedForMetadata(
-    `match:${id}`,
-    () => loadShareMatch(id),
-    (m) => (m.status === "completed" ? TITLE_TTL_MS : LIVE_METADATA_TTL_MS),
-  );
-  if (!match) return { title: "Match" };
+  const match = await sharedMatch(id);
+  if (!match) return { title: "Match not found" };
 
   const summary = matchShareSummary(match);
   const origin = await requestOrigin();
@@ -57,6 +54,26 @@ export async function generateMetadata({
   };
 }
 
-export default function Page() {
+/**
+ * The match document both use, read once: the metadata's read is reused, so
+ * the page itself costs nothing for a match that exists. A missing one is
+ * not remembered (a match made a moment later must open).
+ */
+function sharedMatch(id: string) {
+  return cachedForMetadata(
+    `match:${id}`,
+    () => loadShareMatch(id),
+    (m) => (m.status === "completed" ? TITLE_TTL_MS : LIVE_METADATA_TTL_MS),
+  );
+}
+
+export default async function Page({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  // A match that is not there gets the app's not-found screen (and a 404),
+  // not a database error with a Try again that cannot help (N6).
+  if (!(await sharedMatch((await params).id))) notFound();
   return <MatchDetailsPage />;
 }

@@ -46,7 +46,11 @@ describe("More", () => {
     for (const name of ["New match", "New team", "New tournament", "New club"]) {
       expect(screen.getByRole("link", { name })).toBeInTheDocument();
     }
-    expect(screen.getByRole("link", { name: "Manage invites" })).toBeInTheDocument();
+    // Named as the page it opens (N29).
+    expect(screen.getByRole("link", { name: /^Invites/ })).toHaveAttribute(
+      "href",
+      "/invitations",
+    );
     expect(screen.getByRole("button", { name: "Sign out" })).toBeInTheDocument();
   });
 

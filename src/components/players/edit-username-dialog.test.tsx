@@ -19,26 +19,29 @@ describe("EditUsernameDialog", () => {
     vi.clearAllMocks();
   });
 
-  it("renders trigger button with current handle info", () => {
+  it("offers to change the username", () => {
     render(<EditUsernameDialog currentUsername="karan" />);
-    expect(screen.getByRole("button", { name: /Edit Handle/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Change username" })).toBeInTheDocument();
   });
 
   it("opens dialog when trigger button is clicked", () => {
     render(<EditUsernameDialog currentUsername="karan" />);
-    fireEvent.click(screen.getByRole("button", { name: /Edit Handle/i }));
-    expect(screen.getByText(/Choose a username/i)).toBeInTheDocument();
-    expect(screen.getByDisplayValue("karan")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Change username" }));
+    // Called "username" throughout, never "handle" (P9).
+    expect(
+      screen.getByRole("dialog", { name: "Change username" }),
+    ).not.toHaveTextContent(/handle/i);
+    expect(screen.getByLabelText("Username")).toHaveValue("karan");
   });
 
-  it("calls checkUsernameAvailability when user types a new handle", async () => {
+  it("checks a new username as it is typed", async () => {
     vi.mocked(actions.checkUsernameAvailability).mockResolvedValueOnce({
       available: true,
       cleanUsername: "karan_cricketer",
     });
 
     render(<EditUsernameDialog currentUsername="karan" />);
-    fireEvent.click(screen.getByRole("button", { name: /Edit Handle/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Change username" }));
 
     const input = screen.getByDisplayValue("karan");
     fireEvent.change(input, { target: { value: "karan_cricketer" } });

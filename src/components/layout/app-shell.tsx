@@ -5,14 +5,20 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AppSidebar } from "~/components/layout/app-sidebar";
 import { MobileTabBar } from "~/components/layout/mobile-tab-bar";
+import { UpdateStrip } from "~/components/pwa/update-strip";
+import { isTaskPath } from "~/lib/navigation";
 import { NavigationBar } from "~/components/navigation-bar";
 import { useTrackVisits } from "~/lib/in-app-history";
 import { isReportPath } from "~/lib/report-route";
-import { useSidebarStore } from "~/lib/stores/useSidebarStore";
+import {
+  sidebarClasses,
+  sidebarModeOf,
+  useSidebarStore,
+} from "~/lib/stores/useSidebarStore";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { collapsed } = useSidebarStore();
+  const pad = sidebarClasses(sidebarModeOf(useSidebarStore())).pad;
   useTrackVisits(pathname);
 
   // If this is an OBS live overlay, render purely without navigation shell
@@ -32,12 +38,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     Boolean(pathname?.includes("/matches/")) &&
     Boolean(pathname?.endsWith("/score") || pathname?.includes("/score/"));
   if (isScoring) {
+    // A div: the scoring screen has its own <main>, and a page has one.
     return (
-      <main className="min-h-screen bg-background text-foreground">
+      <div className="min-h-screen bg-background text-foreground">
         {children}
-      </main>
+      </div>
     );
   }
+
+  const task = isTaskPath(pathname);
 
   // The printable reports (match, club statistics) bring their own toolbar
   // and layout.
@@ -46,8 +55,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    // Phones: room at the bottom for the floating tab bar.
-    <div className="flex min-h-screen flex-col bg-background text-foreground max-md:pb-24">
+    // Phones: room at the bottom for the floating tab bar (none on a task).
+    <div
+      className={`flex min-h-screen flex-col bg-background text-foreground ${task ? "" : "max-md:pb-24"}`}
+    >
+        {/* The first stop for a keyboard: past the header and the sidebar
+            (WCAG 2.4.1, N26). */}
+        <a
+          href="#content"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[60] focus:rounded-full focus:bg-primary focus:px-4 focus:py-2.5 focus:text-sm focus:font-medium focus:text-primary-foreground focus:shadow-float focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+        >
+          Skip to content
+        </a>
+        {/* A new version waiting: a strip in the flow, covering nothing.
+            Not on the scoring screen, where it would push the keys down
+            mid-match; it waits for the next page (N12). */}
+        <UpdateStrip />
         {/* Phones: no header (the tab bar and the More page hold its items;
             detail screens have their own back bar). */}
         <div className="contents max-md:hidden">
@@ -58,8 +81,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <AppSidebar />
 
           <main
-            className={`relative isolate min-w-0 flex-1 transition-all duration-300 ease-in-out ${
-              collapsed ? "md:pl-[72px]" : "md:pl-[260px]"
+            id="content"
+            tabIndex={-1}
+            className={`relative isolate min-w-0 flex-1 transition-all duration-300 ease-in-out focus:outline-none md:ml-[env(safe-area-inset-left)] ${
+              pad
             }`}
           >
             {/* The wash behind the top of every screen, fading into the page. */}
@@ -70,15 +95,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             {/* overflow-x-clip, not -hidden: "hidden" turns this into a scroll
                 container, so sticky page headers stick inside it (pushed down
                 by their top offset) instead of under the navigation bar. */}
-            <div className="w-full overflow-x-clip px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-[max(1.25rem,env(safe-area-inset-top))] sm:px-6 sm:py-8 lg:px-8">
+            {/* Side insets: a phone on its side keeps the page clear of the
+                notch (N39); from md the sidebar takes the left one. */}
+            <div className="w-full overflow-x-clip pb-[max(2rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-[max(1.25rem,env(safe-area-inset-top))] sm:py-8 sm:pl-[max(1.5rem,env(safe-area-inset-left))] sm:pr-[max(1.5rem,env(safe-area-inset-right))] md:pl-6 lg:pl-8 lg:pr-[max(2rem,env(safe-area-inset-right))]">
               {children}
             </div>
           </main>
         </div>
 
         <footer
-          className={`border-t border-border max-md:hidden ${
-            collapsed ? "md:pl-[72px]" : "md:pl-[260px]"
+          className={`border-t border-border max-md:hidden md:ml-[env(safe-area-inset-left)] ${
+            pad
           }`}
         >
           <div className="px-4 py-5 sm:px-6 lg:px-8">
@@ -112,7 +139,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         </footer>
-        <MobileTabBar />
+        {!task && <MobileTabBar />}
       </div>
   );
 }

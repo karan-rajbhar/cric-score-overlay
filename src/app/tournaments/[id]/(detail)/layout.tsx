@@ -56,12 +56,18 @@ import { ListCard, ListRow, MetaItem } from "~/components/ds/list";
 import { TeamCrest } from "~/components/ds/avatar";
 import { ProfileHeader } from "~/components/ds/player-header";
 import { EntityActions } from "~/components/follow/entity-actions";
-import { isBracketFormat, NextRoundDialog } from "~/components/tournaments/next-round-dialog";
+import { NextRoundDialog } from "~/components/tournaments/next-round-dialog";
 import { StatGrid, StatTile } from "~/components/ds/stat-tile";
 import { PointsTable } from "~/components/ds/standings";
 import { matchGroupsOf } from "~/lib/match-groups";
 import { remainingMatchesByTeam } from "~/lib/tournament-standings";
-import { isTournamentOver } from "~/app/tournaments/rules";
+import {
+  endedByDate,
+  isBracketFormat,
+  isTournamentOver,
+} from "~/app/tournaments/rules";
+import { TournamentEndedNotice } from "~/components/tournaments/tournament-ended-notice";
+import { cardDate, dateRange, shortDate } from "~/lib/dates";
 import { SponsorLogosDialog } from "~/components/streaming/sponsor-logos-manager";
 
 export const dynamic = "force-dynamic";
@@ -386,6 +392,7 @@ export default async function TournamentLayout({
 
   // Scheduling and following are over when the tournament is.
   const over = isTournamentOver(tournament.status);
+  const ended = endedByDate(tournament);
   const registerTeam = canRegisterTeams && !over && (
     <RegisterTeamDialog
       tournamentId={tournament.id}
@@ -482,17 +489,23 @@ export default async function TournamentLayout({
         }
         labels={
           <>
-            <Chip
-              tone={
-                tournament.status === "ongoing"
-                  ? "primary"
-                  : tournament.status === "completed"
-                    ? "neutral"
-                    : "outline"
-              }
-            >
-              {formatStatus(tournament.status)}
-            </Chip>
+            {/* Past its end date and never closed: "Ended", with the date,
+                not the "Ongoing" it was left at (T12). */}
+            {ended ? (
+              <Chip tone="neutral">Ended {shortDate(tournament.end_date)}</Chip>
+            ) : (
+              <Chip
+                tone={
+                  tournament.status === "ongoing"
+                    ? "primary"
+                    : tournament.status === "completed"
+                      ? "neutral"
+                      : "outline"
+                }
+              >
+                {formatStatus(tournament.status)}
+              </Chip>
+            )}
             <Chip tone="outline">
               {formatTournamentFormat(tournament.tournament_format)} format
             </Chip>
@@ -515,8 +528,9 @@ export default async function TournamentLayout({
             )}
             {(tournament.start_date || tournament.end_date) && (
               <MetaItem icon={Calendar}>
-                {tournament.start_date ?? "TBD"}
-                {tournament.end_date ? ` to ${tournament.end_date}` : ""}
+                {/* "15 Jul to 30 Aug 2024", not the stored ISO dates (T3). */}
+                {dateRange(tournament.start_date, tournament.end_date) ||
+                  "Dates to be confirmed"}
               </MetaItem>
             )}
           </>
@@ -538,6 +552,12 @@ export default async function TournamentLayout({
       />
 
       <PinnedTitle>{tournament.name}</PinnedTitle>
+      {isTournamentAdmin && ended && (
+        <TournamentEndedNotice
+          tournamentId={tournament.id}
+          endDate={shortDate(tournament.end_date)}
+        />
+      )}
 
       <ContentSheet className="mt-4 sm:mt-8">
       <StatGrid compact>
@@ -796,10 +816,7 @@ export default async function TournamentLayout({
                         <span className="block text-xs text-muted-foreground">
                           Asked{" "}
                           {r.registered_at
-                            ? new Date(r.registered_at).toLocaleDateString(
-                                "en-GB",
-                                { day: "numeric", month: "short" },
-                              )
+                            ? cardDate(r.registered_at)
                             : "recently"}
                         </span>
                       </span>

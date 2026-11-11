@@ -3,6 +3,7 @@ import Link from "next/link";
 import { BackLink } from "~/components/ds/back-link";
 import { buttonVariants } from "~/components/ds/button";
 import { backLabelOf, parentOf, type NavCrumb } from "~/lib/navigation";
+import { LightTrail } from "~/lib/nav-light";
 import { cn } from "~/lib/utils";
 
 /**
@@ -25,14 +26,17 @@ export function PageTrail({
   const label = backLabelOf(crumbs);
   return (
     <div className={cn("flex min-w-0 items-center gap-3 max-md:hidden", className)}>
+      {/* The tab bar and the sidebar light this trail's section (N24). */}
+      <LightTrail href={crumbs[0]?.href} />
       <BackLink
         href={parentOf(crumbs)}
         avoid={avoid}
         aria-label={label}
         title={label}
+        // 44px on a touch screen (a tablet), 36px with a mouse (N17).
         className={cn(
           buttonVariants({ variant: "surface", size: "icon-sm" }),
-          "shrink-0",
+          "shrink-0 [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11",
         )}
       >
         <ChevronLeft />

@@ -3,17 +3,21 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useSidebarStore } from "~/lib/stores/useSidebarStore";
+import { useLitHref } from "~/lib/nav-light";
+import {
+  sidebarClasses,
+  sidebarModeOf,
+  useSidebarStore,
+} from "~/lib/stores/useSidebarStore";
 import { useAuth } from "~/lib/auth";
 import { cn } from "~/lib/utils";
 import {
+  CalendarDays,
   Home,
-  Radio,
   Trophy,
   Shield,
   Users,
   UserCheck,
-  PlusCircle,
 } from "lucide-react";
 
 interface NavItem {
@@ -24,30 +28,30 @@ interface NavItem {
 }
 
 interface NavSection {
-  title: string;
+  /** Heading over the group; the first group (Home, Matches) has none, so
+   * Home is not filed under "Matches" (N27). */
+  title?: string;
   items: NavItem[];
 }
 
+/**
+ * The places, in the tab bar's order and with its icons (N28): the four
+ * tabs, then Teams and Players, which phones reach from More. No actions:
+ * New match is the header's Create.
+ */
 function navSections(home: string): NavSection[] {
   return [
     {
-      title: "Matches",
       items: [
         { href: home, label: "Home", icon: Home },
-        { href: "/matches", label: "Matches", icon: Radio },
-        {
-          href: "/matches/create",
-          label: "New match",
-          icon: PlusCircle,
-          authOnly: true,
-        },
+        { href: "/matches", label: "Matches", icon: CalendarDays },
+        { href: "/clubs", label: "Clubs", icon: Shield },
+        { href: "/tournaments", label: "Tournaments", icon: Trophy },
       ],
     },
     {
-      title: "Competitions",
+      title: "Teams and players",
       items: [
-        { href: "/tournaments", label: "Tournaments", icon: Trophy },
-        { href: "/clubs", label: "Clubs", icon: Shield },
         { href: "/teams", label: "Teams", icon: Users },
         { href: "/players", label: "Players", icon: UserCheck },
       ],
@@ -62,20 +66,26 @@ function navSections(home: string): NavSection[] {
 export function AppSidebar() {
   const { user } = useAuth();
   const pathname = usePathname();
-  const { collapsed } = useSidebarStore();
+  const mode = sidebarModeOf(useSidebarStore());
+  const cls = sidebarClasses(mode);
+  const railOnly = mode === "collapsed";
 
+  // A detail page lights the section of its trail, as the tab bar does
+  // (N24): a club's team lights Clubs.
+  const lit = useLitHref(pathname);
   const isActive = (href: string) => {
-    if (href === "/" || href === "/dashboard") return pathname === href;
-    // New match is its own row, so Matches is not lit with it.
-    if (href === "/matches" && pathname === "/matches/create") return false;
-    return pathname === href || pathname.startsWith(`${href}/`);
+    if (href === "/" || href === "/dashboard") return lit === href;
+    return lit === href || lit.startsWith(`${href}/`);
   };
 
   return (
     <aside
+      id="app-sidebar"
       className={cn(
-        "fixed bottom-0 left-0 top-14 z-30 hidden overflow-y-auto overflow-x-hidden border-r border-border/60 bg-card transition-all duration-300 ease-in-out md:block",
-        collapsed ? "w-[72px]" : "w-[260px]",
+        // box-content: the notch's inset is added to the rail's width, not
+        // taken from it (N39).
+        "fixed bottom-0 left-0 top-14 z-30 box-content hidden overflow-y-auto overflow-x-hidden border-r border-border/60 bg-card pl-[env(safe-area-inset-left)] transition-all duration-300 ease-in-out md:block",
+        cls.width,
       )}
     >
       <nav aria-label="Main" className="select-none space-y-6 p-3">
@@ -84,11 +94,17 @@ export function AppSidebar() {
             (item) => !item.authOnly || !!user,
           );
           return (
-            <div key={section.title} className="space-y-1">
-              {collapsed ? (
-                <div className="mx-1 my-2 h-px bg-border/40" />
-              ) : (
-                <div className="mb-1.5 px-3 text-xs font-medium text-muted-foreground/75">
+            <div key={section.title ?? "main"} className="space-y-1">
+              {mode !== "open" && section.title && (
+                <div className={cn("mx-1 my-2 h-px bg-border/40", cls.rail)} />
+              )}
+              {!railOnly && section.title && (
+                <div
+                  className={cn(
+                    "mb-1.5 px-3 text-xs font-medium text-muted-foreground",
+                    mode === "auto" && "hidden lg:block",
+                  )}
+                >
                   {section.title}
                 </div>
               )}
@@ -101,7 +117,8 @@ export function AppSidebar() {
                     key={item.href}
                     href={item.href}
                     aria-current={active ? "page" : undefined}
-                    title={collapsed ? item.label : undefined}
+                    title={mode === "open" ? undefined : item.label}
+                    aria-label={item.label}
                     className={cn(
                       "group flex min-h-10 items-center gap-3 rounded-full px-3.5 py-2 text-sm font-medium transition-colors duration-150",
                       active
@@ -117,9 +134,9 @@ export function AppSidebar() {
                           : "text-muted-foreground group-hover:text-foreground",
                       )}
                     />
-                    {!collapsed && (
-                      <span className="flex-1 truncate">{item.label}</span>
-                    )}
+                    <span className={cn("flex-1 truncate", cls.label)}>
+                      {item.label}
+                    </span>
                   </Link>
                 );
               })}

@@ -4,6 +4,7 @@ import * as React from "react";
 import { ChevronDown } from "lucide-react";
 import { PlayerLink } from "~/components/ds/player-link";
 import type { DismissalDetail } from "~/lib/dismissal-detail";
+import { useMediaQuery } from "~/lib/hooks/useMediaQuery";
 import { cn } from "~/lib/utils";
 
 import { figCell, figHead, figTable } from "./fig-table";
@@ -51,25 +52,37 @@ export function TableCard({
           </div>
         )}
       </header>
-      <div className="overflow-x-auto">{children}</div>
+      {/* relative: the headings' visually hidden labels (absolute) stay
+          in this scroll box, not in the page's width (M15). */}
+      <div className="relative overflow-x-auto">{children}</div>
     </section>
   );
 }
 
-/** A column heading: its short form, and what it stands for. */
-export type Column = readonly [short: string, full?: string];
+/**
+ * A column heading: its short form, what it stands for, and classes for
+ * its heading (a column dropped on narrow phones).
+ */
+export type Column = readonly [short: string, full?: string, className?: string];
 
 /** `dense` tables' tighter rows, on phones only. */
 const denseHead = "[&>th]:max-md:py-1";
 const denseCell = "max-md:py-1";
+
+/**
+ * Below 360px the strike rate goes (Stats has it), so names keep their
+ * room, and the sixes column closes the row (M7).
+ */
+const NARROW_DROP = "max-[359px]:hidden";
+const NARROW_LAST = "max-[359px]:pr-4";
 
 const BATTING_COLUMNS: readonly Column[] = [
   ["Batter"],
   ["R", "Runs"],
   ["B", "Balls"],
   ["4s", "Fours"],
-  ["6s", "Sixes"],
-  ["SR", "Strike rate"],
+  ["6s", "Sixes", NARROW_LAST],
+  ["SR", "Strike rate", NARROW_DROP],
 ];
 const BOWLING_COLUMNS: readonly Column[] = [
   ["Bowler"],
@@ -140,8 +153,8 @@ function HeadRow({
 }) {
   return (
     <tr className={className}>
-      {columns.map(([short, full], i) => (
-        <th key={`${short}-${i}`} scope="col" className={figHead}>
+      {columns.map(([short, full, cls], i) => (
+        <th key={`${short}-${i}`} scope="col" className={cn(figHead, cls)}>
           <Abbr short={short} full={full} />
         </th>
       ))}
@@ -193,7 +206,7 @@ export function CreaseTable({
   className?: string;
 }) {
   return (
-    <div className={cn("overflow-x-auto", className)}>
+    <div className={cn("relative overflow-x-auto", className)}>
       <table className={figTable}>
         <thead>
           <HeadRow columns={BATTING_COLUMNS} />
@@ -223,8 +236,8 @@ export function CreaseTable({
               </td>
               <td className={figCell}>{b.balls}</td>
               <td className={figCell}>{b.fours}</td>
-              <td className={figCell}>{b.sixes}</td>
-              <td className={cn(figCell, "text-muted-foreground")}>
+              <td className={cn(figCell, NARROW_LAST)}>{b.sixes}</td>
+              <td className={cn(figCell, NARROW_DROP, "text-muted-foreground")}>
                 {b.strikeRate}
               </td>
             </tr>
@@ -298,7 +311,11 @@ function BattingTotals({
           scope="row"
           className={cn(cell, "font-sans font-normal text-muted-foreground")}
         >
-          Extras <span className="text-xs">{extras.detail}</span>
+          Extras{" "}
+          {/* Each "nb 2" kept whole, the lines balanced (M12). */}
+          <span className="text-balance text-xs">
+            {extras.detail.replace(/([a-z]+) (\d+)/g, "$1\u00a0$2")}
+          </span>
         </th>
         <td className={cn(cell, "font-semibold text-foreground")}>
           {extras.total}
@@ -399,6 +416,55 @@ function DismissalLine({
   );
 }
 
+/** A batter's name, dismissal (unless it has a row of its own) and figures. */
+function BatterFiguresRow({
+  row: r,
+  cell,
+  milestones,
+  dismissal,
+  onToggle,
+}: {
+  row: BatterRow;
+  cell: string;
+  milestones: boolean;
+  dismissal: React.ReactNode;
+  /** Opens the dismissal's detail: a tap anywhere on the row does (M9). */
+  onToggle?: (() => void) | null;
+}) {
+  return (
+    <tr
+      className={cn("border-t border-border", onToggle && "cursor-pointer")}
+      // The button under the name stays the control for keyboards and
+      // screen readers; the row is a bigger target for a thumb. Links and
+      // buttons in it keep their own taps.
+      onClick={
+        onToggle
+          ? (e) => {
+              if ((e.target as HTMLElement).closest("a, button")) return;
+              onToggle();
+            }
+          : undefined
+      }
+    >
+      <th scope="row" className={cn(cell, "max-w-0 text-left font-sans font-normal")}>
+        <span className="block truncate font-medium text-foreground">
+          <PlayerLink name={r.name} href={r.href} />
+        </span>
+        {dismissal}
+      </th>
+      <td className={cn(cell, "font-semibold text-foreground")}>
+        {milestones ? <Milestone value={r.runs} soft={50} solid={100} /> : r.runs}
+      </td>
+      <td className={cell}>{r.balls}</td>
+      <td className={cell}>{r.fours}</td>
+      <td className={cn(cell, NARROW_LAST)}>{r.sixes}</td>
+      <td className={cn(cell, NARROW_DROP, "text-muted-foreground")}>
+        {r.strikeRate}
+      </td>
+    </tr>
+  );
+}
+
 /**
  * The batters in order. A dismissal with a `detail` is a button that opens
  * how it happened in a row under the batter; several can be open at once.
@@ -416,7 +482,10 @@ function BatterRows({
 }) {
   const [open, setOpen] = React.useState<ReadonlySet<string>>(new Set());
   const base = React.useId();
-  const cell = cn(figCell, dense && denseCell);
+  // Below 360px the dismissal takes a row of its own under the figures,
+  // so names keep their room and it never wraps a word to a line (M7).
+  const narrow = useMediaQuery("(max-width: 359px)");
+  const cell = cn(figCell, dense && denseCell, narrow && "pb-0.5");
   const toggle = (key: string) =>
     setOpen((prev) => {
       const next = new Set(prev);
@@ -429,41 +498,44 @@ function BatterRows({
         const panelId = `${base}-${i}`;
         const detail = expandable ? r.detail : null;
         const isOpen = open.has(r.name);
+        const dismissal = (
+          <DismissalLine
+            row={r}
+            panelId={panelId}
+            isOpen={isOpen}
+            onToggle={detail ? () => toggle(r.name) : null}
+            dense={dense}
+          />
+        );
         return (
           <React.Fragment key={r.name}>
-            <tr className="border-t border-border">
-              <th
-                scope="row"
-                className={cn(
-                  cell,
-                  "max-w-0 text-left font-sans font-normal",
-                )}
+            <BatterFiguresRow
+              row={r}
+              cell={cell}
+              milestones={milestones}
+              dismissal={narrow ? null : dismissal}
+              onToggle={detail ? () => toggle(r.name) : null}
+            />
+            {narrow && (
+              <tr
+                className={cn(detail && "cursor-pointer")}
+                onClick={
+                  detail
+                    ? (e) => {
+                        if ((e.target as HTMLElement).closest("a, button")) return;
+                        toggle(r.name);
+                      }
+                    : undefined
+                }
               >
-                <span className="block truncate font-medium text-foreground">
-                  <PlayerLink name={r.name} href={r.href} />
-                </span>
-                <DismissalLine
-                  row={r}
-                  panelId={panelId}
-                  isOpen={isOpen}
-                  onToggle={detail ? () => toggle(r.name) : null}
-                  dense={dense}
-                />
-              </th>
-              <td className={cn(cell, "font-semibold text-foreground")}>
-                {milestones ? (
-                  <Milestone value={r.runs} soft={50} solid={100} />
-                ) : (
-                  r.runs
-                )}
-              </td>
-              <td className={cell}>{r.balls}</td>
-              <td className={cell}>{r.fours}</td>
-              <td className={cell}>{r.sixes}</td>
-              <td className={cn(cell, "text-muted-foreground")}>
-                {r.strikeRate}
-              </td>
-            </tr>
+                <td
+                  colSpan={BATTING_COLUMNS.length}
+                  className={cn("px-4 pb-2.5 text-left", dense && "pb-1")}
+                >
+                  {dismissal}
+                </td>
+              </tr>
+            )}
             {detail && (
               <tr id={panelId} hidden={!isOpen}>
                 <td colSpan={BATTING_COLUMNS.length} className="px-4 pb-3 pt-0">

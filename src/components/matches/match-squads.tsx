@@ -3,7 +3,7 @@
 import { Avatar, TeamCrest } from "~/components/ds/avatar";
 import { Card } from "~/components/ds/card";
 import { ListCard } from "~/components/ds/list";
-import { formatPlayerRole } from "~/lib/cricket";
+import { roleMark, squadRoleLine } from "~/lib/cricket";
 import type { Match, MatchTeam } from "~/lib/match-types";
 import { teamRef } from "./match-hero";
 
@@ -42,16 +42,22 @@ function Squad({ team }: { team: MatchTeam }) {
                 size="sm"
               />
               <span className="min-w-0 flex-1">
+                {/* "(c)", "(vc)", "(wk)" after the name; a line only for a
+                    role the mark does not carry (M10). */}
                 <span className="block truncate text-sm font-medium text-foreground">
                   {tp.user?.full_name}
+                  {roleMark(tp.role_in_team)}
                 </span>
-                <span className="block truncate text-xs text-muted-foreground">
-                  {formatPlayerRole(tp.role_in_team)}
-                </span>
+                {squadRoleLine(tp.role_in_team) && (
+                  <span className="block truncate text-xs text-muted-foreground">
+                    {squadRoleLine(tp.role_in_team)}
+                  </span>
+                )}
               </span>
               {tp.jersey_number != null && (
                 <span className="shrink-0 font-score text-sm tabular-nums text-muted-foreground">
-                  #{tp.jersey_number}
+                  <span className="sr-only">Shirt number </span>#
+                  {tp.jersey_number}
                 </span>
               )}
             </div>

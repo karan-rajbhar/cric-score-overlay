@@ -1,25 +1,26 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import Link from "next/link";
-import { BackLink } from "~/components/ds/back-link";
+import { SignInRequired } from "~/components/ui/sign-in-required";
 import { unstable_rethrow, useSearchParams } from "next/navigation";
 import { Button } from "~/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
-import { Input } from "~/components/ui/input";
-import { Label } from "~/components/ui/label";
-import { Textarea } from "~/components/ui/textarea";
+import { Card, CardContent } from "~/components/ui/card";
 import {
+  Field,
+  Input,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "~/components/ui/select";
+  Textarea,
+} from "~/components/ds/field";
+import { ScreenBar } from "~/components/ds/screen";
+import { useFieldErrors } from "~/lib/hooks/useFieldErrors";
 import { createTournament } from "../actions";
 import { useAuth } from "~/lib/auth";
 import { useUserManagedClubsQuery } from "~/lib/hooks/useMatchQueries";
-import { ChevronLeft, Loader2, Shield } from "lucide-react";
+import { Loader2, Shield } from "lucide-react";
 import { PageContainer } from "~/components/layout/page";
 import { NETWORK_ERROR_MESSAGE } from "~/lib/network-error";
 import {
@@ -34,7 +35,9 @@ function CreateTournamentForm() {
   const prefilledClubId = searchParams.get("clubId") ?? "";
   const { user } = useAuth();
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { errors, show, clear } = useFieldErrors<
+    "name" | "overs" | "end_date"
+  >();
   const { data: clubsData } = useUserManagedClubsQuery(
     user?.id,
     prefilledClubId,
@@ -48,213 +51,232 @@ function CreateTournamentForm() {
     setMatchFormat(format);
     const preset = FORMAT_PRESETS.find((p) => p.format === format);
     if (preset?.overs) setOvers(String(preset.overs));
+    clear("overs");
   };
 
   const changeOvers = (value: string) => {
     setOvers(value);
+    clear("overs");
     const n = Number(value);
     if (Number.isInteger(n) && n > 0) setMatchFormat(formatForOvers(n));
   };
 
+  /** Each mistake on its own field; none: null. */
+  const check = (fd: FormData) => {
+    const found: Partial<Record<"name" | "overs" | "end_date", string>> = {};
+    if (!String(fd.get("name") ?? "").trim()) {
+      found.name = "Enter the tournament's name.";
+    }
+    const n = Number(overs);
+    if (
+      !(Number.isInteger(n) && n >= LIMITS.overs.min && n <= LIMITS.overs.max)
+    ) {
+      found.overs = `Enter a number from ${LIMITS.overs.min} to ${LIMITS.overs.max}.`;
+    }
+    const start = String(fd.get("start_date") ?? "");
+    const end = String(fd.get("end_date") ?? "");
+    if (start && end && end < start) {
+      found.end_date = "The end date is before the start date.";
+    }
+    return found;
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    const form = e.currentTarget;
+    const fd = new FormData(form);
+    const found = check(fd);
+    if (Object.keys(found).length > 0) {
+      show(form, found);
+      return;
+    }
+    show(form, {});
     setSaving(true);
-    setError(null);
-    const fd = new FormData(e.currentTarget);
     try {
       // On success the action redirects to the new tournament.
       const res = await createTournament(fd);
       if (res?.error) {
-        setError(res.error);
+        // The server's words, on the field they are about when there is one.
+        const message = res.error;
+        show(
+          form,
+          /end date/i.test(message)
+            ? { end_date: message }
+            : /name/i.test(message)
+              ? { name: message }
+              : /overs/i.test(message)
+                ? { overs: message }
+                : { form: message },
+        );
         setSaving(false);
       }
     } catch (err) {
       unstable_rethrow(err);
-      setError(NETWORK_ERROR_MESSAGE);
+      show(form, { form: NETWORK_ERROR_MESSAGE });
       setSaving(false);
     }
   };
 
-  const oversNum = Number(overs);
-  const oversError =
-    overs !== "" &&
-    !(
-      Number.isInteger(oversNum) &&
-      oversNum >= LIMITS.overs.min &&
-      oversNum <= LIMITS.overs.max
-    )
-      ? `Overs must be between ${LIMITS.overs.min} and ${LIMITS.overs.max}`
-      : null;
-
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Create tournament</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
+      <CardContent className="pt-6">
+        <form noValidate onSubmit={handleSubmit} className="space-y-4">
           <input type="hidden" name="club_id" value={selectedClubId} />
 
           {clubs.length > 0 && (
-            <div>
-              <Label htmlFor="tournament-club">Hosting club (optional)</Label>
-              <Select
-                value={selectedClubId || "none"}
-                onValueChange={(val) =>
-                  setSelectedClubId(val === "none" ? "" : val)
-                }
-              >
-                <SelectTrigger id="tournament-club" className="mt-2">
-                  <SelectValue placeholder="Select club (or none for independent)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">
-                    None (independent tournament)
-                  </SelectItem>
-                  {clubs.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      <div className="flex items-center gap-2">
-                        <Shield className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                        <span>
-                          {c.name} {c.short_name ? `(${c.short_name})` : ""}
-                        </span>
-                      </div>
+            <Field label="Hosting club" optional>
+              {(p) => (
+                <Select
+                  value={selectedClubId || "none"}
+                  onValueChange={(val) =>
+                    setSelectedClubId(val === "none" ? "" : val)
+                  }
+                >
+                  <SelectTrigger id={p.id} aria-describedby={p["aria-describedby"]}>
+                    <SelectValue placeholder="None (independent tournament)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">
+                      None (independent tournament)
                     </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+                    {clubs.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        <div className="flex items-center gap-2">
+                          <Shield className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                          <span>
+                            {c.name} {c.short_name ? `(${c.short_name})` : ""}
+                          </span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </Field>
           )}
 
-          <div>
-            <Label htmlFor="name">Tournament name *</Label>
-            <Input
-              id="name"
-              name="name"
-              required
-              placeholder="e.g. Summer Cup 2026"
-              className="mt-2"
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="description">Description</Label>
-            <Textarea
-              id="description"
-              name="description"
-              placeholder="About the tournament"
-              className="mt-2"
-              rows={3}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
-            <div>
-              <Label htmlFor="tournament-format">Tournament format</Label>
-              <Select name="tournament_format" defaultValue="league">
-                <SelectTrigger id="tournament-format" className="mt-2">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="league">League (round robin)</SelectItem>
-                  <SelectItem value="knockout">Knockout</SelectItem>
-                  <SelectItem value="mixed">Mixed / groups</SelectItem>
-                  <SelectItem value="round_robin">Double round robin</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="tournament-match-format">Match format</Label>
-              <Select
-                name="match_format"
-                value={matchFormat}
-                onValueChange={(v) => pickFormat(v as MatchFormat)}
-              >
-                <SelectTrigger id="tournament-match-format" className="mt-2">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {FORMAT_PRESETS.map((p) => (
-                    <SelectItem key={p.format} value={p.format}>
-                      {p.overs ? `${p.label} (${p.overs} overs)` : p.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div>
-            <Label htmlFor="tournament-overs">Overs per side</Label>
-            <Input
-              id="tournament-overs"
-              name="overs_per_innings"
-              type="number"
-              inputMode="numeric"
-              min={LIMITS.overs.min}
-              max={LIMITS.overs.max}
-              value={overs}
-              onChange={(e) => changeOvers(e.target.value)}
-              aria-invalid={Boolean(oversError) || undefined}
-              aria-describedby="tournament-overs-hint"
-              className="mt-2 w-24 tabular-nums"
-              required
-            />
-            <p
-              id="tournament-overs-hint"
-              className={
-                oversError
-                  ? "mt-1 text-xs text-destructive"
-                  : "mt-1 text-xs text-muted-foreground"
-              }
-            >
-              {oversError ?? "New matches in the tournament start with these overs."}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
-            <div>
-              <Label htmlFor="start_date">Start date</Label>
+          <Field label="Tournament name" error={errors.name}>
+            {(p) => (
               <Input
-                id="start_date"
-                name="start_date"
-                type="date"
-                className="mt-2"
+                {...p}
+                name="name"
+                placeholder="e.g. Summer Cup 2026"
+                onChange={() => clear("name")}
               />
-            </div>
-            <div>
-              <Label htmlFor="end_date">End date</Label>
+            )}
+          </Field>
+
+          <Field label="Description" optional>
+            {(p) => (
+              <Textarea
+                {...p}
+                name="description"
+                placeholder="About the tournament"
+                rows={3}
+              />
+            )}
+          </Field>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="Tournament format">
+              {(p) => (
+                <Select name="tournament_format" defaultValue="league">
+                  <SelectTrigger id={p.id} aria-describedby={p["aria-describedby"]}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="league">League (round robin)</SelectItem>
+                    <SelectItem value="knockout">Knockout</SelectItem>
+                    <SelectItem value="mixed">Mixed / groups</SelectItem>
+                    <SelectItem value="round_robin">Double round robin</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            </Field>
+            <Field label="Match format">
+              {(p) => (
+                <Select
+                  name="match_format"
+                  value={matchFormat}
+                  onValueChange={(v) => pickFormat(v as MatchFormat)}
+                >
+                  <SelectTrigger id={p.id} aria-describedby={p["aria-describedby"]}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FORMAT_PRESETS.map((f) => (
+                      <SelectItem key={f.format} value={f.format}>
+                        {f.overs ? `${f.label} (${f.overs} overs)` : f.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </Field>
+          </div>
+
+          <Field
+            label="Overs per side"
+            error={errors.overs}
+            hint="New matches in the tournament start with these overs."
+          >
+            {(p) => (
               <Input
-                id="end_date"
-                name="end_date"
-                type="date"
-                className="mt-2"
+                {...p}
+                name="overs_per_innings"
+                type="number"
+                inputMode="numeric"
+                min={LIMITS.overs.min}
+                max={LIMITS.overs.max}
+                value={overs}
+                onChange={(e) => changeOvers(e.target.value)}
+                className="w-28 tabular-nums"
               />
-            </div>
+            )}
+          </Field>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="Start date" optional>
+              {(p) => (
+                <Input
+                  {...p}
+                  name="start_date"
+                  type="date"
+                  onChange={() => clear("end_date")}
+                />
+              )}
+            </Field>
+            <Field label="End date" optional error={errors.end_date}>
+              {(p) => (
+                <Input
+                  {...p}
+                  name="end_date"
+                  type="date"
+                  onChange={() => clear("end_date")}
+                />
+              )}
+            </Field>
           </div>
 
-          <div>
-            <Label htmlFor="venue">Venue</Label>
-            <Input
-              id="venue"
-              name="venue"
-              placeholder="e.g. Lord's Cricket Ground"
-              className="mt-2"
-            />
-          </div>
+          <Field label="Venue" optional>
+            {(p) => (
+              <Input {...p} name="venue" placeholder="e.g. Riverside ground" />
+            )}
+          </Field>
 
-          {error && (
+          {errors.form && (
             <div
               role="alert"
-              className="rounded-md bg-destructive/15 p-3 text-sm text-destructive"
+              tabIndex={-1}
+              className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive"
             >
-              {error}
+              {errors.form}
             </div>
           )}
 
           <Button
             type="submit"
-            disabled={saving || Boolean(oversError) || overs === ""}
+            disabled={saving}
             className="h-11 min-h-[44px] w-full"
           >
             {saving ? (
@@ -272,19 +294,12 @@ function CreateTournamentForm() {
   );
 }
 
-function CreateTournamentBackButton() {
+/** The round Back of every screen, and the page's one heading (F3, F6). */
+function CreateTournamentBar() {
   const searchParams = useSearchParams();
   const clubId = searchParams.get("clubId");
-
   const backHref = clubId ? `/clubs/${clubId}?tab=tournaments` : "/tournaments";
-
-  return (
-    <Button variant="ghost" asChild className="mb-4">
-      <BackLink href={backHref}>
-        <ChevronLeft className="mr-2 h-4 w-4 shrink-0" /> Back
-      </BackLink>
-    </Button>
-  );
+  return <ScreenBar className="mb-4" backHref={backHref} title="New tournament" />;
 }
 
 export default function CreateTournamentPage() {
@@ -300,28 +315,17 @@ export default function CreateTournamentPage() {
 
   if (!user) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Card className="mx-4 w-full max-w-md">
-          <CardContent className="p-6 text-center">
-            <h1 className="mb-2 text-lg font-semibold">Sign in required</h1>
-            <p className="mb-4 text-sm text-muted-foreground">
-              Sign in to create a tournament.
-            </p>
-            <Button asChild>
-              <Link href="/auth/login?redirect=/tournaments/create">
-                Sign in
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+      <SignInRequired
+        title="Sign in to create a tournament"
+        allows="A tournament schedules its fixtures and keeps the points table."
+      />
     );
   }
 
   return (
     <PageContainer size="form" stack={false}>
         <Suspense fallback={null}>
-          <CreateTournamentBackButton />
+          <CreateTournamentBar />
         </Suspense>
 
         <Suspense

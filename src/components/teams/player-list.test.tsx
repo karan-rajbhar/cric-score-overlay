@@ -129,3 +129,36 @@ describe("PlayerList claims", () => {
     expect(screen.queryByText("Not on CricScore")).toBeNull();
   });
 });
+
+describe("PlayerList rows (P8)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("opens a player from anywhere on the row but the menu", () => {
+    render(<PlayerList teamId="t1" players={[{ ...players[2]!, jersey_number: 7 }]} />);
+    const link = screen.getByRole("link", { name: /Asha Rao/ });
+    expect(link).toHaveAttribute("href", "/players/p3");
+    // The avatar and the shirt number are inside it, not beside it.
+    expect(link).toHaveTextContent("AR");
+    expect(link).toHaveTextContent("Shirt number #7");
+  });
+
+  it("offers the role as a choice with the current one ticked", async () => {
+    const { updatePlayerRole } = await import("~/app/teams/actions");
+    render(
+      <PlayerList
+        teamId="t1"
+        players={[{ ...players[2]!, role_in_team: "wicket_keeper" }]}
+        allowEdit
+      />,
+    );
+    openMenu("Asha Rao");
+    const keeper = await screen.findByRole("menuitemradio", { name: "Wicket-keeper" });
+    expect(keeper).toHaveAttribute("aria-checked", "true");
+    expect(
+      screen.getByRole("menuitemradio", { name: "Captain" }),
+    ).toHaveAttribute("aria-checked", "false");
+    // Choosing the current role again changes nothing.
+    fireEvent.click(keeper);
+    expect(updatePlayerRole).not.toHaveBeenCalled();
+  });
+});

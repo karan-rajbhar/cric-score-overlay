@@ -62,6 +62,9 @@ export interface LiveMatchHUDProps {
   rawDeliveries?: DeliveryToEdit[];
   battingTeamName?: string;
   onEndInnings?: () => void;
+  /** The End innings confirm, when the page also opens it (Match tools). */
+  endInningsOpen?: boolean;
+  onEndInningsOpenChange?: (open: boolean) => void;
   isProcessing?: boolean;
   onSwapStriker?: () => void;
   onChangeStriker?: () => void;
@@ -85,6 +88,8 @@ export function LiveMatchHUD({
   rawDeliveries = [],
   battingTeamName,
   onEndInnings,
+  endInningsOpen,
+  onEndInningsOpenChange,
   isProcessing = false,
   onSwapStriker,
   onChangeStriker,
@@ -126,6 +131,7 @@ export function LiveMatchHUD({
   const currentRuns = currentInnings?.total_runs ?? 0;
   const currentWickets = currentInnings?.total_wickets ?? 0;
   const wicketsInHand = Math.max(0, wicketsLimit - currentWickets);
+  const endInningsDue = ballsRem <= bpo || wicketsInHand <= 1;
 
   const runsNeeded = useMemo(() => {
     if (targetRuns == null || !isSecondInnings) return null;
@@ -200,7 +206,9 @@ export function LiveMatchHUD({
 
   // Ending an innings early can't be undone from the keypad, so it goes
   // through a confirmation dialog that can be cancelled.
-  const [confirmEndOpen, setConfirmEndOpen] = useState(false);
+  const [ownEndOpen, setOwnEndOpen] = useState(false);
+  const confirmEndOpen = endInningsOpen ?? ownEndOpen;
+  const setConfirmEndOpen = onEndInningsOpenChange ?? setOwnEndOpen;
   const confirmEndInnings = () => {
     setConfirmEndOpen(false);
     onEndInnings?.();
@@ -231,7 +239,7 @@ export function LiveMatchHUD({
           onClick={onChangeBowler}
           aria-label="Change current bowler"
           title="Change bowler"
-          className="shadow-2xs inline-flex h-11 min-w-11 items-center justify-center gap-1 rounded-lg border border-border/80 bg-background/80 px-1.5 text-2xs font-bold text-foreground hover:bg-muted sm:h-7 sm:min-w-0 sm:px-2"
+          className="shadow-2xs inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1 rounded-xl border border-border/80 bg-background/80 px-1.5 text-xs font-bold text-foreground hover:bg-muted sm:h-7 sm:min-h-0 sm:min-w-0 sm:rounded-lg sm:px-2"
         >
           <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           <span className="hidden sm:inline">Change</span>
@@ -243,7 +251,7 @@ export function LiveMatchHUD({
   const bright = sunlightMode ? "text-black" : "text-white";
 
   return (
-    <div className="space-y-2 sm:space-y-3">
+    <div className="space-y-1.5 sm:space-y-3">
       {/* 1. Match situation */}
       {match.status === "live" && (
         <Card
@@ -259,10 +267,12 @@ export function LiveMatchHUD({
                 : "scoreboard border border-board-line bg-board text-board-foreground",
           )}
         >
-          <CardContent className="space-y-1.5 p-2.5 sm:space-y-3 sm:p-4">
+          <CardContent className="space-y-1.5 p-2 sm:space-y-3 sm:p-4">
             <div className="flex items-center justify-between gap-2">
               <div className="min-w-0">
-                <div className="flex items-center gap-2">
+                {/* Phones: the scoring header says who bats and which
+                    innings, so the score starts the card. */}
+                <div className="flex items-center gap-2 max-sm:hidden">
                   <span
                     className={cn(
                       "truncate text-xs font-semibold sm:text-sm",
@@ -292,7 +302,7 @@ export function LiveMatchHUD({
                       : `Inns ${inningsNumber} · ${matchFormatName(match)}`}
                   </Badge>
                 </div>
-                <div className="mt-0.5 flex items-baseline gap-2">
+                <div className="flex items-baseline gap-2 sm:mt-0.5">
                   <span
                     className={cn(
                       "font-score text-3xl font-bold tabular-nums tracking-tight sm:text-5xl",
@@ -309,14 +319,40 @@ export function LiveMatchHUD({
                   >
                     ({oversFromBalls(ballsBowled, bpo)} ov)
                   </span>
-                  <span className={cn("text-2xs font-semibold sm:hidden", dim)}>
+                  <span className={cn("text-xs font-semibold sm:hidden", dim)}>
                     of {oversFromBalls(totalInningsBalls, bpo)}
                   </span>
                 </div>
+                {/* Phones, first innings: the rate on the score's line
+                    (the block below is for larger screens). */}
+                {!(isSecondInnings && targetRuns != null) && (
+                  <p
+                    className={cn(
+                      "mt-0.5 text-xs font-semibold tabular-nums sm:hidden",
+                      dim,
+                    )}
+                  >
+                    Run rate{" "}
+                    <span
+                      className={
+                        sunlightMode ? "text-black" : "text-board-good"
+                      }
+                    >
+                      {crr}
+                    </span>
+                    {projectedScore != null && (
+                      <> · Projected {projectedScore}</>
+                    )}
+                  </p>
+                )}
               </div>
 
               {onEndInnings && (
                 <div className="flex shrink-0 items-center gap-1.5">
+                  {/* Beside the score only near the innings' end (last
+                      over, one wicket left); Match tools has it always
+                      (S13). */}
+                  {endInningsDue && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -331,6 +367,7 @@ export function LiveMatchHUD({
                   >
                     End innings
                   </Button>
+                  )}
                   <Dialog
                     open={confirmEndOpen}
                     onOpenChange={setConfirmEndOpen}
@@ -414,7 +451,8 @@ export function LiveMatchHUD({
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex min-w-0 flex-1 items-center gap-2">
                     <div className="min-w-0">
-                      <h3
+                      {/* h2: the screen's h1 is above, nothing between (S12). */}
+                      <h2
                         data-testid="chase-equation-title"
                         className={cn(
                           "text-xs font-semibold sm:text-base",
@@ -442,13 +480,8 @@ export function LiveMatchHUD({
                         ) : (
                           "Target achieved"
                         )}
-                      </h3>
-                      <p
-                        className={cn(
-                          "text-[0.625rem] font-medium sm:text-2xs",
-                          dim,
-                        )}
-                      >
+                      </h2>
+                      <p className={cn("text-xs font-medium", dim)}>
                         Target:{" "}
                         <strong
                           className={cn("font-bold tabular-nums", bright)}
@@ -545,11 +578,11 @@ export function LiveMatchHUD({
                 </div>
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-2 max-sm:hidden">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex min-w-0 flex-1 items-center gap-2">
                     <div>
-                      <h3
+                      <h2
                         className={cn(
                           "text-xs font-semibold sm:text-base",
                           bright,
@@ -564,13 +597,8 @@ export function LiveMatchHUD({
                         >
                           CRR: {crr}
                         </span>
-                      </h3>
-                      <p
-                        className={cn(
-                          "text-[0.625rem] font-medium sm:text-2xs",
-                          dim,
-                        )}
-                      >
+                      </h2>
+                      <p className={cn("text-xs font-medium", dim)}>
                         {ballsRem} balls remaining (
                         {oversFromBalls(ballsRem, bpo)} ov)
                       </p>
@@ -601,7 +629,7 @@ export function LiveMatchHUD({
                         : "border border-white/10 bg-black/25 text-white/80",
                     )}
                   >
-                    <span className="text-2xs font-semibold">
+                    <span className="text-xs font-semibold">
                       Projected score:
                     </span>
                     <div className="flex items-center gap-3">
@@ -628,7 +656,7 @@ export function LiveMatchHUD({
       )}
 
       {/* 2. Batters at the crease + current bowler */}
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
+      <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 sm:gap-3">
         <Card
           data-testid="hud-batters-card"
           className={cn(
@@ -638,14 +666,14 @@ export function LiveMatchHUD({
               : "border-border bg-card",
           )}
         >
-          <CardContent className="space-y-1.5 p-2 sm:space-y-2 sm:p-3.5">
+          <CardContent className="space-y-1.5 p-1.5 sm:space-y-2 sm:p-3.5">
             {/* Title row (phones rely on the inline controls instead) */}
             <div className="hidden items-center justify-between gap-2 border-b border-border/50 pb-1.5 sm:flex">
               <div className="flex min-w-0 items-center gap-1.5">
                 <span className="text-sm font-semibold text-foreground">
                   Batting
                 </span>
-                <span className="truncate text-2xs font-semibold tabular-nums text-muted-foreground/90">
+                <span className="truncate text-xs font-semibold tabular-nums text-muted-foreground/90">
                   (Stand: {partnership.runs} off {partnership.balls}b)
                 </span>
               </div>
@@ -730,7 +758,7 @@ export function LiveMatchHUD({
                           />
                           <span
                             className={cn(
-                              "truncate text-xs sm:text-sm",
+                              "truncate text-sm",
                               onStrike
                                 ? "font-semibold text-foreground"
                                 : "font-medium text-muted-foreground",
@@ -740,12 +768,12 @@ export function LiveMatchHUD({
                             {onStrike ? " *" : ""}
                           </span>
                           {onStrike && (
-                            <span className="inline-flex shrink-0 items-center rounded-full border border-primary/30 px-1.5 py-0.5 text-[0.625rem] font-medium text-primary-soft-foreground">
+                            <span className="inline-flex shrink-0 items-center rounded-full border border-primary/30 px-1.5 py-0.5 text-xs font-medium leading-none text-primary-soft-foreground">
                               On strike
                             </span>
                           )}
                         </span>
-                        <span className="hidden pl-3.5 text-2xs text-muted-foreground sm:block">
+                        <span className="hidden pl-3.5 text-xs text-muted-foreground sm:block">
                           SR:{" "}
                           <strong className="font-semibold tabular-nums text-foreground">
                             {strikeRate(batter.runs, batter.balls)}
@@ -760,7 +788,7 @@ export function LiveMatchHUD({
                         )}
                       >
                         {batter.runs}{" "}
-                        <span className="text-2xs font-semibold text-muted-foreground sm:text-xs">
+                        <span className="text-xs font-semibold text-muted-foreground">
                           ({batter.balls})
                         </span>
                       </span>
@@ -771,7 +799,7 @@ export function LiveMatchHUD({
                         onClick={change}
                         title={`Change ${batter.name}`}
                         aria-label={`Change ${batter.name}`}
-                        className="shadow-2xs inline-flex min-w-11 shrink-0 items-center justify-center gap-1 rounded-xl border border-border/80 bg-background/80 px-2 text-2xs font-bold text-foreground hover:bg-muted"
+                        className="shadow-2xs inline-flex min-w-11 shrink-0 items-center justify-center gap-1 rounded-xl border border-border/80 bg-background/80 px-2 text-xs font-bold text-foreground hover:bg-muted"
                       >
                         <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
                         <span className="hidden sm:inline">Change</span>
@@ -793,90 +821,92 @@ export function LiveMatchHUD({
               : "border-border bg-card",
           )}
         >
-          <CardContent className="space-y-1.5 p-2 sm:space-y-2 sm:p-3.5">
+          <CardContent className="space-y-1.5 p-1.5 sm:space-y-2 sm:p-3.5">
             <div className="hidden items-center justify-between gap-2 border-b border-border/50 pb-1.5 sm:flex">
               <div className="flex min-w-0 items-center gap-1.5">
                 <span className="text-sm font-semibold text-foreground">
                   Bowler
                 </span>
-                <span className="truncate text-2xs font-semibold tabular-nums text-muted-foreground/90">
+                <span className="truncate text-xs font-semibold tabular-nums text-muted-foreground/90">
                   (this over: {thisOverRuns} runs)
                 </span>
               </div>
               {!isPhone && bowlerAction}
             </div>
 
-            <div
-              className={cn(
-                "rounded-xl border px-2.5 py-1.5 sm:px-3 sm:py-2",
-                sunlightMode
-                  ? "border-2 border-black bg-neutral-100 font-bold"
-                  : "border-border bg-muted/40",
-              )}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="truncate text-xs font-semibold text-foreground sm:text-sm">
-                  {bowler ? bowler.name : "No bowler yet"}
-                </span>
-                <div className="flex shrink-0 items-center gap-1.5">
-                  <span className="whitespace-nowrap font-score text-sm font-bold tabular-nums text-foreground sm:text-base">
+            {/* Phones: one row (name and figures over overs and economy)
+                beside its Change button, the same height as a batter. */}
+            <div className="flex items-stretch gap-1.5">
+              <div
+                className={cn(
+                  "min-w-0 flex-1 rounded-xl border px-2.5 py-1 sm:px-3 sm:py-2",
+                  sunlightMode
+                    ? "border-2 border-black bg-neutral-100 font-bold"
+                    : "border-border bg-muted/40",
+                )}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate text-sm font-semibold text-foreground">
+                    {bowler ? bowler.name : "No bowler yet"}
+                  </span>
+                  <span className="shrink-0 whitespace-nowrap font-score text-sm font-bold tabular-nums text-foreground sm:text-base">
                     {bowler ? `${bowler.wickets}/${bowler.runs}` : "—"}
                   </span>
-                  {isPhone && bowlerAction}
                 </div>
-              </div>
-              {bowler ? (
-                <>
-                  <div className="mt-1 flex items-center justify-between text-[0.625rem] text-muted-foreground sm:text-xs">
-                    <span>
-                      Overs:{" "}
-                      <strong className="font-bold tabular-nums text-foreground">
-                        {oversFromBalls(bowlerBallsCount, bpo)}
-                      </strong>{" "}
-                      {maxBowlerOvers !== null && <> / {maxBowlerOvers}</>}
-                    </span>
-                    <span>
-                      Econ:{" "}
-                      <strong className="font-bold tabular-nums text-foreground">
-                        {economyRate(bowler.runs, bowlerBallsCount, bpo)}
-                      </strong>
-                    </span>
-                    <span className="hidden sm:inline">
-                      Mdns:{" "}
-                      <strong className="font-bold tabular-nums text-foreground">
-                        {bowler.maidens}
-                      </strong>
-                    </span>
-                  </div>
-                  {maxBowlerOvers !== null && (
-                    <div className="mt-1.5 hidden h-1.5 w-full overflow-hidden rounded-full bg-muted sm:block">
-                      <div
-                        className={cn(
-                          "h-full rounded-full transition-all duration-300",
-                          isBowlerSpellFinished
-                            ? "bg-warning"
-                            : "bg-foreground/40",
-                        )}
-                        style={{
-                          width: `${Math.min(100, (bowlerBallsCount / bowlerMaxBalls) * 100)}%`,
-                        }}
-                      />
+                {bowler ? (
+                  <>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground sm:mt-1">
+                      <span>
+                        Overs:{" "}
+                        <strong className="font-bold tabular-nums text-foreground">
+                          {oversFromBalls(bowlerBallsCount, bpo)}
+                        </strong>{" "}
+                        {maxBowlerOvers !== null && <> / {maxBowlerOvers}</>}
+                      </span>
+                      <span>
+                        Econ:{" "}
+                        <strong className="font-bold tabular-nums text-foreground">
+                          {economyRate(bowler.runs, bowlerBallsCount, bpo)}
+                        </strong>
+                      </span>
+                      <span className="hidden sm:inline">
+                        Mdns:{" "}
+                        <strong className="font-bold tabular-nums text-foreground">
+                          {bowler.maidens}
+                        </strong>
+                      </span>
                     </div>
-                  )}
-                </>
-              ) : (
-                <p className="text-[0.625rem] text-muted-foreground sm:text-xs">
-                  No bowler selected for this over
-                </p>
-              )}
-              {isBowlerSpellFinished && (
-                <p className="mt-1 text-[0.625rem] font-bold text-warning">
-                  Quota bowled ({maxBowlerOvers} ov)
-                </p>
-              )}
+                    {maxBowlerOvers !== null && (
+                      <div className="mt-1.5 hidden h-1.5 w-full overflow-hidden rounded-full bg-muted sm:block">
+                        <div
+                          className={cn(
+                            "h-full rounded-full transition-all duration-300",
+                            isBowlerSpellFinished
+                              ? "bg-warning"
+                              : "bg-foreground/40",
+                          )}
+                          style={{
+                            width: `${Math.min(100, (bowlerBallsCount / bowlerMaxBalls) * 100)}%`,
+                          }}
+                        />
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    No bowler selected for this over
+                  </p>
+                )}
+                {isBowlerSpellFinished && (
+                  <p className="text-xs font-bold text-warning sm:mt-1">
+                    Quota bowled ({maxBowlerOvers} ov)
+                  </p>
+                )}
+              </div>
+              {isPhone && bowlerAction}
             </div>
             {lastBalls.length === 0 && (
-              <p className="hidden text-[0.625rem] text-muted-foreground sm:block sm:text-2xs">
+              <p className="hidden text-[0.625rem] text-muted-foreground sm:block sm:text-xs">
                 Awaiting first ball of over
               </p>
             )}

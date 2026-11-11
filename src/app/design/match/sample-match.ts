@@ -232,12 +232,31 @@ export const SAMPLE_MATCH = {
       },
     ],
   },
-  /** Between the innings: the chase has not begun. */
+  /**
+   * Between the innings: the engine opens the chase as the first innings
+   * closes, so the break is a second innings nobody has bowled at yet.
+   */
   break: {
     ...BASE,
     status: "live",
-    current_innings: 1,
-    innings: [FIRST],
+    current_innings: 2,
+    innings: [
+      FIRST,
+      {
+        ...SECOND,
+        total_runs: 0,
+        total_wickets: 0,
+        total_balls: 0,
+        total_overs: 0,
+        is_completed: false,
+        extras_total: 0,
+        extras_wides: 0,
+        extras_no_balls: 0,
+        batting_performances: [],
+        bowling_performances: [],
+        fall_of_wickets: [],
+      },
+    ],
   },
   upcoming: {
     ...BASE,

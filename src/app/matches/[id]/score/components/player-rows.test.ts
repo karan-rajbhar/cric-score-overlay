@@ -171,3 +171,37 @@ describe("buildFielderRows", () => {
     expect(rows[2]?.tag).toBe("Bowler");
   });
 });
+
+describe("players in both squads (S1)", () => {
+  const squad = [
+    { user_id: "a", user: { full_name: "Asha" } },
+    { user_id: "b", user: { full_name: "Bela" } },
+    { user_id: "c", user: { full_name: "Chen" } },
+  ];
+  const side = {
+    unavailable: (id: string) => (id === "c" ? "Played for Lions" : null),
+    alsoIn: new Map([
+      ["b", "Lions"],
+      ["c", "Lions"],
+    ]),
+  };
+
+  it("offers a bowler in both squads, notes it, and keeps the one who played for the other side visible but disabled", () => {
+    const { rows } = buildBowlerRows({ players: squad, side });
+    expect(rows.map((r) => r.id)).toEqual(["a", "b", "c"]);
+    expect(rows[1]!.note).toBe("Also in Lions' squad");
+    expect(rows[1]!.disabledReason).toBeUndefined();
+    expect(rows[2]!.disabledReason).toBe("Played for Lions");
+  });
+
+  it("does the same for batters and fielders", () => {
+    const { rows } = buildBatterRows({ players: squad, side });
+    expect(rows.at(-1)).toMatchObject({ id: "c", disabledReason: "Played for Lions" });
+    const fielders = buildFielderRows({ players: squad, side });
+    expect(fielders.map((r) => [r.id, r.disabledReason ?? null])).toEqual([
+      ["a", null],
+      ["b", null],
+      ["c", "Played for Lions"],
+    ]);
+  });
+});

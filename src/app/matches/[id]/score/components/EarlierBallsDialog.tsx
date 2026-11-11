@@ -101,7 +101,7 @@ export function EarlierBallsDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader className="text-left">
+        <DialogHeader>
           <DialogTitle>Correct a ball</DialogTitle>
           <DialogDescription>
             Tap the ball to correct. The scorecard is worked out again from

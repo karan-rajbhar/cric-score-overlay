@@ -26,7 +26,7 @@ const badgeVariants = cva(
       // The ds chip's sizes: "sm" for dense rows (the scoring HUD).
       size: {
         md: "h-6 px-2.5 text-xs",
-        sm: "h-5 px-2 text-2xs",
+        sm: "h-5 px-2 text-xs",
       },
     },
     defaultVariants: {

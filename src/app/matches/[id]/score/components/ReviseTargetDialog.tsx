@@ -109,7 +109,7 @@ function ReviseTargetForm({
             className="font-mono text-base"
             required
           />
-          <p className="text-2xs text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             The total number of runs required by the chasing team to win.
           </p>
         </div>
@@ -129,7 +129,7 @@ function ReviseTargetForm({
             onChange={(e) => setOvers(e.target.value)}
             className="font-mono text-base"
           />
-          <p className="text-2xs text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             Leave empty for the match&apos;s full overs.
           </p>
         </div>

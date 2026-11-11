@@ -26,7 +26,7 @@ export function ThemeToggle() {
       <Button
         variant="ghost"
         size="sm"
-        className="h-9 w-9 p-0 text-muted-foreground transition-all duration-200 hover:bg-muted hover:text-foreground"
+        className="h-9 w-9 p-0 text-muted-foreground transition-all duration-200 hover:bg-muted hover:text-foreground [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11"
         aria-label="Toggle theme"
       >
         <span className="h-4 w-4" />
@@ -41,7 +41,7 @@ export function ThemeToggle() {
         <Button
           variant="ghost"
           size="sm"
-          className="h-9 w-9 p-0 text-muted-foreground transition-all duration-200 hover:bg-muted hover:text-foreground"
+          className="h-9 w-9 p-0 text-muted-foreground transition-all duration-200 hover:bg-muted hover:text-foreground [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11"
           aria-label={`Current theme: ${theme}. Click to change theme`}
         >
           {resolvedTheme === "dark" ? (

@@ -38,11 +38,11 @@ function opponent(match: MatchLike, teamId: string): string {
  */
 export function matchParts(match: MatchLike): MatchPart[] {
   const teamName = (id: string) =>
-    id === match.team1_id ? match.team1.name : match.team2.name;
+    (id === match.team1_id ? match.team1?.name : match.team2?.name) ?? "";
   const names = new Map<string, string>();
   const usernames = new Map<string, string>();
   for (const team of [match.team1, match.team2]) {
-    for (const tp of team.team_players ?? []) {
+    for (const tp of team?.team_players ?? []) {
       if (tp.user?.full_name) names.set(tp.user_id, tp.user.full_name);
       if (tp.user?.username) usernames.set(tp.user_id, tp.user.username);
     }
@@ -125,4 +125,33 @@ export function partInWords(p: MatchPart): string {
   if (p.runOuts) bits.push(plural(p.runOuts, "run-out", "run-outs"));
   if (bits.length <= 1) return bits[0] ?? "everything they did";
   return `${bits.slice(0, -1).join(", ")} and ${bits[bits.length - 1]}`;
+}
+
+/**
+ * The team each player has played for in this match (batted, bowled, or
+ * took a catch, stumping or run-out), by player id. Someone in both teams'
+ * squads belongs to neither until they first have a part: then they are
+ * that team's for the rest of the match.
+ */
+export function playedForTeams(match: MatchLike): Map<string, string> {
+  return new Map(matchParts(match).map((p) => [p.id, p.teamId]));
+}
+
+/**
+ * Whether a player may bat or field for `teamId` in this match, and if not,
+ * why: anyone in that team's squad who has not played for the other side.
+ * The engine refuses only a bowler who is in the batting squad and not in
+ * the fielding one; this also keeps one person from playing for both sides.
+ */
+export function sideRuleOf(
+  match: MatchLike,
+  teamId: string,
+): (playerId: string) => string | null {
+  const playedFor = playedForTeams(match);
+  const other = opponent(match, teamId);
+  const otherName =
+    (other === match.team1_id ? match.team1?.name : match.team2?.name) ??
+    "the other side";
+  return (playerId) =>
+    playedFor.get(playerId) === other ? `Played for ${otherName}` : null;
 }

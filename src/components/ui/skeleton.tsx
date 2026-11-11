@@ -13,6 +13,25 @@ export function Skeleton({
 }
 
 /**
+ * The root of a loading screen: tells screen readers it is loading, which
+ * the skeleton's shapes cannot (N32).
+ */
+export function LoadingScreen({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div role="status" className={className}>
+      <span className="sr-only">Loading</span>
+      {children}
+    </div>
+  );
+}
+
+/**
  * Skeleton for standard Match Card
  */
 export function MatchCardSkeleton() {

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useConfirm } from "~/components/ui/confirm-dialog";
 import {
   Dialog,
   DialogContent,
@@ -48,6 +49,7 @@ export function MatchScorersDialog({
   open: openProp,
   onOpenChange,
 }: MatchScorersDialogProps) {
+  const [askConfirm, confirmDialog] = useConfirm();
   const [openState, setOpenState] = useState(false);
   const open = openProp ?? openState;
   const [loading, setLoading] = useState(false);
@@ -197,7 +199,14 @@ export function MatchScorersDialog({
   };
 
   const handleRemoveScorer = async (scorerId: string, name: string) => {
-    if (!confirm(`Remove ${name} from match scorers?`)) return;
+    const ok = await askConfirm({
+      title: `Remove ${name} as a scorer?`,
+      description: "They can still follow the match, but no longer score it.",
+      cancelLabel: "Keep",
+      confirmLabel: "Remove",
+      destructive: true,
+    });
+    if (!ok) return;
 
     try {
       const res = await removeMatchScorer(matchId, scorerId);
@@ -270,6 +279,8 @@ export function MatchScorersDialog({
   ]);
 
   return (
+    <>
+    {confirmDialog}
     <Dialog open={open} onOpenChange={handleOpenChange}>
       {openProp === undefined && (
         <DialogTrigger asChild>
@@ -444,6 +455,7 @@ export function MatchScorersDialog({
         <MatchStreamersSection matchId={matchId} />
       </DialogContent>
     </Dialog>
+    </>
   );
 }
 

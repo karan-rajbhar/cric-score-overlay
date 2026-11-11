@@ -167,7 +167,7 @@ export function GenerateFixturesButton({
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <form onSubmit={handleGenerate} className="space-y-4" noValidate>
-          <DialogHeader className="text-left">
+          <DialogHeader>
             <DialogTitle className="text-balance">
               Generate round-robin fixtures
             </DialogTitle>

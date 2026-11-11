@@ -230,6 +230,25 @@ export interface Match {
     venue?: string | null;
   } | null;
   club?: { id: string; name: string } | null;
+  /** Copies kept on the match by the write hooks (lists read these). */
+  tournament_snapshot?: { id?: string | null; name?: string | null } | null;
+  club_snapshot?: { id?: string | null; name?: string | null } | null;
+}
+
+/**
+ * The competition a match belongs to, by name: its tournament, else its
+ * club. List rows carry only the snapshots (no embed), so both count (M2).
+ */
+export function competitionNameOf(
+  match: Pick<Match, "tournament" | "club" | "tournament_snapshot" | "club_snapshot">,
+): string | null {
+  return (
+    match.tournament?.name ??
+    match.tournament_snapshot?.name ??
+    match.club?.name ??
+    match.club_snapshot?.name ??
+    null
+  );
 }
 
 export interface TeamPlayer {
