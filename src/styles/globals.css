@@ -61,9 +61,11 @@
     --destructive-foreground: 0 0% 100%;
     --live: 0 72% 51%;
     --live-foreground: 0 0% 100%;
-    --success: 142 72% 29%;
+    /* Text on its own 10% tint (chips) needs 4.5:1 too: these three were
+       4.1 to 4.4 (X1). */
+    --success: 142 72% 25%;
     --success-foreground: 0 0% 100%;
-    --warning: 26 90% 37%;
+    --warning: 26 90% 32%;
     --warning-foreground: 0 0% 100%;
 
     /* Deliveries: the same meanings as today (4 green, 6 violet, W red,
@@ -74,7 +76,7 @@
     --six-foreground: 0 0% 100%;
     --wicket: 0 72% 51%;
     --wicket-foreground: 0 0% 100%;
-    --extra: 26 90% 37%;
+    --extra: 26 90% 32%;
     --extra-foreground: 0 0% 100%;
 
     /* Older names still in use: ruby = live red, gold = amber */

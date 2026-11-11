@@ -944,9 +944,9 @@ export function ScoringPanel({
                             ? "text-white"
                             : "text-black"
                           : runs === 4
-                            ? "text-four-foreground/85"
+                            ? "text-four-foreground"
                             : runs === 6
-                              ? "text-six-foreground/85"
+                              ? "text-six-foreground"
                               : selectedExtra
                                 ? "text-extra"
                                 : "text-muted-foreground",
