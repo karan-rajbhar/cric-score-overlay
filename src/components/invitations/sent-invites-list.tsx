@@ -11,6 +11,8 @@ import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { InviteShare, inviteMessage } from "~/components/invite-share";
+import { InviteDialog } from "~/components/invite-dialog";
+import { useConfirm } from "~/components/ui/confirm-dialog";
 
 const STATUS_LABEL: Record<SentInvite["status"], string> = {
   pending: "Pending",
@@ -29,12 +31,22 @@ function InviteRow({
 }) {
   const router = useRouter();
   const [showMessage, setShowMessage] = useState(false);
-  const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [ask, confirmDialog] = useConfirm();
   const firstMatch = invite.scorer_matches[0]?.id;
 
-  const handleRevoke = () => {
+  // Asked in the shared dialog, keeping the invite by default: a double
+  // tap on Revoke used to land on "Confirm revoke" (N36).
+  const handleRevoke = async () => {
+    const ok = await ask({
+      title: `Revoke the invite to ${invite.email}?`,
+      description: "They can no longer use it to sign in. You can invite them again later.",
+      cancelLabel: "Keep invite",
+      confirmLabel: "Revoke",
+      destructive: true,
+    });
+    if (!ok) return;
     setError(null);
     startTransition(async () => {
       const res = await revokeInvite(invite.id);
@@ -42,7 +54,6 @@ function InviteRow({
         setError(res.error);
         return;
       }
-      setConfirming(false);
       setShowMessage(false);
       router.refresh();
     });
@@ -107,38 +118,17 @@ function InviteRow({
           >
             {showMessage ? "Hide message" : "Send message again"}
           </Button>
-          {confirming ? (
-            <>
-              <Button
-                type="button"
-                size="sm"
-                variant="destructive"
-                disabled={pending}
-                onClick={handleRevoke}
-              >
-                {pending ? "Revoking…" : "Confirm revoke"}
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                disabled={pending}
-                onClick={() => setConfirming(false)}
-              >
-                Keep invite
-              </Button>
-            </>
-          ) : (
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-              onClick={() => setConfirming(true)}
-            >
-              Revoke
-            </Button>
-          )}
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            disabled={pending}
+            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+            onClick={() => void handleRevoke()}
+          >
+            {pending ? "Revoking…" : "Revoke"}
+          </Button>
+          {confirmDialog}
         </div>
       )}
       {error && (
@@ -164,19 +154,26 @@ export function SentInvitesList({
   invites: SentInvite[];
   inviterName?: string;
 }) {
+  const [inviteOpen, setInviteOpen] = useState(false);
   if (invites.length === 0) {
     return (
-      <EmptyState
-        icon={MailPlus}
-        title="No invites yet"
-        description="Invite a teammate or co-scorer. They sign in with the Google account for the email you enter."
-      />
+      <>
+        <EmptyState
+          icon={MailPlus}
+          headingLevel="h2"
+          title="No invites yet"
+          description="Invite a teammate or co-scorer. They sign in with the Google account for the email you enter."
+          primaryAction={{ label: "Invite someone", onClick: () => setInviteOpen(true) }}
+        />
+        <InviteDialog open={inviteOpen} onOpenChange={setInviteOpen} />
+      </>
     );
   }
   return (
+    // The floating list card (ListCard's look), as a list (N36).
     <ul
       aria-label="Invites you sent"
-      className="divide-y divide-border rounded-xl border border-border bg-card"
+      className="divide-y divide-border overflow-hidden rounded-xl bg-card shadow-soft ring-1 ring-border/40 dark:ring-border"
     >
       {invites.map((invite) => (
         <InviteRow key={invite.id} invite={invite} inviterName={inviterName} />

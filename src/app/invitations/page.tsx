@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { createServerClient } from "~/lib/firebase/server";
 import { PageContainer, PageHeader } from "~/components/layout/page";
 import { InviteDialog } from "~/components/invite-dialog";
+import { Button } from "~/components/ui/button";
+import { UserPlus } from "lucide-react";
 import { SentInvitesList } from "~/components/invitations/sent-invites-list";
 import { listSentInvitations, SENT_INVITES_LIMIT } from "./data";
 
@@ -27,8 +29,23 @@ export default async function InvitationsPage() {
       <PageHeader
         back={{ href: "/more", label: "Back to More" }}
         title="Invites"
-        description={`People you invited to CricScore. Showing the latest ${SENT_INVITES_LIMIT}.`}
-        actions={<InviteDialog />}
+        description={
+          // The limit, only when the list reaches it (N36).
+          invites.length >= SENT_INVITES_LIMIT
+            ? `People you invited to CricScore. Showing the latest ${SENT_INVITES_LIMIT}.`
+            : "People you invited to CricScore."
+        }
+        // The page's one action: primary, 44px (N36).
+        actions={
+          <InviteDialog
+            trigger={
+              <Button>
+                <UserPlus className="h-4 w-4 shrink-0" aria-hidden="true" />
+                Invite
+              </Button>
+            }
+          />
+        }
       />
       <SentInvitesList invites={invites} inviterName={inviterName} />
     </PageContainer>

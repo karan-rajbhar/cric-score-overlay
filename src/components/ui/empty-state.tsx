@@ -18,6 +18,8 @@ interface EmptyStateProps {
   description: string;
   primaryAction?: EmptyStateAction;
   secondaryAction?: EmptyStateAction;
+  /** Its heading's level: h2 when it is the first thing under a page's h1. */
+  headingLevel?: "h2" | "h3";
   className?: string;
 }
 
@@ -27,6 +29,7 @@ export function EmptyState({
   description,
   primaryAction,
   secondaryAction,
+  headingLevel: Heading = "h3",
   className,
 }: EmptyStateProps) {
   return (
@@ -40,9 +43,9 @@ export function EmptyState({
         <Icon className="h-5 w-5" aria-hidden="true" />
       </span>
 
-      <h3 className="mb-1 text-base font-semibold text-foreground">
+      <Heading className="mb-1 text-base font-semibold text-foreground">
         {title}
-      </h3>
+      </Heading>
 
       <p className="mb-6 max-w-md text-xs leading-relaxed text-muted-foreground sm:text-sm">
         {description}
