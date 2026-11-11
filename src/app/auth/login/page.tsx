@@ -36,30 +36,15 @@ function sameSitePath(target: string): string {
 function LoginPageInner() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { signInWithGoogle, redirectError, user } = useAuth();
+  const { signInWithGoogle, redirectError, signingIn, user } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Derive OAuth errors from URL params during render (no state/effect needed)
-  const urlError = (() => {
-    const errorParam = searchParams.get("error");
-    if (!errorParam) return null;
-    switch (errorParam) {
-      case "oauth_error": {
-        const messageParam = searchParams.get("message");
-        return messageParam
-          ? decodeURIComponent(messageParam)
-          : "OAuth authentication failed. Please try again.";
-      }
-      case "session_error":
-        return "Session creation failed. Please try again.";
-      case "unexpected_error":
-        return "An unexpected error occurred. Please try again.";
-      default:
-        return "Authentication failed. Please try again.";
-    }
-  })();
-  const displayError = error ?? redirectError?.message ?? urlError;
+  // Errors come from the sign-in itself, never from the URL: any text put
+  // in a link used to show as the page's own message (N8).
+  const displayError = error ?? redirectError?.message ?? null;
+  // Popup in progress, or back from Google's page and finishing (N3).
+  const busy = googleLoading || signingIn;
 
   // Invite links carry the invited email so Google suggests that account.
   const inviteEmail = (() => {
@@ -146,14 +131,14 @@ function LoginPageInner() {
             {/* Google Sign In */}
             <Button
               onClick={handleGoogleSignIn}
-              disabled={googleLoading}
+              disabled={busy}
               variant="outline"
               className="h-11 w-full"
             >
-              {googleLoading ? (
+              {busy ? (
                 <>
                   <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-current"></div>
-                  Signing in with Google…
+                  {signingIn ? "Signing you in…" : "Signing in with Google…"}
                 </>
               ) : (
                 <>
