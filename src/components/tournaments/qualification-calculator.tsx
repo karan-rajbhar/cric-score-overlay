@@ -68,18 +68,31 @@ export function QualificationCalculator({
           ? t.qualificationStatus
           : mathStatus;
 
+      // What it needs, from the games it has left: never something it
+      // cannot do (T4: a side with none left was told it "needs 1 win").
+      const games = (n: number) => `${n} game${n === 1 ? "" : "s"}`;
+      const wins = (n: number) => `${n} win${n === 1 ? "" : "s"}`;
       let conditionText = "";
       if (effectiveStatus === "qualified") {
-        conditionText = "Top spot secured";
+        conditionText = `Top ${qualSpots} is certain.`;
       } else if (effectiveStatus === "eliminated") {
-        conditionText = "Mathematically eliminated from top spots.";
+        conditionText = `Cannot reach the top ${qualSpots}.`;
       } else {
         const cutoff =
           [...data].sort((a, b) => b.points - a.points)[qualSpots - 1]
             ?.points ?? 0;
-        const pointsNeeded = Math.max(0, cutoff - t.points);
-        const winsNeeded = Math.ceil(pointsNeeded / 2);
-        conditionText = `Needs ${winsNeeded > 0 ? `${winsNeeded} win${winsNeeded > 1 ? "s" : ""}` : "1 win"} and strong NRR to qualify.`;
+        const winsNeeded = Math.ceil(Math.max(0, cutoff - t.points) / 2);
+        const left = t.remainingMatches;
+        conditionText =
+          left === 0
+            ? t.points >= cutoff
+              ? "No games left and level on points with the cut: goes through on net run rate only."
+              : "No games left: needs others to drop points."
+            : winsNeeded === 0
+              ? `In the top ${qualSpots} now, with ${games(left)} left to stay there; net run rate may decide.`
+              : winsNeeded > left
+                ? `Cannot get there on wins alone: needs others to drop points too.`
+                : `Needs ${wins(winsNeeded)} from ${games(left)}; net run rate may decide.`;
       }
 
       return {
@@ -94,9 +107,7 @@ export function QualificationCalculator({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="text-xl">
-            Qualification & cutoff calculator
-          </DialogTitle>
+          <DialogTitle className="text-xl">Qualification calculator</DialogTitle>
           <DialogDescription>
             Qualification scenarios for{" "}
             {tournamentName}.
@@ -171,34 +182,20 @@ export function QualificationCalculator({
                   </div>
                 </div>
 
-                <div className="my-2 grid grid-cols-3 gap-2 rounded bg-muted/40 px-2.5 py-1.5 text-xs text-muted-foreground">
-                  <div>
-                    Current:{" "}
-                    <span className="font-semibold text-foreground">
-                      {team.points} pts
-                    </span>{" "}
-                    ({team.matchesPlayed} pl)
-                  </div>
-                  <div>
-                    Remaining:{" "}
-                    <span className="font-semibold text-foreground">
-                      {team.remainingMatches} gms
-                    </span>
-                  </div>
-                  <div>
-                    Max Possible:{" "}
-                    <span className="font-semibold text-primary">
-                      {team.maxPoints} pts
-                    </span>
-                  </div>
-                </div>
-
-                <p className="text-xs text-muted-foreground">
-                  <span className="font-medium text-foreground">
-                    Scenario:{" "}
-                  </span>
-                  {team.conditionText}
+                {/* Words in full (T4): "Played 2 · 2 games left · Most it
+                    can reach: 8 points". */}
+                <p className="my-2 rounded bg-muted/40 px-2.5 py-1.5 text-xs tabular-nums text-muted-foreground">
+                  <span className="font-semibold text-foreground">
+                    {team.points} points
+                  </span>{" "}
+                  · Played {team.matchesPlayed} ·{" "}
+                  {team.remainingMatches === 1
+                    ? "1 game left"
+                    : `${team.remainingMatches} games left`}{" "}
+                  · Most it can reach: {team.maxPoints} points
                 </p>
+
+                <p className="text-sm text-foreground">{team.conditionText}</p>
               </div>
             );
           })}
