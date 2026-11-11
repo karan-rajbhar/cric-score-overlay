@@ -226,7 +226,9 @@ export function WicketDialog({
     cn(
       "touch-target flex h-11 min-h-[44px] items-center justify-center rounded-xl border text-xs font-semibold transition-colors",
       selected
-        ? "border-black bg-black text-white shadow-sm dark:border-white dark:bg-white dark:text-black"
+        ? // The scoring dialogs' one selected look: tint and border (S8);
+          // black is not a colour of the design system.
+          "border-primary bg-primary/10 text-foreground"
         : "border-border/80 bg-background text-foreground hover:bg-muted",
     );
   const missing = wicketMissing(dismissalType, fielderId);

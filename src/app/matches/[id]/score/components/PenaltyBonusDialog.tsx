@@ -5,7 +5,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog";
@@ -19,7 +18,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-import { ShieldAlert, Award } from "lucide-react";
 import type { Team } from "~/lib/match-types";
 import { cn } from "~/lib/utils";
 
@@ -112,19 +110,12 @@ export function PenaltyBonusDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <form onSubmit={handleSubmit}>
+          {/* The scoring dialogs' one header: a title, one line, no icon
+              tile; and one footer, the main button full width (S8). */}
           <DialogHeader>
-            <div className="flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-destructive/10 text-destructive">
-                {awardType === "penalty" ? (
-                  <ShieldAlert className="h-4 w-4" aria-hidden="true" />
-                ) : (
-                  <Award className="h-4 w-4" aria-hidden="true" />
-                )}
-              </span>
-              <DialogTitle className="text-lg font-semibold">
-                Award penalty or bonus runs
-              </DialogTitle>
-            </div>
+            <DialogTitle className="text-lg font-semibold">
+              Award penalty or bonus runs
+            </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
               Runs to either side, recorded between balls (not a delivery).
             </DialogDescription>
@@ -143,10 +134,13 @@ export function PenaltyBonusDialog({
               >
                 <Button
                   type="button"
-                  variant={awardType === "penalty" ? "default" : "outline"}
+                  variant="outline"
                   size="sm"
                   aria-pressed={awardType === "penalty"}
-                  className="min-h-11 font-semibold"
+                  className={cn(
+                    "min-h-11 font-semibold",
+                    awardType === "penalty" && "border-primary bg-primary/10",
+                  )}
                   onClick={() => {
                     setAwardType("penalty");
                     setRuns(5);
@@ -156,10 +150,13 @@ export function PenaltyBonusDialog({
                 </Button>
                 <Button
                   type="button"
-                  variant={awardType === "bonus" ? "default" : "outline"}
+                  variant="outline"
                   size="sm"
                   aria-pressed={awardType === "bonus"}
-                  className="min-h-11 font-semibold"
+                  className={cn(
+                    "min-h-11 font-semibold",
+                    awardType === "bonus" && "border-primary bg-primary/10",
+                  )}
                   onClick={() => {
                     setAwardType("bonus");
                     setRuns(1);
@@ -235,11 +232,14 @@ export function PenaltyBonusDialog({
                     <Button
                       key={r}
                       type="button"
-                      variant={runs === r ? "default" : "outline"}
+                      variant="outline"
                       size="sm"
                       aria-pressed={runs === r}
                       onClick={() => setRuns(r)}
-                      className="h-11 min-w-11 px-2 text-xs font-semibold tabular-nums"
+                      className={cn(
+                        "h-11 min-w-11 px-2 text-xs font-semibold tabular-nums",
+                        runs === r && "border-primary bg-primary/10",
+                      )}
                     >
                       {r}
                     </Button>
@@ -284,20 +284,11 @@ export function PenaltyBonusDialog({
             )}
           </div>
 
-          <DialogFooter className="flex flex-row items-center justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              className="min-h-11"
-              onClick={() => onOpenChange(false)}
-              disabled={isProcessing}
-            >
-              Cancel
-            </Button>
+          <div className="space-y-2">
             <Button
               type="submit"
               disabled={isProcessing || !runs || !target || missingReason}
-              className="min-h-11 bg-destructive font-semibold text-destructive-foreground hover:bg-destructive"
+              className="h-12 w-full font-semibold"
             >
               {isProcessing
                 ? "Awarding…"
@@ -307,7 +298,16 @@ export function PenaltyBonusDialog({
                     ? "Choose a reason"
                     : `Award ${runsLabel} to ${target.name}`}
             </Button>
-          </DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              className="min-h-11 w-full"
+              onClick={() => onOpenChange(false)}
+              disabled={isProcessing}
+            >
+              Cancel
+            </Button>
+          </div>
         </form>
       </DialogContent>
     </Dialog>

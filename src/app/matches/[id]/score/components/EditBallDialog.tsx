@@ -223,7 +223,7 @@ const chip = (selected: boolean) =>
   cn(
     "flex min-h-11 items-center justify-center rounded-lg border px-2 text-xs font-semibold transition-colors",
     selected
-      ? "border-transparent bg-primary text-primary-foreground"
+      ? "border-primary bg-primary/10 text-foreground"
       : "border-border bg-background text-foreground hover:bg-muted",
   );
 

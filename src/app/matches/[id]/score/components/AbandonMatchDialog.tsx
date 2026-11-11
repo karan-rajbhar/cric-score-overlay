@@ -5,7 +5,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog";
@@ -19,7 +18,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-import { AlertTriangle } from "lucide-react";
 import type { Team } from "~/lib/match-types";
 
 interface AbandonMatchDialogProps {
@@ -93,15 +91,11 @@ export function AbandonMatchDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <form onSubmit={handleSubmit}>
+          {/* One header and one footer, as the other scoring dialogs (S8). */}
           <DialogHeader>
-            <div className="flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-destructive/10 text-destructive">
-                <AlertTriangle className="h-4 w-4" />
-              </span>
-              <DialogTitle className="text-lg font-semibold">
-                End the match early
-              </DialogTitle>
-            </div>
+            <DialogTitle className="text-lg font-semibold">
+              End the match early
+            </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
               Abandoned, no result, or awarded to a team (weather, light,
               a walkover).
@@ -193,22 +187,12 @@ export function AbandonMatchDialog({
             </div>
           </div>
 
-          <DialogFooter className="flex flex-row items-center justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onOpenChange(false)}
-              disabled={busy}
-            >
-              Cancel
-            </Button>
+          <div className="space-y-2">
             <Button
               type="submit"
               variant="destructive"
-              size="sm"
               disabled={busy || Boolean(missing)}
-              className="font-semibold"
+              className="h-12 w-full font-semibold"
             >
               {busy
                 ? "Saving…"
@@ -220,7 +204,16 @@ export function AbandonMatchDialog({
                     ? "End with no result"
                     : "Abandon match"}
             </Button>
-          </DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              className="min-h-11 w-full"
+              onClick={() => onOpenChange(false)}
+              disabled={busy}
+            >
+              Cancel
+            </Button>
+          </div>
         </form>
       </DialogContent>
     </Dialog>
