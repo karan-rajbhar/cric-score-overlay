@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Button } from "~/components/ui/button";
 import { AlertCircle } from "lucide-react";
 import { reportClientError } from "~/lib/report-error";
+import { BackLink } from "~/components/ds/back-link";
 
 export default function GlobalError({
   error,
@@ -31,23 +32,31 @@ export default function GlobalError({
         Something went wrong
       </h1>
 
+      {/* Never the error's own text: in production it is Next.js's
+          paragraph about Server Components, and it means nothing here (N7).
+          The message goes to the server log above. */}
       <p className="mb-6 max-w-md text-sm leading-relaxed text-muted-foreground">
-        {error.message ||
-          "An unexpected error occurred while loading this page."}
+        This page could not be shown. Try again, or go back to where you
+        were.
       </p>
-
-      {error.digest && (
-        <p className="mb-6 font-mono text-xs text-muted-foreground/60">
-          Digest: {error.digest}
-        </p>
-      )}
 
       <div className="flex flex-wrap items-center justify-center gap-3">
         <Button onClick={() => reset()}>Try again</Button>
         <Button asChild variant="outline">
-          <Link href="/dashboard">Home</Link>
+          <BackLink href="/">Back</BackLink>
+        </Button>
+        <Button asChild variant="ghost">
+          {/* "/": a signed-out visitor is not sent to the sign-in wall, and
+              a signed-in one goes on to Home from there (N20). */}
+          <Link href="/">Home</Link>
         </Button>
       </div>
+
+      {error.digest && (
+        <p className="mt-6 text-xs text-muted-foreground">
+          Error code {error.digest}
+        </p>
+      )}
     </div>
   );
 }

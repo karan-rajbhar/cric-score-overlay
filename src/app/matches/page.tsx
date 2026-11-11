@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
-import { Card } from "~/components/ds/card";
 import { Segmented } from "~/components/ds/tabs";
 import { Input } from "~/components/ui/input";
 import { MatchCard } from "~/components/matches/match-card";
@@ -13,12 +12,13 @@ import {
 } from "~/lib/hooks/useMatchQueries";
 import { MatchCardSkeleton } from "~/components/ui/skeleton";
 import { EmptyState } from "~/components/ui/empty-state";
+import { CouldNotLoad } from "~/components/ui/could-not-load";
 import {
   PageContainer,
   PageHeader,
   SectionHeader,
 } from "~/components/layout/page";
-import { Plus, Search, Radio, RotateCcw } from "lucide-react";
+import { Plus, Search, Radio } from "lucide-react";
 import { useAuth } from "~/lib/auth";
 import type { Match } from "~/lib/match-types";
 import { matchGroupsOf } from "~/lib/match-groups";
@@ -155,19 +155,7 @@ export default function MatchesPage() {
             <MatchCardSkeleton />
           </div>
         ) : error ? (
-          <Card className="mx-auto max-w-md space-y-4 p-6 text-center">
-            <div className="space-y-4">
-              <p className="text-sm font-medium text-destructive">{error}</p>
-              <Button
-                size="sm"
-                onClick={() => void refetch()}
-                className="gap-2"
-              >
-                <RotateCcw className="h-3.5 w-3.5 shrink-0" />
-                Try again
-              </Button>
-            </div>
-          </Card>
+          <CouldNotLoad what="matches" onRetry={() => void refetch()} />
         ) : filteredMatches.length === 0 ? (
           <EmptyState
             icon={Radio}

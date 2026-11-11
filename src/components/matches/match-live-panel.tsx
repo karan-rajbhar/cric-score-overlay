@@ -201,18 +201,21 @@ export function MatchLivePanel({ match }: { match: Match }) {
             strikerName={striker}
             bowler={bowler}
           />
-          <div className="border-t border-border px-4 py-3">
-            {thisOver.length > 0 ? (
+          {/* Only what is known: "yet to start" when the live doc says so,
+              or the innings stands on a whole over; nothing while it has
+              not arrived (M18). */}
+          {thisOver.length > 0 ? (
+            <div className="border-t border-border px-4 py-3">
               <OverStrip
                 balls={thisOver}
                 total={live?.this_over_runs ?? undefined}
               />
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                This over: yet to start
-              </p>
-            )}
-          </div>
+            </div>
+          ) : live && balls % bpo === 0 ? (
+            <p className="border-t border-border px-4 py-3 text-xs text-muted-foreground">
+              This over: yet to start
+            </p>
+          ) : null}
           {lastBall && (
             <p className="border-t border-border px-4 py-3 text-xs text-muted-foreground">
               {lastBall}

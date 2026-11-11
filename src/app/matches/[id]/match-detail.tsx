@@ -35,6 +35,7 @@ import { MatchHero, scoreLineSides } from "~/components/matches/match-hero";
 import { ContentSheet, ScreenBar, TopStrip } from "~/components/ds/screen";
 import MatchDetailLoading from "./loading";
 import { EmptyState } from "~/components/ui/empty-state";
+import { CouldNotLoad } from "~/components/ui/could-not-load";
 import { ChevronLeft, Play, AlertCircle } from "lucide-react";
 import { MatchShareMenu } from "~/components/matches/match-share-menu";
 import { ShareMatchButton } from "~/components/matches/share-match-button";
@@ -330,27 +331,33 @@ function MatchDetailsPageContent() {
     return <MatchDetailLoading />;
   }
 
+  // Gone while open (deleted), or a read that failed: never the database's
+  // own words, and Try again only where it can help (N6).
+  const gone =
+    !error || (matchQueryError as { code?: string } | null)?.code === "PGRST116";
   if (error || !match) {
     return (
       <div className="container mx-auto flex min-h-[60vh] max-w-lg items-center justify-center px-4 py-12">
-        <EmptyState
-          icon={AlertCircle}
-          title={error ? "Couldn't load match" : "Match not found"}
-          description={
-            error ||
-            "This match could not be found or may have been removed from the tournament schedule."
-          }
-          primaryAction={{
-            label: "Back to matches",
-            href: "/matches",
-            icon: ChevronLeft,
-          }}
-          secondaryAction={{
-            label: "Try again",
-            onClick: () => refetchMatch(),
-          }}
-          className="w-full"
-        />
+        <h1 className="sr-only">{gone ? "Match not found" : "Could not load match"}</h1>
+        {gone ? (
+          <EmptyState
+            icon={AlertCircle}
+            title="This match is not here"
+            description="It may have been deleted, or the link is not complete."
+            primaryAction={{
+              label: "All matches",
+              href: "/matches",
+              icon: ChevronLeft,
+            }}
+            className="w-full"
+          />
+        ) : (
+          <CouldNotLoad
+            what="this match"
+            onRetry={refetchMatch}
+            className="w-full"
+          />
+        )}
       </div>
     );
   }

@@ -1,5 +1,6 @@
 "use client";
 
+import { CouldNotLoad } from "~/components/ui/could-not-load";
 import { matchFormatLabel } from "~/lib/cricket";
 import { cn } from "~/lib/utils";
 import { useSyncExternalStore } from "react";
@@ -92,14 +93,24 @@ function UpcomingGroups({ matches }: { matches: Match[] }) {
 export default function Dashboard() {
   const { user } = useAuth();
   const greeting = useGreeting();
-  const { data: liveData, isLoading: liveLoading } = useMatchesQuery({
+  const {
+    data: liveData,
+    isLoading: liveLoading,
+    isError: liveFailed,
+    refetch: refetchLive,
+  } = useMatchesQuery({
     status: "live",
   });
   const { data: upcomingData } = useMatchesQuery({
     status: "scheduled",
     limit: 6,
   });
-  const { data: recentData, isLoading: recentLoading } = useMatchesQuery({
+  const {
+    data: recentData,
+    isLoading: recentLoading,
+    isError: recentFailed,
+    refetch: refetchRecent,
+  } = useMatchesQuery({
     status: "completed",
     limit: 6,
   });
@@ -166,6 +177,9 @@ export default function Dashboard() {
       <section aria-label="Live matches">
         {liveLoading && liveMatches.length === 0 ? (
           <div className={`${cardSurface} h-72 animate-pulse`} />
+        ) : liveFailed && liveMatches.length === 0 ? (
+          // A failed read is not "no live matches" (/design#spec-could-not-load).
+          <CouldNotLoad what="live matches" onRetry={() => void refetchLive()} />
         ) : liveMatches.length > 0 ? (
           <Carousel label="Live matches" gridFromMd>
             {liveMatches.map((m) => (
@@ -218,6 +232,8 @@ export default function Dashboard() {
             <MatchCardSkeleton />
             <MatchCardSkeleton />
           </div>
+        ) : recentFailed && recentMatches.length === 0 ? (
+          <CouldNotLoad what="results" onRetry={() => void refetchRecent()} />
         ) : recentMatches.length > 0 ? (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {recentMatches.map((match) => (

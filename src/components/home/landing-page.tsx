@@ -1,5 +1,6 @@
 "use client";
 
+import { CouldNotLoad } from "~/components/ui/could-not-load";
 import Link from "next/link";
 import { useAuth } from "~/lib/auth";
 import { Button } from "~/components/ui/button";
@@ -32,7 +33,12 @@ const FEATURES = [
 /** The signed-out home: what CricScore is, and who is playing now. */
 export function LandingPage() {
   const { user, loading } = useAuth();
-  const { data: liveData, isLoading: liveLoading } = useMatchesQuery({
+  const {
+    data: liveData,
+    isLoading: liveLoading,
+    isError: liveFailed,
+    refetch: refetchLive,
+  } = useMatchesQuery({
     status: "live",
     limit: 6,
   });
@@ -114,6 +120,8 @@ export function LandingPage() {
             <MatchCardSkeleton />
             <MatchCardSkeleton />
           </div>
+        ) : liveFailed && liveMatches.length === 0 ? (
+          <CouldNotLoad what="live matches" onRetry={() => void refetchLive()} />
         ) : liveMatches.length > 0 ? (
           // Phones: swipe through the live matches; tablets up: a grid.
           <Carousel label="Live matches" gridFromMd>

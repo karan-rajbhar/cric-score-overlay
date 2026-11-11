@@ -37,6 +37,26 @@ function toDoc(id: string, data: DocumentData | undefined): Doc {
   return { ...(data ?? {}), id };
 }
 
+/**
+ * An empty answer from the device's cache: the server was not reached
+ * (offline, blocked), so "nothing" is not known. Thrown, so lists show
+ * "Could not load" rather than an empty state that reads as "none" (a
+ * scorer at the ground was told their live match did not exist).
+ */
+export class UnreachableError extends Error {
+  readonly code = "unavailable";
+  constructor() {
+    super("Could not reach the server");
+  }
+}
+
+function serverAnswered(snap: {
+  empty: boolean;
+  metadata: { fromCache: boolean };
+}): void {
+  if (snap.empty && snap.metadata.fromCache) throw new UnreachableError();
+}
+
 export class WebDataSource implements DataSource {
   readonly kind = "web" as const;
 
@@ -55,6 +75,7 @@ export class WebDataSource implements DataSource {
       const snap = await getDocs(
         query(collection(this.db, table), where(documentId(), "in", group)),
       );
+      serverAnswered(snap);
       for (const d of snap.docs) out.push(toDoc(d.id, d.data()));
     }
     return out;
@@ -83,6 +104,7 @@ export class WebDataSource implements DataSource {
     const snap = await getDocs(
       query(collection(this.db, table), ...constraints),
     );
+    serverAnswered(snap);
     return snap.docs.map((d) => toDoc(d.id, d.data()));
   }
 
