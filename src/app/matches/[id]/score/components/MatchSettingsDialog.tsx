@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-import { Sliders, ShieldAlert } from "lucide-react";
+import { ShieldAlert } from "lucide-react";
 import { ClubSideChoice } from "~/components/matches/club-side-choice";
 import type { ClubSide } from "~/lib/firebase/types";
 import type { Match } from "~/lib/match-types";
@@ -140,17 +140,11 @@ function MatchSettingsForm({
   return (
     <form onSubmit={handleSubmit}>
       <DialogHeader>
-        <div className="flex items-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary">
-            <Sliders className="h-4 w-4" />
-          </span>
-          <DialogTitle className="text-lg font-semibold">
-            Match settings & rules
-          </DialogTitle>
-        </div>
+        {/* One name, as in Match tools, plain words, no icon tile (S8, S9). */}
+        <DialogTitle className="text-lg font-semibold">Match settings</DialogTitle>
         <DialogDescription className="text-xs text-muted-foreground">
-          Adjust match format, total overs (e.g. rain reduction), target
-          runs, and special Stumps-grade rules mid-game.
+          The format, overs and target, and the rules this match plays to.
+          You can change them during the match.
         </DialogDescription>
       </DialogHeader>
 
@@ -182,7 +176,7 @@ function MatchSettingsForm({
               <SelectItem value="T10">T10</SelectItem>
               <SelectItem value="ODI">One day (ODI)</SelectItem>
               <SelectItem value="Custom">
-                Custom / Tape-Ball / The Hundred
+                Custom
               </SelectItem>
             </SelectContent>
           </Select>
@@ -236,7 +230,7 @@ function MatchSettingsForm({
               Balls per over
             </Label>
             <span className="text-xs text-muted-foreground">
-              Standard: 6 (The Hundred: 5, Box: 4/8)
+              Usually 6
             </span>
           </div>
           <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center">
@@ -270,7 +264,7 @@ function MatchSettingsForm({
         {/* Max Balls Per Over (with Extras) */}
         <div className="space-y-1.5">
           <Label htmlFor="max-balls-per-over" className="text-sm font-medium">
-            Max balls per over (inclusive of extras)
+            Most balls in an over
           </Label>
           <Select
             value={maxBallsPerOver}
@@ -280,15 +274,16 @@ function MatchSettingsForm({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="unlimited">Unlimited (standard MCC)</SelectItem>
-              <SelectItem value="6">Max 6 balls (junior / strict)</SelectItem>
-              <SelectItem value="8">Max 8 balls (ECB junior / tape-ball)</SelectItem>
-              <SelectItem value="10">Max 10 balls (indoor / box)</SelectItem>
-              <SelectItem value="12">Max 12 balls</SelectItem>
+              <SelectItem value="unlimited">No limit</SelectItem>
+              <SelectItem value="6">6 balls</SelectItem>
+              <SelectItem value="8">8 balls</SelectItem>
+              <SelectItem value="10">10 balls</SelectItem>
+              <SelectItem value="12">12 balls</SelectItem>
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">
-            Overs conclude automatically once this delivery count is reached to prevent dragged overs.
+            End an over after this many balls, wides and no-balls included.
+            Junior and indoor games often set one.
           </p>
         </div>
 
@@ -300,7 +295,7 @@ function MatchSettingsForm({
                 Target runs
               </Label>
               <span className="text-xs text-muted-foreground">
-                (Rain / DLS revised target)
+                (after rain or DLS)
               </span>
             </div>
             <Input
@@ -329,14 +324,14 @@ function MatchSettingsForm({
             onChange={(e) => setWicketsPerInnings(Number(e.target.value))}
           />
           <p className="text-xs text-muted-foreground">
-            Standard is 10 wickets. Set fewer for box/corporate cricket.
+            Usually 10. Fewer for short or indoor games.
           </p>
         </div>
 
         {/* Custom Extras Crediting Rules */}
         <div className="space-y-3 rounded-2xl border border-border/80 bg-muted/30 p-3.5">
           <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-            <span>Local / box cricket extras</span>
+            <span>Extras and balls faced</span>
           </div>
 
           <div className="flex items-center justify-between gap-2">
@@ -425,7 +420,7 @@ function MatchSettingsForm({
           </div>
         </div>
 
-        {/* Special Stumps Rules Options */}
+        {/* Special rules */}
         <div className="space-y-3 rounded-2xl border border-border/80 bg-muted/30 p-3.5">
           <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
             <span>Special rules</span>
@@ -440,7 +435,7 @@ function MatchSettingsForm({
                 Last man stands
               </Label>
               <p className="text-xs text-muted-foreground">
-                Allow the 11th or sole remaining batter to bat alone.
+                The last batter can bat on alone.
               </p>
             </div>
             <input
@@ -461,7 +456,7 @@ function MatchSettingsForm({
                 Golden ball
               </Label>
               <p className="text-xs text-muted-foreground">
-                Enable sudden death / golden ball rule for tied scores.
+                A tied match is decided by a golden ball.
               </p>
             </div>
             <input
@@ -522,7 +517,7 @@ function MatchSettingsForm({
                   Abandon match
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Halt and abandon fixture due to weather, light, or forfeiture.
+                  Stop the match for weather or bad light, or award it.
                 </p>
               </div>
               <Button
