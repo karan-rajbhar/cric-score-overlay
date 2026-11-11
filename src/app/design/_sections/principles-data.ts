@@ -101,6 +101,26 @@ export const PRINCIPLE_GROUPS: readonly PrincipleGroup[] = [
         evidence: "learned",
         appliedIn: "MatchMoreMenu",
       },
+      {
+        title: "A form is a task",
+        rule: "Create and edit screens hide the tab bar, show one way out and keep the submit button in reach.",
+        why: "The match wizard stacked its Start bar on the tab bar, which left half a phone screen for the form, and less with the keyboard up.",
+        evidence: "learned",
+      },
+      {
+        title: "The lit tab follows the trail",
+        rule: "A detail page lights the section its own trail starts from, on the tab bar and the sidebar alike.",
+        why: "Going from a club to one of its teams moved the lit tab to More while Back still led to the club.",
+        evidence: "learned",
+        appliedIn: "navSectionOf",
+      },
+      {
+        title: "Phone actions open the sheet",
+        rule: "On a phone a screen's extra actions open the actions sheet, with 44 px rows. Dropdown menus are for a mouse.",
+        why: "The match page and the scoring screen kept desktop dropdowns with 32 px rows, 18 of them on the scoring screen.",
+        evidence: "learned",
+        appliedIn: "ActionsSheet",
+      },
     ],
   },
   {
@@ -183,6 +203,124 @@ export const PRINCIPLE_GROUPS: readonly PrincipleGroup[] = [
         rule: "Confirm a second person of exactly the same name, or an irreversible merge. Do not stop routine scoring.",
         why: "A duplicate splits a player's statistics, and a merge cannot be undone.",
         evidence: "learned",
+      },
+      {
+        title: "In both squads is not out",
+        rule: "A squad is a standing list. Rule someone out of a side only once they have batted or bowled for the other in this match, and say so on their row.",
+        why: "Seven players in both squads vanished from the fielding side, which was left four names to bowl and to catch.",
+        evidence: "learned",
+      },
+    ],
+  },
+  {
+    title: "States and feedback",
+    principles: [
+      {
+        title: "Could not load is not empty",
+        rule: "When a read fails, say so where the list would be and offer Try again. The empty state is for a read that worked and found nothing.",
+        why: "With the database out of reach, Home said No live matches right now and offered New match.",
+        evidence: "learned",
+      },
+      {
+        title: "A notice never covers the score or the way back",
+        rule: "Toasts sit clear of the top bar and the scoreboard. A state that lasts, such as offline or unsent, is a line on the screen, not a toast.",
+        why: "Toasts covered the back button for four seconds, and the offline toast covered who was on strike.",
+        evidence: "learned",
+      },
+      {
+        title: "An error sits on the field that caused it",
+        rule: "A mistake in a field shows under that field and takes focus. Only what is not about a field goes above the button. Toasts confirm; they do not report mistakes.",
+        why: "One form used the browser's bubble, a red box a screen away from the field, and a toast.",
+        evidence: "learned",
+        appliedIn: "Field",
+      },
+      {
+        title: "Nothing that goes on the record is chosen for you",
+        rule: "A dialog that records a decision opens with nothing selected, and its button says what is still missing.",
+        why: "The toss opened on Bat, and the penalty and abandonment dialogs on a reason nobody had picked.",
+        evidence: "learned",
+      },
+      {
+        title: "The saved theme paints first",
+        rule: "Apply the stored theme before the first paint, and show the same choice in the switch.",
+        why: "A saved dark theme flashed light on every load, and the switch showed Light on a dark page.",
+        evidence: "learned",
+      },
+    ],
+  },
+  {
+    title: "Touch and reading",
+    principles: [
+      {
+        title: "44 px to tap",
+        rule: "On phones and tablets every control is at least 44 px on its smaller side, and a row is the target, not the text in it. Nothing is under 24 px, least of all a delete.",
+        why: "Squad names were 20 px links, menu rows 32 px, and a season's delete button 24 px inside a chip. Apple asks for 44 pt, WCAG 2.5.8 for 24 px at least.",
+        evidence: "guideline",
+      },
+      {
+        title: "12 px to read",
+        rule: "No text under 12 px. On the scoring screen, 14 px for anything that says what a tap will record.",
+        why: "The scoreboard used 10 px and the keys 9 px, on the screen read outdoors at arm's length.",
+        evidence: "learned",
+      },
+      {
+        title: "Keys stay where they are",
+        rule: "Arming an extra, undoing a ball or losing the connection changes one fixed row above the keypad. The keys never move or shrink.",
+        why: "Wide moved every key down 45 px and No ball 100 px, just before the tap that records the runs.",
+        evidence: "learned",
+      },
+      {
+        title: "The scoring screen fits the screen it is on",
+        rule: "Size the scoring column to the visible height and check it at 360 by 640 with an extra armed.",
+        why: "It needed 730 px, so Wicket and Undo were below the fold on small phones and inside browser tabs.",
+        evidence: "learned",
+      },
+      {
+        title: "A name is the last thing to be cut",
+        rule: "When a row or a bar runs out of room, wrap or move its chips and actions before the name is truncated.",
+        why: "A club's member list showed A…, Ry… and Da… beside Make admin and Remove, and a long match title ran under its own buttons.",
+        evidence: "learned",
+      },
+      {
+        title: "One date, one way to write it",
+        rule: "Day, then the month as a word, from one helper. The year shows when it is not this year.",
+        why: "The same app showed Sat 10 Aug, Jul 20, 2024, 1/6/2024 and 2024-07-15.",
+        evidence: "learned",
+      },
+      {
+        title: "Small text on a tint passes 4.5 to 1",
+        rule: "Check chip and key labels against their own tint, in light mode as well as dark.",
+        why: "Won, Ongoing and the wide and no-ball chips measured 4.1 to 4.4 to 1 in light mode. WCAG AA asks for 4.5.",
+        evidence: "guideline",
+      },
+    ],
+  },
+  {
+    title: "Accessibility",
+    principles: [
+      {
+        title: "One h1, and no level skipped",
+        rule: "Every page has one h1 that names it. Sections are h2, cards inside them h3.",
+        why: "Home and three create pages had no h1, and the match page went from h1 straight to h4.",
+        evidence: "guideline",
+      },
+      {
+        title: "A way past the navigation",
+        rule: "A skip link comes first, each nav has a name, and a page has one main.",
+        why: "Thirteen tab stops came before the content on every page, and the scoring screen had a main inside a main.",
+        evidence: "guideline",
+      },
+      {
+        title: "The spoken name starts with what is shown",
+        rule: "An aria-label begins with the visible text, then adds detail.",
+        why: "Voice control could not tap Dot or a match card, because their labels used other words (WCAG 2.5.3).",
+        evidence: "guideline",
+      },
+      {
+        title: "Every control and column has a name",
+        rule: "Icon buttons, selects and table headers get a label, hidden if need be.",
+        why: "Two filters on the match Stats tab were announced as combo box and nothing more.",
+        evidence: "guideline",
       },
     ],
   },
@@ -279,6 +417,19 @@ export const SOURCES: readonly Source[] = [
     label: "WCAG failure F110: a sticky header covering the focused element",
     href: "https://www.w3.org/WAI/WCAG22/Techniques/failures/F110.html",
     note: "Why what is pinned stays thin.",
+  },
+  {
+    label: "WCAG 2.2: Target size (minimum), 2.5.8",
+    href: "https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html",
+    note: "24 px is the floor; 44 px is Apple's and this app's working size.",
+  },
+  {
+    label: "WCAG 2.2: Label in name, 2.5.3",
+    href: "https://www.w3.org/WAI/WCAG22/Understanding/label-in-name.html",
+  },
+  {
+    label: "WCAG 2.2: Contrast (minimum), 1.4.3",
+    href: "https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html",
   },
   {
     label: "SaaSFrame: Combobox patterns",

@@ -39,6 +39,7 @@ describe("/design", () => {
       "Cricket",
       "Screens",
       "Detail pages",
+      "States and edge cases",
     ]) {
       expect(
         screen.getByRole("heading", { level: 2, name }),

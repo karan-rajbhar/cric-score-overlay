@@ -7,6 +7,7 @@ import { ContentSection, FeedbackSection } from "./_sections/content";
 import { CricketSection } from "./_sections/cricket";
 import { DetailPagesSection } from "./_sections/detail-pages";
 import { ScreensSection } from "./_sections/screens";
+import { StatesSection } from "./_sections/states";
 
 const SECTIONS = [
   ["principles", "Principles"],
@@ -17,6 +18,7 @@ const SECTIONS = [
   ["cricket", "Cricket"],
   ["screens", "Screens"],
   ["detail-pages", "Detail pages"],
+  ["states", "States"],
 ] as const;
 
 export default function DesignSystemPage() {
@@ -64,6 +66,7 @@ export default function DesignSystemPage() {
       <CricketSection />
       <ScreensSection />
       <DetailPagesSection />
+      <StatesSection />
     </PageContainer>
   );
 }
