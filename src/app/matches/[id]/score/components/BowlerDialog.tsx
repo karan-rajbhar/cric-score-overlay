@@ -16,7 +16,7 @@ import {
   PlayerPicker,
   type PickerAddPlayer,
 } from "./PlayerPicker";
-import { buildBowlerRows } from "./player-rows";
+import { buildBowlerRows, type SideRules } from "./player-rows";
 import { RoleBand } from "./RoleBand";
 
 /** Why a bowler changes once the over has balls in it. */
@@ -55,6 +55,11 @@ interface BowlerDialogProps {
   onCreatePlayer?: PickerAddPlayer["onAdd"];
   /** Set while adding is impossible (e.g. offline). */
   addPlayerDisabledReason?: string | null;
+  /**
+   * Who may play for this side today: a player who played for the other
+   * side is listed disabled with the reason; one in both squads is noted.
+   */
+  side?: SideRules;
 }
 
 export function BowlerDialog({
@@ -76,10 +81,12 @@ export function BowlerDialog({
   isProcessing,
   onCreatePlayer,
   addPlayerDisabledReason,
+  side,
 }: BowlerDialogProps) {
   const { rows } = useMemo(
     () =>
       buildBowlerRows({
+        side,
         players: bowlingTeamPlayers,
         performances: bowlingPerformances,
         excludeIds: battingTeamPlayerIds,
@@ -97,6 +104,7 @@ export function BowlerDialog({
       currentBowlerId,
       lastOverBowlerId,
       oversPerInnings,
+      side,
     ],
   );
 

@@ -12,7 +12,7 @@ import {
 import { AlertTriangle } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { PlayerPicker, type PickerAddPlayer } from "./PlayerPicker";
-import { buildFielderRows } from "./player-rows";
+import { buildFielderRows, type SideRules } from "./player-rows";
 
 export const ALL_DISMISSAL_TYPES = [
   {
@@ -149,6 +149,8 @@ interface WicketDialogProps {
   onConfirm: () => void;
   isProcessing: boolean;
   isFreeHit?: boolean;
+  /** Who may field for this side today (see `SideRules`). */
+  side?: SideRules;
 }
 
 export function WicketDialog({
@@ -177,6 +179,7 @@ export function WicketDialog({
   onConfirm,
   isProcessing,
   isFreeHit = false,
+  side,
 }: WicketDialogProps) {
   // The dismissals the armed extra (or a free hit) allows.
   const availableDismissals = ALL_DISMISSAL_TYPES.filter((d) => {
@@ -249,8 +252,9 @@ export function WicketDialog({
         players: bowlingTeamPlayers,
         bowlerId,
         keeperFirst: dismissalType === "stumped",
+        side,
       }),
-    [bowlingTeamPlayers, bowlerId, dismissalType],
+    [bowlingTeamPlayers, bowlerId, dismissalType, side],
   );
 
   return (

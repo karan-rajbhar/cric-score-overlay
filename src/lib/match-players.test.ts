@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { makeMatch } from "~/test/factories";
-import { matchParts, partFigures, partInWords } from "./match-players";
+import {
+  matchParts,
+  partFigures,
+  partInWords,
+  playedForTeams,
+  sideRuleOf,
+} from "./match-players";
 
 const match = makeMatch({
   team1_id: "t1",
@@ -57,5 +63,24 @@ describe("match parts", () => {
     expect(partFigures(parts[1]!)).toBe("10* (8)");
     expect(partFigures(parts[3]!)).toBe("1 ct");
     expect(partInWords(parts[3]!)).toBe("1 catch");
+  });
+});
+
+describe("which side a player may play for", () => {
+  it("knows the side each player has batted, bowled or fielded for", () => {
+    const sides = playedForTeams(match);
+    expect(sides.get("l1")).toBe("t1");
+    expect(sides.get("t9")).toBe("t2");
+    expect(sides.get("t8")).toBe("t2");
+    expect(sides.has("nobody")).toBe(false);
+  });
+
+  it("rules a player out of a side only once they played for the other", () => {
+    const forTigers = sideRuleOf(match, "t2");
+    expect(forTigers("l1")).toBe("Played for Lions");
+    // In both squads, no part yet: either side may use them.
+    expect(forTigers("fresh")).toBeNull();
+    expect(forTigers("t9")).toBeNull();
+    expect(sideRuleOf(match, "t1")("t8")).toBe("Played for Tigers");
   });
 });

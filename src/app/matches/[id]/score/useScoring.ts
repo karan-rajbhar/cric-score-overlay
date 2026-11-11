@@ -1,5 +1,6 @@
 "use client";
 
+import { sideRuleOf } from "~/lib/match-players";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getMatch, getTeamPlayers, getScoringState } from "../../queries";
 import { startMatch } from "../../mutations";
@@ -609,7 +610,8 @@ export function useScoring(
 
       // The squads as the server has them now: a player removed in the
       // Squads dialog leaves the lists (nothing held here is merged back).
-      const battingUserIds = new Set(fetchedBatting.map((p) => p.user_id));
+      // Someone in both squads stays in both: they belong to the side they
+      // first bat or bowl for (`sideRuleOf`), not to whichever loaded first.
       const updatedBatting = Array.from(
         new Map(fetchedBatting.map((p) => [p.user_id, p])).values(),
       );
@@ -617,11 +619,7 @@ export function useScoring(
       setBattingTeamPlayers(updatedBatting);
 
       const updatedBowling = Array.from(
-        new Map(
-          fetchedBowling
-            .filter((p) => !battingUserIds.has(p.user_id))
-            .map((p) => [p.user_id, p]),
-        ).values(),
+        new Map(fetchedBowling.map((p) => [p.user_id, p])).values(),
       );
       playersRef.current.bowling = updatedBowling;
       setBowlingTeamPlayers(updatedBowling);
@@ -2683,9 +2681,20 @@ export function useScoring(
       toast.error(err);
       return { error: err };
     }
-    const bowlingPlayerIds = new Set(bowlingTeamPlayers.map((p) => p.user_id));
-    if (bowlingPlayerIds.has(sId) || bowlingPlayerIds.has(nsId)) {
+    const fieldingOnly = (id: string) =>
+      bowlingTeamPlayers.some((p) => p.user_id === id) &&
+      !battingTeamPlayers.some((p) => p.user_id === id);
+    const battingTeamId = match ? resolveSquadTeamIds(match).batting : null;
+    const battingRule =
+      match && battingTeamId ? sideRuleOf(match, battingTeamId) : null;
+    if (fieldingOnly(sId) || fieldingOnly(nsId)) {
       const err = "A player of the bowling side cannot bat";
+      toast.error(err);
+      return { error: err };
+    }
+    const against = battingRule?.(sId) ?? battingRule?.(nsId);
+    if (against) {
+      const err = `${against} in this match, so cannot bat for this side`;
       toast.error(err);
       return { error: err };
     }
@@ -2804,9 +2813,18 @@ export function useScoring(
       toast.error(err);
       return { error: err };
     }
-    const battingPlayerIds = new Set(battingTeamPlayers.map((p) => p.user_id));
-    if (battingPlayerIds.has(bowlerId)) {
-      const err = "Cannot select a batting team player as bowler";
+    // As the engine: not someone in the batting squad alone, and (here)
+    // not someone who has played for the batting side in this match.
+    const battingOnly =
+      battingTeamPlayers.some((p) => p.user_id === bowlerId) &&
+      !bowlingTeamPlayers.some((p) => p.user_id === bowlerId);
+    const bowlingTeamId = match ? resolveSquadTeamIds(match).bowling : null;
+    const playedForBatting =
+      match && bowlingTeamId ? sideRuleOf(match, bowlingTeamId)(bowlerId) : null;
+    if (battingOnly || playedForBatting) {
+      const err = playedForBatting
+        ? `${playedForBatting} in this match, so cannot bowl for this side`
+        : "Cannot select a batting team player as bowler";
       toast.error(err);
       return { error: err };
     }

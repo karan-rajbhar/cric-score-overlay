@@ -17,7 +17,7 @@ import type {
   TeamPlayer,
 } from "~/lib/match-types";
 import { PlayerPicker, type PickerAddPlayer } from "./PlayerPicker";
-import { buildBatterRows } from "./player-rows";
+import { buildBatterRows, type SideRules } from "./player-rows";
 import { RoleBand } from "./RoleBand";
 
 type Slot = "striker" | "nonStriker";
@@ -75,6 +75,11 @@ interface BatsmenDialogProps {
     fromId: string,
     toId: string,
   ) => Promise<{ error: string | null }>;
+  /**
+   * Who may play for this side today: a player who played for the other
+   * side is listed disabled with the reason; one in both squads is noted.
+   */
+  side?: SideRules;
 }
 
 /**
@@ -130,6 +135,7 @@ export function BatsmenDialog({
   onEndInnings,
   onRetire,
   onReplace,
+  side,
 }: BatsmenDialogProps) {
   /** The not-out batter after a wicket (their end is not to be replaced). */
   const survivor =
@@ -150,6 +156,7 @@ export function BatsmenDialog({
   const { rows } = useMemo(
     () =>
       buildBatterRows({
+        side,
         players: battingTeamPlayers,
         performances: battingPerformances,
         dismissedIds: dismissedPlayerIds,
@@ -163,6 +170,7 @@ export function BatsmenDialog({
       battingPerformances,
       dismissedPlayerIds,
       bowlingTeamPlayerIds,
+      side,
       currentBowlerId,
       strikerId,
       nonStrikerId,

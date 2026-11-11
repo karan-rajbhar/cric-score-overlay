@@ -227,7 +227,8 @@ import {
   matchFormatName,
 } from "~/lib/cricket";
 import { useMatchShare } from "~/components/matches/use-match-share";
-import { matchParts } from "~/lib/match-players";
+import { matchParts, sideRuleOf } from "~/lib/match-players";
+import type { SideRules } from "./components/player-rows";
 import { lookUpPlayers } from "~/lib/player-lookup";
 import { PlayerDescribeContext } from "~/components/players/recent-players";
 import type { FoundPlayer, PlayerSearchResult } from "~/lib/player-search";
@@ -588,6 +589,44 @@ function useScoringScreen() {
     () => new Map(match ? matchParts(match).map((p) => [p.id, p.teamName]) : []),
     [match],
   );
+
+  // Players in both squads stay in both lists: each side's pickers rule out
+  // only who played for the other side in this match, and say why (S1).
+  // The dialogs' own "other side" sets hold those in the other squad alone.
+  const battingOnlyIds = useMemo(
+    () =>
+      new Set(
+        [...battingTeamPlayerIds].filter((id) => !bowlingTeamPlayerIds.has(id)),
+      ),
+    [battingTeamPlayerIds, bowlingTeamPlayerIds],
+  );
+  const bowlingOnlyIds = useMemo(
+    () =>
+      new Set(
+        [...bowlingTeamPlayerIds].filter((id) => !battingTeamPlayerIds.has(id)),
+      ),
+    [battingTeamPlayerIds, bowlingTeamPlayerIds],
+  );
+  const battingSide = useMemo<SideRules>(() => {
+    const inBoth = [...battingTeamPlayerIds].filter((id) =>
+      bowlingTeamPlayerIds.has(id),
+    );
+    return {
+      unavailable:
+        match && battingTeam ? sideRuleOf(match, battingTeam.id) : undefined,
+      alsoIn: new Map(inBoth.map((id) => [id, bowlingTeam?.name ?? "the other"])),
+    };
+  }, [match, battingTeam, bowlingTeam, battingTeamPlayerIds, bowlingTeamPlayerIds]);
+  const fieldingSide = useMemo<SideRules>(() => {
+    const inBoth = [...bowlingTeamPlayerIds].filter((id) =>
+      battingTeamPlayerIds.has(id),
+    );
+    return {
+      unavailable:
+        match && bowlingTeam ? sideRuleOf(match, bowlingTeam.id) : undefined,
+      alsoIn: new Map(inBoth.map((id) => [id, battingTeam?.name ?? "the other"])),
+    };
+  }, [match, battingTeam, bowlingTeam, battingTeamPlayerIds, bowlingTeamPlayerIds]);
 
   // Registered players for the pickers' "Add", so the scorer adds the
   // profile that exists instead of a second one. Each says which of this
@@ -1182,6 +1221,10 @@ function useScoringScreen() {
     bowlingSpells,
     bowlingTeam,
     bowlingTeamPlayerIds,
+    battingOnlyIds,
+    bowlingOnlyIds,
+    battingSide,
+    fieldingSide,
     bowlingTeamPlayers,
     canDeleteMatch,
     createPickedPlayer,
@@ -2771,6 +2814,10 @@ function ScoringDialogs({ s }: { s: LoadedScreen }) {
     battingTeam,
     currentInnings,
     bowlingTeamPlayerIds,
+    battingOnlyIds,
+    bowlingOnlyIds,
+    battingSide,
+    fieldingSide,
     currentBowlerId,
     strikerId,
     nonStrikerId,
@@ -2898,7 +2945,8 @@ function ScoringDialogs({ s }: { s: LoadedScreen }) {
         battingTeamName={battingTeam?.name}
         battingPerformances={currentInnings?.batting_performances}
         partnerships={currentInnings?.partnerships}
-        bowlingTeamPlayerIds={bowlingTeamPlayerIds}
+        bowlingTeamPlayerIds={bowlingOnlyIds}
+        side={battingSide}
         currentBowlerId={currentBowlerId}
         strikerId={strikerId}
         nonStrikerId={nonStrikerId}
@@ -2974,7 +3022,8 @@ function ScoringDialogs({ s }: { s: LoadedScreen }) {
         lastOverBowlerId={lastOverBowlerId}
         strikerId={strikerId}
         nonStrikerId={nonStrikerId}
-        battingTeamPlayerIds={battingTeamPlayerIds}
+        battingTeamPlayerIds={battingOnlyIds}
+        side={fieldingSide}
         overBowling={overBowlingOf(rawDeliveries, match.current_over ?? 0)}
         overNumber={(match.current_over ?? 0) + 1}
         onConfirm={async (bowlerId) => {
@@ -3037,6 +3086,7 @@ function ScoringDialogs({ s }: { s: LoadedScreen }) {
         bowlingTeamPlayers={bowlingTeamPlayers}
         bowlingTeamName={bowlingTeam?.name}
         bowlerId={currentBowlerId}
+        side={fieldingSide}
         onCreateFielder={createPickedPlayer("bowling")}
         addPlayerDisabledReason={addPlayerDisabledReason}
         strikerId={strikerId}
