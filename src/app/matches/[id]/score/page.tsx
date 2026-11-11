@@ -18,7 +18,7 @@ import type {
   BallCorrection,
   DeliveryToEdit,
 } from "./components/EditBallDialog";
-import { ConfirmDialog } from "./components/ConfirmDialog";
+import { ConfirmDialog } from "~/components/ui/confirm-dialog";
 import { freeHitsOn, nextIsFreeHit } from "~/lib/free-hit";
 import { describeQueuedAction } from "./describe-action";
 import { overBowlingOf } from "~/lib/firebase/scoring/ball-docs";

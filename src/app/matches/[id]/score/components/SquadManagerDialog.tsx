@@ -31,7 +31,7 @@ import {
 } from "~/lib/player-search";
 import { rememberPlayer } from "~/lib/recent-players";
 import { roleLabel } from "./player-rows";
-import { ConfirmDialog } from "./ConfirmDialog";
+import { ConfirmDialog } from "~/components/ui/confirm-dialog";
 import { PlayerSearchContext } from "./PlayerPicker";
 
 export interface SquadTeam {
