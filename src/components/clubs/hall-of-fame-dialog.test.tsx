@@ -1,12 +1,13 @@
 import React from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { HallOfFameDialog } from "./hall-of-fame-dialog";
-import { inductHallOfFame } from "~/app/clubs/actions";
+import { HallOfFameDialog, RemoveHallOfFameButton } from "./hall-of-fame-dialog";
+import { inductHallOfFame, removeHallOfFame } from "~/app/clubs/actions";
 import { toast } from "sonner";
 
 vi.mock("~/app/clubs/actions", () => ({
   inductHallOfFame: vi.fn(),
+  removeHallOfFame: vi.fn(),
 }));
 
 vi.mock("sonner", () => ({
@@ -92,7 +93,7 @@ describe("HallOfFameDialog Component", () => {
     vi.clearAllMocks();
   });
 
-  it("renders Add to Hall of Fame trigger button", () => {
+  it("renders the Add to hall of fame button", () => {
     render(<HallOfFameDialog clubId="club-10" members={mockMembers} />);
 
     expect(
@@ -106,20 +107,20 @@ describe("HallOfFameDialog Component", () => {
     fireEvent.click(screen.getByRole("button", { name: /add to hall of fame/i }));
 
     expect(
-      screen.getByRole("heading", { name: /hall of fame induction/i })
+      screen.getByRole("heading", { name: "Add to the hall of fame" })
     ).toBeInTheDocument();
     expect(screen.getByText("Sachin Tendulkar")).toBeInTheDocument();
     expect(screen.getByText("MS Dhoni")).toBeInTheDocument();
-    expect(screen.getByLabelText(/honor \/ title/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^honour/i)).toBeInTheDocument();
   });
 
   it("validates that a member is selected before submitting", async () => {
     render(<HallOfFameDialog clubId="club-10" members={mockMembers} />);
 
     fireEvent.click(screen.getByRole("button", { name: /add to hall of fame/i }));
-    fireEvent.click(screen.getByRole("button", { name: /confirm induction/i }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Add to hall of fame" }));
 
-    expect(toast.error).toHaveBeenCalledWith("Please select a player to induct");
+    expect(toast.error).toHaveBeenCalledWith("Choose who to add");
     expect(inductHallOfFame).not.toHaveBeenCalled();
   });
 
@@ -132,9 +133,9 @@ describe("HallOfFameDialog Component", () => {
     fireEvent.click(screen.getByTestId("mock-select-item-usr-1"));
 
     // Click confirm without title
-    fireEvent.click(screen.getByRole("button", { name: /confirm induction/i }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Add to hall of fame" }));
 
-    expect(toast.error).toHaveBeenCalledWith("Please provide an induction title or honor");
+    expect(toast.error).toHaveBeenCalledWith("Give the honour a title");
     expect(inductHallOfFame).not.toHaveBeenCalled();
   });
 
@@ -150,20 +151,20 @@ describe("HallOfFameDialog Component", () => {
     fireEvent.click(screen.getByTestId("mock-select-item-top_scorer"));
 
     // Fill textual fields
-    fireEvent.change(screen.getByLabelText(/honor \/ title/i), {
+    fireEvent.change(screen.getByLabelText(/^honour/i), {
       target: { value: "Master Blaster" },
     });
-    fireEvent.change(screen.getByLabelText(/record metric/i), {
+    fireEvent.change(screen.getByLabelText(/^record/i), {
       target: { value: "15,921 Test runs" },
     });
-    fireEvent.change(screen.getByLabelText(/season \/ era/i), {
+    fireEvent.change(screen.getByLabelText(/season or years/i), {
       target: { value: "1989-2013" },
     });
-    fireEvent.change(screen.getByLabelText(/citation \/ description/i), {
+    fireEvent.change(screen.getByLabelText(/citation/i), {
       target: { value: "Greatest batsman in history." },
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /confirm induction/i }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Add to hall of fame" }));
 
     await waitFor(() => {
       expect(inductHallOfFame).toHaveBeenCalledWith("club-10", {
@@ -174,7 +175,7 @@ describe("HallOfFameDialog Component", () => {
         seasonOrYear: "1989-2013",
         recordMetric: "15,921 Test runs",
       });
-      expect(toast.success).toHaveBeenCalledWith("Player added to the Hall of Fame");
+      expect(toast.success).toHaveBeenCalledWith("Added to the hall of fame");
     });
   });
 
@@ -187,11 +188,11 @@ describe("HallOfFameDialog Component", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /add to hall of fame/i }));
     fireEvent.click(screen.getByTestId("mock-select-item-usr-2"));
-    fireEvent.change(screen.getByLabelText(/honor \/ title/i), {
+    fireEvent.change(screen.getByLabelText(/^honour/i), {
       target: { value: "Captain Cool" },
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /confirm induction/i }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Add to hall of fame" }));
 
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith("Member is already inducted");
@@ -206,15 +207,37 @@ describe("HallOfFameDialog Component", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /add to hall of fame/i }));
     fireEvent.click(screen.getByTestId("mock-select-item-usr-2"));
-    fireEvent.change(screen.getByLabelText(/honor \/ title/i), {
+    fireEvent.change(screen.getByLabelText(/^honour/i), {
       target: { value: "Captain Cool" },
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /confirm induction/i }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Add to hall of fame" }));
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith("Failed to induct player");
+      expect(toast.error).toHaveBeenCalledWith("Could not add them to the hall of fame");
     });
     consoleSpy.mockRestore();
+  });
+});
+
+describe("RemoveHallOfFameButton (T11)", () => {
+  it("removes from a named menu item, after asking", async () => {
+    vi.mocked(removeHallOfFame).mockResolvedValueOnce({ success: true } as never);
+    render(
+      <RemoveHallOfFameButton clubId="c1" hallOfFameId="h1" playerName="Asha Rao" />,
+    );
+    fireEvent.pointerDown(
+      screen.getByRole("button", { name: "Actions for Asha Rao" }),
+      { button: 0, ctrlKey: false },
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Remove from hall of fame" }),
+    );
+    const ask = await screen.findByRole("dialog", {
+      name: "Remove Asha Rao from the hall of fame?",
+    });
+    expect(removeHallOfFame).not.toHaveBeenCalled();
+    fireEvent.click(within(ask).getByRole("button", { name: "Remove" }));
+    await waitFor(() => expect(removeHallOfFame).toHaveBeenCalledWith("h1", "c1"));
   });
 });
