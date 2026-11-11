@@ -11,14 +11,25 @@ export interface GlobalSearchResult {
     venue: string | null;
     scheduled_at: string | null;
   }>;
-  teams: Array<{ id: string; name: string; short_name: string | null }>;
+  teams: Array<{
+    id: string;
+    name: string;
+    short_name: string | null;
+    logo_url?: string | null;
+  }>;
   players: Array<{
     id: string;
     full_name: string;
     avatar_url: string | null;
     username: string | null;
   }>;
-  clubs: Array<{ id: string; name: string; location: string | null }>;
+  clubs: Array<{
+    id: string;
+    name: string;
+    short_name?: string | null;
+    location: string | null;
+    logo_url?: string | null;
+  }>;
   tournaments: Array<{ id: string; name: string; status: string | null }>;
   /** Groups with more matches than shown (N13): the page links to them. */
   more?: Partial<Record<"matches" | "teams" | "players" | "clubs" | "tournaments", boolean>>;
@@ -45,9 +56,9 @@ export async function globalSearch(
   const [matchesRes, teamsRes, playersRes, clubsRes, tournamentsRes] =
     await Promise.all([
       prefixSearch(db, "matches", q, "id, title, status, venue, scheduled_at", SHOWN + 1),
-      prefixSearch(db, "teams", q, "id, name, short_name", SHOWN + 1),
+      prefixSearch(db, "teams", q, "id, name, short_name, logo_url", SHOWN + 1),
       prefixSearch(db, "users", q, "id, full_name, avatar_url, username", SHOWN + 1),
-      prefixSearch(db, "clubs", q, "id, name, location", SHOWN + 1),
+      prefixSearch(db, "clubs", q, "id, name, short_name, location, logo_url", SHOWN + 1),
       prefixSearch(db, "tournaments", q, "id, name, status", SHOWN + 1),
     ]);
   const cut = <T,>(rows: unknown) => ((rows ?? []) as T[]).slice(0, SHOWN);
