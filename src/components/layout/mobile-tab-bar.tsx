@@ -5,6 +5,7 @@ import { CalendarDays, Home, Menu, Shield, Trophy } from "lucide-react";
 import { TabBar } from "~/components/ds/app-bar";
 import { useAuth } from "~/lib/auth";
 import { navSectionOf } from "~/lib/navigation";
+import { useLitHref } from "~/lib/nav-light";
 
 /**
  * Phone navigation: the floating tab bar at the bottom of the screen, where
@@ -16,7 +17,8 @@ import { navSectionOf } from "~/lib/navigation";
 export function MobileTabBar() {
   const pathname = usePathname() ?? "/";
   const { user } = useAuth();
-  const section = navSectionOf(pathname);
+  // A detail page lights the section of its trail (N24).
+  const section = navSectionOf(useLitHref(pathname));
 
   return (
     // Steps aside while the on-screen keyboard is up (N38, ViewportVars).

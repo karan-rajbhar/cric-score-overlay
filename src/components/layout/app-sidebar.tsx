@@ -3,6 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useLitHref } from "~/lib/nav-light";
 import {
   sidebarClasses,
   sidebarModeOf,
@@ -71,11 +72,14 @@ export function AppSidebar() {
   const cls = sidebarClasses(mode);
   const railOnly = mode === "collapsed";
 
+  // A detail page lights the section of its trail, as the tab bar does
+  // (N24): a club's team lights Clubs.
+  const lit = useLitHref(pathname);
   const isActive = (href: string) => {
-    if (href === "/" || href === "/dashboard") return pathname === href;
+    if (href === "/" || href === "/dashboard") return lit === href;
     // New match is its own row, so Matches is not lit with it.
-    if (href === "/matches" && pathname === "/matches/create") return false;
-    return pathname === href || pathname.startsWith(`${href}/`);
+    if (href === "/matches" && lit === "/matches/create") return false;
+    return lit === href || lit.startsWith(`${href}/`);
   };
 
   return (

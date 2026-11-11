@@ -12,18 +12,25 @@ function under(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-/** The tab a page belongs to; null for pages outside the tabs (Search). */
+/**
+ * The tab a path belongs to; null for pages outside the tabs. A detail
+ * page lights its trail's section instead (`useLitHref`, N24).
+ */
 export function navSectionOf(pathname: string): NavSection | null {
   if (pathname === "/" || under(pathname, "/dashboard")) return "home";
   if (under(pathname, "/matches")) return "matches";
   if (under(pathname, "/tournaments")) return "tournaments";
   if (under(pathname, "/clubs")) return "clubs";
   // Teams and Players list everyone, not a club's: More holds them.
+  // Search and sign-in have no tab of their own: More is where they are
+  // reached from on phones (N24).
   if (
     under(pathname, "/more") ||
     under(pathname, "/invitations") ||
     under(pathname, "/teams") ||
-    under(pathname, "/players")
+    under(pathname, "/players") ||
+    under(pathname, "/search") ||
+    under(pathname, "/auth")
   ) {
     return "more";
   }

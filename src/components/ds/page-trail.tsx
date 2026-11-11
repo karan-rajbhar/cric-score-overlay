@@ -3,6 +3,7 @@ import Link from "next/link";
 import { BackLink } from "~/components/ds/back-link";
 import { buttonVariants } from "~/components/ds/button";
 import { backLabelOf, parentOf, type NavCrumb } from "~/lib/navigation";
+import { LightTrail } from "~/lib/nav-light";
 import { cn } from "~/lib/utils";
 
 /**
@@ -25,6 +26,8 @@ export function PageTrail({
   const label = backLabelOf(crumbs);
   return (
     <div className={cn("flex min-w-0 items-center gap-3 max-md:hidden", className)}>
+      {/* The tab bar and the sidebar light this trail's section (N24). */}
+      <LightTrail href={crumbs[0]?.href} />
       <BackLink
         href={parentOf(crumbs)}
         avoid={avoid}
