@@ -174,10 +174,14 @@ export default function Dashboard() {
             >
               <Search />
             </Link>
+            {/* Phones only: from md the header's Create holds it (N28). */}
             <Link
               href="/matches/create"
               aria-label="New match"
-              className={buttonVariants({ variant: "primary", size: "icon" })}
+              className={cn(
+                buttonVariants({ variant: "primary", size: "icon" }),
+                "md:hidden",
+              )}
             >
               <Plus />
             </Link>

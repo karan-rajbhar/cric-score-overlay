@@ -21,7 +21,7 @@ export default function DashboardLoading() {
             <Skeleton className="h-5 w-20" />
           </div>
           <Skeleton className="h-11 w-11 shrink-0 rounded-full md:hidden" />
-          <Skeleton className="h-11 w-11 shrink-0 rounded-full" />
+          <Skeleton className="h-11 w-11 shrink-0 rounded-full md:hidden" />
         </div>
         <Skeleton className="h-72 rounded-xl" />
         <div className="space-y-4">

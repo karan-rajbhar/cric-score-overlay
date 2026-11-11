@@ -12,13 +12,12 @@ import {
 import { useAuth } from "~/lib/auth";
 import { cn } from "~/lib/utils";
 import {
+  CalendarDays,
   Home,
-  Radio,
   Trophy,
   Shield,
   Users,
   UserCheck,
-  PlusCircle,
 } from "lucide-react";
 
 interface NavItem {
@@ -35,25 +34,24 @@ interface NavSection {
   items: NavItem[];
 }
 
+/**
+ * The places, in the tab bar's order and with its icons (N28): the four
+ * tabs, then Teams and Players, which phones reach from More. No actions:
+ * New match is the header's Create.
+ */
 function navSections(home: string): NavSection[] {
   return [
     {
       items: [
         { href: home, label: "Home", icon: Home },
-        { href: "/matches", label: "Matches", icon: Radio },
-        {
-          href: "/matches/create",
-          label: "New match",
-          icon: PlusCircle,
-          authOnly: true,
-        },
+        { href: "/matches", label: "Matches", icon: CalendarDays },
+        { href: "/clubs", label: "Clubs", icon: Shield },
+        { href: "/tournaments", label: "Tournaments", icon: Trophy },
       ],
     },
     {
-      title: "Competitions",
+      title: "Teams and players",
       items: [
-        { href: "/tournaments", label: "Tournaments", icon: Trophy },
-        { href: "/clubs", label: "Clubs", icon: Shield },
         { href: "/teams", label: "Teams", icon: Users },
         { href: "/players", label: "Players", icon: UserCheck },
       ],
@@ -77,8 +75,6 @@ export function AppSidebar() {
   const lit = useLitHref(pathname);
   const isActive = (href: string) => {
     if (href === "/" || href === "/dashboard") return lit === href;
-    // New match is its own row, so Matches is not lit with it.
-    if (href === "/matches" && lit === "/matches/create") return false;
     return lit === href || lit.startsWith(`${href}/`);
   };
 
