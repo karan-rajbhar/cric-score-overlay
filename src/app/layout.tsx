@@ -1,6 +1,6 @@
 import "~/styles/globals.css";
 import { Barlow_Condensed, Outfit, Urbanist } from "next/font/google";
-import { Toaster } from "sonner";
+import { Toaster } from "~/components/ui/toaster";
 import { AuthProvider } from "~/lib/auth";
 import { getInitialUser } from "~/lib/firebase/initial-user";
 import { ErrorReporter } from "~/components/error-reporter";
@@ -89,7 +89,7 @@ export default async function RootLayout({
           <AuthProvider initialUser={initialUser}>
             <QueryProvider>
               <AppShell>{children}</AppShell>
-              <Toaster richColors position="top-center" />
+              <Toaster />
               <ServiceWorkerRegistrar />
             </QueryProvider>
           </AuthProvider>
