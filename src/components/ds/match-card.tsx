@@ -164,6 +164,7 @@ export function FixtureCard({
   venue,
   action,
   bare = false,
+  status = "Upcoming",
   className,
 }: {
   href?: string;
@@ -171,6 +172,8 @@ export function FixtureCard({
   label?: string;
   date: React.ReactNode;
   time: React.ReactNode;
+  /** Under the time: "Upcoming", or "Not started" once it has passed. */
+  status?: React.ReactNode;
   home: TeamRef;
   away: TeamRef;
   venue?: React.ReactNode;
@@ -194,7 +197,7 @@ export function FixtureCard({
           <p className="whitespace-nowrap font-score text-xl font-semibold tabular-nums text-primary">
             {time}
           </p>
-          <p className="mt-0.5 text-xs text-muted-foreground">Upcoming</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">{status}</p>
         </div>
         <FixtureSide team={away} />
       </div>

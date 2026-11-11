@@ -62,6 +62,7 @@ import { PointsTable } from "~/components/ds/standings";
 import { matchGroupsOf } from "~/lib/match-groups";
 import { remainingMatchesByTeam } from "~/lib/tournament-standings";
 import { isBracketFormat, isTournamentOver } from "~/app/tournaments/rules";
+import { cardDate, dateRange } from "~/lib/dates";
 import { SponsorLogosDialog } from "~/components/streaming/sponsor-logos-manager";
 
 export const dynamic = "force-dynamic";
@@ -515,8 +516,9 @@ export default async function TournamentLayout({
             )}
             {(tournament.start_date || tournament.end_date) && (
               <MetaItem icon={Calendar}>
-                {tournament.start_date ?? "TBD"}
-                {tournament.end_date ? ` to ${tournament.end_date}` : ""}
+                {/* "15 Jul to 30 Aug 2024", not the stored ISO dates (T3). */}
+                {dateRange(tournament.start_date, tournament.end_date) ||
+                  "Dates to be confirmed"}
               </MetaItem>
             )}
           </>
@@ -796,10 +798,7 @@ export default async function TournamentLayout({
                         <span className="block text-xs text-muted-foreground">
                           Asked{" "}
                           {r.registered_at
-                            ? new Date(r.registered_at).toLocaleDateString(
-                                "en-GB",
-                                { day: "numeric", month: "short" },
-                              )
+                            ? cardDate(r.registered_at)
                             : "recently"}
                         </span>
                       </span>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { cardDate, isLateFixture, longDate, timeOfDay } from "~/lib/dates";
 import { Shield, Trophy } from "lucide-react";
 import type * as React from "react";
 import { PlayerAwardCard } from "~/components/ds/player-award";
@@ -130,17 +131,10 @@ export function performerLines(
   return lines;
 }
 
+/** "19:30" and "Saturday 10 August" (the year when not this one). */
 function scheduledTime(iso?: string | null) {
   if (!iso) return null;
-  const d = new Date(iso);
-  return {
-    time: d.toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit" }),
-    date: d.toLocaleDateString("en-GB", {
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-    }),
-  };
+  return { time: timeOfDay(iso), date: longDate(iso), short: cardDate(iso) };
 }
 
 /**
@@ -252,11 +246,13 @@ export function MatchHero({
   };
 
   const start = scheduledTime(match.scheduled_at);
+  // Its time has passed and it has not started (M17).
+  const late = isLateFixture(match);
   const award = page ? null : playerAwardOf(match);
   const centre = batting?.innings ? (
     <HeroScore innings={ref(batting.innings, bpo)} />
   ) : match.status === "scheduled" && start ? (
-    <HeroTime time={start.time} />
+    <HeroTime time={start.time} label={late ? "Not started" : "Upcoming"} />
   ) : undefined;
 
   const line = batting ? liveLine(match, batting, bpo) : null;
@@ -268,6 +264,10 @@ export function MatchHero({
     finished && match.result_description ? (
       <div>
         <MatchNote tone="result">{formatMatchResult(match)}</MatchNote>
+        {/* When it was played (M4). */}
+        {page && start && (
+          <p className="mt-1 text-xs text-muted-foreground">{start.short}</p>
+        )}
         {award && match.status === "completed" && (
           <PlayerAwardCard
             award={award}
@@ -280,7 +280,12 @@ export function MatchHero({
       <MatchNote tone="live">{line}</MatchNote>
     ) : match.status === "scheduled" ? (
       <MatchNote>
-        {[start?.date, match.venue].filter(Boolean).join(" · ") || "Upcoming"}
+        {[
+          late && start ? `Was due ${start.short}, ${start.time}` : start?.date,
+          match.venue,
+        ]
+          .filter(Boolean)
+          .join(" · ") || "Upcoming"}
       </MatchNote>
     ) : null;
 

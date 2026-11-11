@@ -1,5 +1,6 @@
 "use client";
 
+import { cardDate } from "~/lib/dates";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "~/components/ui/button";
@@ -14,13 +15,7 @@ export interface PendingClubInvite {
   created_at: string | null;
 }
 
-function formatDate(iso: string | null): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime())
-    ? ""
-    : d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
-}
+const formatDate = (iso: string | null): string => cardDate(iso);
 
 function InviteRow({
   invite,

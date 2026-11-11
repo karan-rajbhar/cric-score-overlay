@@ -2,25 +2,11 @@
 
 import { Disclosure } from "~/components/ds/disclosure";
 import { Facts, factsOf } from "~/components/ds/facts";
+import { fullDateTime, timeOfDay } from "~/lib/dates";
 import { namedFormat } from "~/lib/cricket";
 import { clubStatsFact } from "~/lib/club-side-text";
 import type { Match } from "~/lib/match-types";
 
-function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString("en-GB", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-}
-
-function formatTime(dateStr: string) {
-  return new Date(dateStr).toLocaleTimeString("en-GB", {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
 
 /**
  * The match's facts, under Summary: reference, so it folds on phones, except
@@ -62,9 +48,9 @@ export function MatchDetails({ match }: { match: Match }) {
     match.venue && ["Venue", match.venue],
     match.scheduled_at && [
       "Date and time",
-      `${formatDate(match.scheduled_at)}, ${formatTime(match.scheduled_at)}`,
+      fullDateTime(match.scheduled_at),
     ],
-    match.actual_start_time && ["Started", formatTime(match.actual_start_time)],
+    match.actual_start_time && ["Started", timeOfDay(match.actual_start_time)],
     match.tournament && ["Tournament", match.tournament.name],
     match.club && ["Club", match.club.name],
     match.club &&

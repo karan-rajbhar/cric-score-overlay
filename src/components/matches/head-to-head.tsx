@@ -1,5 +1,6 @@
 "use client";
 
+import { shortDate } from "~/lib/dates";
 import { Loader2 } from "lucide-react";
 import { TeamCrest } from "~/components/ds/avatar";
 import { Card, CardHeader } from "~/components/ds/card";
@@ -193,13 +194,7 @@ function meetingSides(m: HistoricalMatch, team1: MatchTeam, team2: MatchTeam) {
 
 /** "Autumn Cup · 20 Jul 2024": where it was played, else the venue, and when. */
 function meetingContext(m: HistoricalMatch) {
-  const when = m.scheduled_at
-    ? new Date(m.scheduled_at).toLocaleDateString("en-GB", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-      })
-    : null;
+  const when = m.scheduled_at ? shortDate(m.scheduled_at) : null;
   return [m.tournament_snapshot?.name ?? m.venue, when]
     .filter(Boolean)
     .join(" · ");

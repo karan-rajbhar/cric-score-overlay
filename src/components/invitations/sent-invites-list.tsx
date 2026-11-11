@@ -1,5 +1,6 @@
 "use client";
 
+import { shortDate } from "~/lib/dates";
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -17,16 +18,7 @@ const STATUS_LABEL: Record<SentInvite["status"], string> = {
   revoked: "Revoked",
 };
 
-function formatDate(iso: string | null): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString(undefined, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-}
+const formatDate = (iso: string | null): string => shortDate(iso);
 
 function InviteRow({
   invite,

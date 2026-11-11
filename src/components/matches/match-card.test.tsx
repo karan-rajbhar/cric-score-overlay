@@ -150,6 +150,9 @@ describe("MatchCard scoring actions", () => {
   });
 
   it("shows an upcoming match as a fixture with its start time", () => {
+    // Before the start time: an upcoming fixture.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-08-01T10:00:00"));
     renderCard(
       <MatchCard
         match={makeMatch({
@@ -163,6 +166,25 @@ describe("MatchCard scoring actions", () => {
     expect(screen.getByText("14:00")).toBeInTheDocument();
     expect(screen.getByText("Upcoming")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /score/i })).toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
+  it("says a fixture whose time has passed has not started, with when it was due", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2027-01-05T10:00:00"));
+    renderCard(
+      <MatchCard
+        match={makeMatch({
+          status: "scheduled",
+          scheduled_at: "2026-08-10T14:00:00",
+          innings: [],
+        })}
+      />,
+    );
+    expect(screen.getByText("Not started")).toBeInTheDocument();
+    expect(screen.getByText(/Was due Mon 10 Aug 2026/)).toBeInTheDocument();
+    expect(screen.queryByText("Upcoming")).not.toBeInTheDocument();
+    vi.useRealTimers();
   });
 
   it("renders both team names and the running score", () => {

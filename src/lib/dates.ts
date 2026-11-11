@@ -88,3 +88,33 @@ export function fullDateTime(value: DateInput): string {
   });
   return `${weekday} ${day}, ${timeOfDay(date)}`;
 }
+
+/** "Saturday 10 August", with the year when it is not this year. */
+export function longDate(value: DateInput, now = new Date()): string {
+  const date = toDate(value);
+  if (!date) return "";
+  const weekday = date.toLocaleDateString("en-GB", { weekday: "long" });
+  const day = date.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "long",
+    ...(sameYear(date, now) ? {} : { year: "numeric" }),
+  });
+  return `${weekday} ${day}`;
+}
+
+/** A fixture still listed this long after its start time without starting. */
+export const LATE_AFTER_MS = 3 * 60 * 60 * 1000;
+
+/**
+ * Whether a scheduled match's start time has passed without it starting
+ * (M3, M17, `/design#spec-fixture-late`): it is "Not started", no longer
+ * "Upcoming". A few minutes late is still upcoming.
+ */
+export function isLateFixture(
+  match: { status?: string | null; scheduled_at?: string | null },
+  now = new Date(),
+): boolean {
+  if (match.status !== "scheduled" || !match.scheduled_at) return false;
+  const start = toDate(match.scheduled_at);
+  return Boolean(start && now.getTime() - start.getTime() > 15 * 60 * 1000);
+}

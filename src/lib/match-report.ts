@@ -1,4 +1,5 @@
 import type { Match } from "./match-types";
+import { shortDate, timeOfDay } from "~/lib/dates";
 import {
   ballFaced,
   bowlerConcedes,
@@ -126,10 +127,7 @@ export function buildExportSummary(
     format: matchFormatLabel(match, "ov"),
     venue: match.venue,
     playedAt: match.scheduled_at
-      ? new Date(match.scheduled_at).toLocaleString(undefined, {
-          dateStyle: "medium",
-          timeStyle: "short",
-        })
+      ? `${shortDate(match.scheduled_at)}, ${timeOfDay(match.scheduled_at)}`
       : null,
     live: isLive(match),
     result: matchSituation(match),

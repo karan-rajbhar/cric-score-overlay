@@ -5,14 +5,21 @@ import { cardSurface } from "~/components/ds/card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { formatTournamentFormat } from "~/lib/cricket";
 import { cn } from "~/lib/utils";
+import { dateRange } from "~/lib/dates";
 
-/** "1 Sept 2024" from an ISO date. */
-const day = (iso: string) =>
-  new Date(iso).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+/**
+ * Past its end date and never closed by its organiser: it reads "Ended",
+ * not the "Ongoing" the stored status still says (T12).
+ */
+function endedByDate(
+  t: { status?: string | null; end_date?: string | null },
+  today = new Date(),
+): boolean {
+  if (!t.end_date || t.status === "completed" || t.status === "cancelled")
+    return false;
+  const end = new Date(`${t.end_date.slice(0, 10)}T23:59:59`);
+  return !Number.isNaN(end.getTime()) && end < today;
+}
 
 /**
  * A tournament in a list: trophy crest, name and status, format and venue,
@@ -50,7 +57,11 @@ export function TournamentCard({
           <span className="min-w-0 truncate text-base font-semibold text-foreground">
             {t.name}
           </span>
-          <StatusBadge status={t.status ?? "upcoming"} className="shrink-0" />
+          {endedByDate(t) ? (
+            <StatusBadge status="completed" label="Ended" className="shrink-0" />
+          ) : (
+            <StatusBadge status={t.status ?? "upcoming"} className="shrink-0" />
+          )}
         </span>
         <span className="block truncate text-sm text-muted-foreground">
           {[
@@ -63,16 +74,14 @@ export function TournamentCard({
         </span>
         {(t.start_date || t.end_date || extra) && (
           <span className="block font-score text-xs tabular-nums text-muted-foreground">
-            {[t.start_date, t.end_date]
-              .filter(Boolean)
-              .map((d) => day(d!))
-              .join(" to ")}
+            {dateRange(t.start_date, t.end_date)}
             {extra && (t.start_date || t.end_date) && " · "}
             {extra}
           </span>
         )}
         {t.description && (
-          <span className="line-clamp-2 block text-sm text-foreground/80">
+          // line-clamp sets its own display; "block" beside it undid it.
+          <span className="line-clamp-2 text-sm text-foreground/80">
             {t.description}
           </span>
         )}

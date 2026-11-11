@@ -1,6 +1,7 @@
 "use client";
 
 import { CouldNotLoad } from "~/components/ui/could-not-load";
+import { isLateFixture } from "~/lib/dates";
 import { matchFormatLabel } from "~/lib/cricket";
 import { cn } from "~/lib/utils";
 import { useSyncExternalStore } from "react";
@@ -27,7 +28,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { GetStarted } from "~/components/dashboard/get-started";
 import { FollowingMatches } from "~/components/follow/following-matches";
 import { PageContainer } from "~/components/layout/page";
-import type { Match } from "~/lib/match-types";
+import { competitionNameOf, type Match } from "~/lib/match-types";
 
 const noSubscribe = () => () => {};
 
@@ -53,7 +54,8 @@ function UpcomingGroups({ matches }: { matches: Match[] }) {
   for (const m of [...matches].sort((a, b) =>
     (a.scheduled_at ?? "").localeCompare(b.scheduled_at ?? ""),
   )) {
-    const name = m.tournament?.name ?? m.club?.name ?? "Friendly matches";
+    // The snapshot names the competition on list rows (M2).
+    const name = competitionNameOf(m) ?? "Friendly matches";
     groups.set(name, [...(groups.get(name) ?? []), m]);
   }
   return (
@@ -66,13 +68,19 @@ function UpcomingGroups({ matches }: { matches: Match[] }) {
         >
           {items.map((m) => {
             const start = matchStart(m.scheduled_at);
+            const late = isLateFixture(m);
             return (
               <FixtureCard
                 key={m.id}
                 bare
                 href={`/matches/${m.id}`}
-                date={start?.date ?? "Date to be confirmed"}
+                date={
+                  start
+                    ? `${late ? "Was due " : ""}${start.date}`
+                    : "Date to be confirmed"
+                }
                 time={start?.time ?? "TBC"}
+                status={late ? "Not started" : "Upcoming"}
                 home={teamRef(m.team1)}
                 away={teamRef(m.team2)}
                 venue={m.venue}
@@ -124,8 +132,12 @@ export default function Dashboard() {
     staleTime: 30 * 1000,
   });
   const liveMatches = liveData ?? [];
-  const myUpcoming = myUpcomingData ?? [];
-  const myUpcomingIds = new Set(myUpcoming.map((m) => m.id));
+  // The user's own fixtures whose time has passed without a start go in
+  // their own section, after the ones still to come (N10).
+  const mine = myUpcomingData ?? [];
+  const myLate = mine.filter((m) => isLateFixture(m));
+  const myUpcoming = mine.filter((m) => !isLateFixture(m));
+  const myUpcomingIds = new Set(mine.map((m) => m.id));
   const upcoming = (upcomingData ?? []).filter(
     (m) => !myUpcomingIds.has(m.id),
   );
@@ -209,6 +221,17 @@ export default function Dashboard() {
         <section className="space-y-4">
           <SectionHeader title="Your upcoming matches" />
           <UpcomingGroups matches={myUpcoming} />
+        </section>
+      )}
+
+      {myLate.length > 0 && (
+        <section className="space-y-4">
+          <SectionHeader title="Not started" />
+          <p className="-mt-2 text-sm text-muted-foreground">
+            Your matches whose start time has passed. Start, reschedule or
+            cancel them from the match page.
+          </p>
+          <UpcomingGroups matches={myLate} />
         </section>
       )}
       <FollowingMatches />

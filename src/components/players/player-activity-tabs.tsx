@@ -1,5 +1,6 @@
 "use client";
 
+import { shortDate } from "~/lib/dates";
 import { setUrlParam } from "~/lib/url-state";
 import { useRef, useState, useTransition } from "react";
 import type * as React from "react";
@@ -164,12 +165,7 @@ interface PlayerActivityTabsProps {
 }
 
 function formatDate(dateStr?: string | null) {
-  if (!dateStr) return "TBD";
-  return new Date(dateStr).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  return shortDate(dateStr) || "Date to be confirmed";
 }
 
 /** First cell of a batting or bowling row: the opponent and the match. */

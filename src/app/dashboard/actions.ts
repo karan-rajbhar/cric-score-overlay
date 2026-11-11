@@ -79,7 +79,7 @@ export async function getMyUpcomingMatches(): Promise<Record<
   const scheduled = () =>
     db
       .from("matches")
-      .select("*")
+      .select("*, tournament_snapshot, club_snapshot")
       .eq("status", "scheduled")
       .order("scheduled_at", { ascending: true, nullsFirst: true })
       .limit(MY_UPCOMING);
