@@ -416,14 +416,30 @@ function BatterFiguresRow({
   cell,
   milestones,
   dismissal,
+  onToggle,
 }: {
   row: BatterRow;
   cell: string;
   milestones: boolean;
   dismissal: React.ReactNode;
+  /** Opens the dismissal's detail: a tap anywhere on the row does (M9). */
+  onToggle?: (() => void) | null;
 }) {
   return (
-    <tr className="border-t border-border">
+    <tr
+      className={cn("border-t border-border", onToggle && "cursor-pointer")}
+      // The button under the name stays the control for keyboards and
+      // screen readers; the row is a bigger target for a thumb. Links and
+      // buttons in it keep their own taps.
+      onClick={
+        onToggle
+          ? (e) => {
+              if ((e.target as HTMLElement).closest("a, button")) return;
+              onToggle();
+            }
+          : undefined
+      }
+    >
       <th scope="row" className={cn(cell, "max-w-0 text-left font-sans font-normal")}>
         <span className="block truncate font-medium text-foreground">
           <PlayerLink name={r.name} href={r.href} />
@@ -492,9 +508,20 @@ function BatterRows({
               cell={cell}
               milestones={milestones}
               dismissal={narrow ? null : dismissal}
+              onToggle={detail ? () => toggle(r.name) : null}
             />
             {narrow && (
-              <tr>
+              <tr
+                className={cn(detail && "cursor-pointer")}
+                onClick={
+                  detail
+                    ? (e) => {
+                        if ((e.target as HTMLElement).closest("a, button")) return;
+                        toggle(r.name);
+                      }
+                    : undefined
+                }
+              >
                 <td
                   colSpan={BATTING_COLUMNS.length}
                   className={cn("px-4 pb-2.5 text-left", dense && "pb-1")}

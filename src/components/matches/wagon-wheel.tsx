@@ -701,7 +701,7 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
             >
               <SelectTrigger
                 aria-labelledby={`${filterId}-innings`}
-                className="h-10 w-full bg-background text-xs sm:text-sm"
+                className="h-11 w-full bg-background text-xs sm:h-10 sm:text-sm"
               >
                 <SelectValue placeholder="Innings" />
               </SelectTrigger>
@@ -732,7 +732,7 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
             >
               <SelectTrigger
                 aria-labelledby={`${filterId}-batter`}
-                className="h-10 w-full bg-background text-xs sm:text-sm"
+                className="h-11 w-full bg-background text-xs sm:h-10 sm:text-sm"
               >
                 <Users
                   className="mr-1.5 h-3.5 w-3.5 text-muted-foreground"
@@ -763,7 +763,7 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
           <button
             type="button"
             onClick={() => setShowDetailedBreakdown((prev) => !prev)}
-            className="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
+            className="flex min-h-11 w-full items-center justify-between rounded-lg px-2 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors md:min-h-8"
           >
             <span>Detailed scoring zones breakdown</span>
             {showDetailedBreakdown ? (

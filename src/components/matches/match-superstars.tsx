@@ -362,7 +362,7 @@ export function MatchSuperstars({ match }: MatchSuperstarsProps) {
           variant="ghost"
           size="sm"
           onClick={() => setRulesOpen(true)}
-          className="text-muted-foreground"
+          className="text-muted-foreground max-md:min-h-11"
         >
           <Info aria-hidden="true" />
           How points work

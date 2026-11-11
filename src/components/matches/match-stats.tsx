@@ -105,7 +105,7 @@ export function MatchStats({ match }: MatchStatsProps) {
               key={id}
               type="button"
               onClick={() => jumpTo(id)}
-              className={`min-h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-xs font-medium text-foreground transition-colors hover:bg-accent ${wide ? "hidden sm:inline-flex" : "inline-flex"}`}
+              className={`min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-xs font-medium md:min-h-9 text-foreground transition-colors hover:bg-accent ${wide ? "hidden sm:inline-flex" : "inline-flex"}`}
             >
               <Icon className="h-3.5 w-3.5 text-muted-foreground max-sm:hidden" aria-hidden="true" />
               {label}

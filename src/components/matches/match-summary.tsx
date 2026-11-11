@@ -383,7 +383,7 @@ function KeyMoments({
         <Button
           variant="soft"
           size="sm"
-          className="w-full md:hidden"
+          className="min-h-11 w-full md:hidden"
           onClick={() => setShowAll(true)}
         >
           Show all {moments.length} moments

@@ -239,6 +239,13 @@ describe("MatchScorecard", () => {
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     expect(panel).toHaveAttribute("hidden");
 
+    // A tap anywhere on the batter's row opens it too, a bigger target
+    // than the line under the name (M9); the name still opens the profile.
+    fireEvent.click(within(toggle.closest("tr")!).getByText("30"));
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(within(toggle.closest("tr")!).getByText("30"));
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+
     // Batters still in have nothing to open.
     expect(screen.getAllByRole("button", { name: /c Glenn/ })).toHaveLength(1);
     expect(screen.getAllByText("not out")).toHaveLength(2);
