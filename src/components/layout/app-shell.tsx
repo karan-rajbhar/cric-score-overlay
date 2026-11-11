@@ -9,11 +9,15 @@ import { isTaskPath } from "~/lib/navigation";
 import { NavigationBar } from "~/components/navigation-bar";
 import { useTrackVisits } from "~/lib/in-app-history";
 import { isReportPath } from "~/lib/report-route";
-import { useSidebarStore } from "~/lib/stores/useSidebarStore";
+import {
+  sidebarClasses,
+  sidebarModeOf,
+  useSidebarStore,
+} from "~/lib/stores/useSidebarStore";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { collapsed } = useSidebarStore();
+  const pad = sidebarClasses(sidebarModeOf(useSidebarStore())).pad;
   useTrackVisits(pathname);
 
   // If this is an OBS live overlay, render purely without navigation shell
@@ -65,7 +69,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
           <main
             className={`relative isolate min-w-0 flex-1 transition-all duration-300 ease-in-out ${
-              collapsed ? "md:pl-[72px]" : "md:pl-[260px]"
+              pad
             }`}
           >
             {/* The wash behind the top of every screen, fading into the page. */}
@@ -84,7 +88,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <footer
           className={`border-t border-border max-md:hidden ${
-            collapsed ? "md:pl-[72px]" : "md:pl-[260px]"
+            pad
           }`}
         >
           <div className="px-4 py-5 sm:px-6 lg:px-8">

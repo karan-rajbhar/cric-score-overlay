@@ -77,9 +77,9 @@ describe("AppShell Component", () => {
     expect(screen.getByRole("link", { name: "Clubs" })).toHaveAttribute("href", "/clubs");
   });
 
-  it("applies expanded sidebar padding (260px) when collapsed is false", () => {
+  it("leaves the rail's room on tablets and the full sidebar's from lg when not collapsed (N5)", () => {
     mockUsePathname.mockReturnValue("/dashboard");
-    useSidebarStore.setState({ collapsed: false });
+    useSidebarStore.setState({ collapsed: false, narrowOpen: false });
 
     const { container } = render(
       <AppShell>
@@ -88,11 +88,23 @@ describe("AppShell Component", () => {
     );
 
     const main = container.querySelector("main");
-    expect(main).toHaveClass("md:pl-[260px]");
-    expect(main).not.toHaveClass("md:pl-[72px]");
+    expect(main).toHaveClass("md:pl-[72px]", "lg:pl-[260px]");
+    expect(main).not.toHaveClass("md:pl-[260px]");
 
     const footer = container.querySelector("footer");
-    expect(footer).toHaveClass("md:pl-[260px]");
+    expect(footer).toHaveClass("lg:pl-[260px]");
+  });
+
+  it("leaves the full sidebar's room from md when opened on a tablet", () => {
+    mockUsePathname.mockReturnValue("/dashboard");
+    useSidebarStore.setState({ collapsed: false, narrowOpen: true });
+    const { container } = render(
+      <AppShell>
+        <div>Content</div>
+      </AppShell>
+    );
+    expect(container.querySelector("main")).toHaveClass("md:pl-[260px]");
+    useSidebarStore.setState({ narrowOpen: false });
   });
 
   it("applies collapsed sidebar padding (72px) when collapsed is true", () => {

@@ -3,7 +3,11 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useSidebarStore } from "~/lib/stores/useSidebarStore";
+import {
+  sidebarClasses,
+  sidebarModeOf,
+  useSidebarStore,
+} from "~/lib/stores/useSidebarStore";
 import { useAuth } from "~/lib/auth";
 import { cn } from "~/lib/utils";
 import {
@@ -62,7 +66,9 @@ function navSections(home: string): NavSection[] {
 export function AppSidebar() {
   const { user } = useAuth();
   const pathname = usePathname();
-  const { collapsed } = useSidebarStore();
+  const mode = sidebarModeOf(useSidebarStore());
+  const cls = sidebarClasses(mode);
+  const railOnly = mode === "collapsed";
 
   const isActive = (href: string) => {
     if (href === "/" || href === "/dashboard") return pathname === href;
@@ -75,7 +81,7 @@ export function AppSidebar() {
     <aside
       className={cn(
         "fixed bottom-0 left-0 top-14 z-30 hidden overflow-y-auto overflow-x-hidden border-r border-border/60 bg-card transition-all duration-300 ease-in-out md:block",
-        collapsed ? "w-[72px]" : "w-[260px]",
+        cls.width,
       )}
     >
       <nav aria-label="Main" className="select-none space-y-6 p-3">
@@ -85,10 +91,16 @@ export function AppSidebar() {
           );
           return (
             <div key={section.title} className="space-y-1">
-              {collapsed ? (
-                <div className="mx-1 my-2 h-px bg-border/40" />
-              ) : (
-                <div className="mb-1.5 px-3 text-xs font-medium text-muted-foreground/75">
+              {mode !== "open" && (
+                <div className={cn("mx-1 my-2 h-px bg-border/40", cls.rail)} />
+              )}
+              {!railOnly && (
+                <div
+                  className={cn(
+                    "mb-1.5 px-3 text-xs font-medium text-muted-foreground/75",
+                    mode === "auto" && "hidden lg:block",
+                  )}
+                >
                   {section.title}
                 </div>
               )}
@@ -101,7 +113,8 @@ export function AppSidebar() {
                     key={item.href}
                     href={item.href}
                     aria-current={active ? "page" : undefined}
-                    title={collapsed ? item.label : undefined}
+                    title={mode === "open" ? undefined : item.label}
+                    aria-label={item.label}
                     className={cn(
                       "group flex min-h-10 items-center gap-3 rounded-full px-3.5 py-2 text-sm font-medium transition-colors duration-150",
                       active
@@ -117,9 +130,9 @@ export function AppSidebar() {
                           : "text-muted-foreground group-hover:text-foreground",
                       )}
                     />
-                    {!collapsed && (
-                      <span className="flex-1 truncate">{item.label}</span>
-                    )}
+                    <span className={cn("flex-1 truncate", cls.label)}>
+                      {item.label}
+                    </span>
                   </Link>
                 );
               })}
