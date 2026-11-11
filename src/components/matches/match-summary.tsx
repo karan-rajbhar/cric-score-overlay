@@ -416,7 +416,12 @@ export function MatchSummary({ match }: MatchSummaryProps) {
   return (
     <div className="space-y-4 md:space-y-6">
       {award && (
-        <PlayerAwardRow award={award} href={playerHrefOf(award.userId)} />
+        // Not the page's width: the figures stay beside the name (M19).
+        <PlayerAwardRow
+          award={award}
+          href={playerHrefOf(award.userId)}
+          className="md:max-w-md"
+        />
       )}
       {live ? (
         <MatchLivePanel match={match} />

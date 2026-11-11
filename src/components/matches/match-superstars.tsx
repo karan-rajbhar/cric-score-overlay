@@ -340,7 +340,9 @@ export function MatchSuperstars({ match }: MatchSuperstarsProps) {
 
   const [leader, ...rest] = shown;
   return (
-    <div className="space-y-4">
+    // A reading width: on a wide screen a name and its rating stay close
+    // enough to pair at a glance (M19).
+    <div className="max-w-3xl space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Segmented
           label="Team"
