@@ -10,15 +10,32 @@ import { cn } from "~/lib/utils";
  * not as broken.
  */
 export function FadingRow({
+  label = "Labels",
   className,
   children,
 }: {
+  /** The row's name, for a keyboard that scrolls it. */
+  label?: string;
   className?: string;
   children: React.ReactNode;
 }) {
   const { onScroll, ...fade } = useEdgeFade<HTMLDivElement>(null);
+  // While it overflows, a keyboard can reach and scroll it (its chips are
+  // not focusable themselves).
+  const overflows =
+    fade["data-fade-start"] !== undefined || fade["data-fade-end"] !== undefined;
   return (
-    <div {...fade} onScroll={onScroll} className={cn("tabs-fade", className)}>
+    <div
+      {...fade}
+      onScroll={onScroll}
+      role="group"
+      aria-label={label}
+      tabIndex={overflows ? 0 : undefined}
+      className={cn(
+        "tabs-fade rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        className,
+      )}
+    >
       {children}
     </div>
   );
