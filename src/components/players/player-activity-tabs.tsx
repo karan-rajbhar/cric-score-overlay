@@ -740,14 +740,11 @@ export function PlayerActivityTabs({
         ) : (
           <ListCard aria-label="Teams">
             {teams.map((tm) => {
+              // The role in words, once; nothing for a plain player (P7).
               const role =
-                tm.role_in_team === "captain"
-                  ? "Captain (c)"
-                  : tm.role_in_team === "vice_captain"
-                    ? "Vice-captain (vc)"
-                    : tm.role_in_team === "wicket_keeper"
-                      ? "Wicket-keeper (wk)"
-                      : formatPlayerRole(tm.role_in_team);
+                !tm.role_in_team || tm.role_in_team === "player"
+                  ? null
+                  : formatPlayerRole(tm.role_in_team);
               return (
                 <ListRow
                   key={tm.id}

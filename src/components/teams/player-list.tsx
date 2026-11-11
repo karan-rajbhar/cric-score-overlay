@@ -16,7 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import { removePlayerFromTeam, updatePlayerRole } from "~/app/teams/actions";
-import { formatPlayerRole } from "~/lib/cricket";
+import { roleMark, squadRoleLine } from "~/lib/cricket";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { ClaimProfileDialog } from "~/components/teams/claim-profile-dialog";
@@ -118,15 +118,6 @@ export function PlayerList({
       />
     );
   }
-  const roleOf = (role?: string) =>
-    role === "captain"
-      ? "Captain (c)"
-      : role === "vice_captain"
-        ? "Vice-captain (vc)"
-        : role === "wicket_keeper"
-          ? "Wicket-keeper (wk)"
-          : formatPlayerRole(role);
-
   const claimOf = (userId: string) => claims[userId];
 
   return (
@@ -134,10 +125,7 @@ export function PlayerList({
     <ListCard aria-label="Squad">
       {players.map((player) => {
         const name = player.user?.full_name ?? "Player";
-        const lead =
-          player.role_in_team === "captain" ||
-          player.role_in_team === "vice_captain" ||
-          player.role_in_team === "wicket_keeper";
+        const roleLine = squadRoleLine(player.role_in_team);
         return (
           <div
             key={player.id}
@@ -151,16 +139,15 @@ export function PlayerList({
                 className="block truncate text-sm font-medium text-foreground hover:text-primary"
               >
                 {name}
+                {/* The role as one mark after the name, as on the match's
+                    Squads (P7). */}
+                {roleMark(player.role_in_team)}
               </Link>
-              <span
-                className={
-                  lead
-                    ? "block truncate text-xs font-medium text-primary"
-                    : "block truncate text-xs text-muted-foreground"
-                }
-              >
-                {roleOf(player.role_in_team)}
-              </span>
+              {roleLine && (
+                <span className="block truncate text-xs text-muted-foreground">
+                  {roleLine}
+                </span>
+              )}
               {claimOf(player.user_id)?.state === "placeholder" && (
                 <span className="mt-0.5 inline-block rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                   Not on CricScore
@@ -176,7 +163,8 @@ export function PlayerList({
             </span>
             {player.jersey_number != null && (
               <span className="shrink-0 font-score text-sm tabular-nums text-muted-foreground">
-                #{player.jersey_number}
+                <span className="sr-only">Shirt number </span>#
+                {player.jersey_number}
               </span>
             )}
             {allowEdit && (

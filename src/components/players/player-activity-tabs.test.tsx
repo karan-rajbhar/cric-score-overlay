@@ -288,9 +288,9 @@ describe("PlayerActivityTabs", () => {
     );
 
     expect(screen.getByText("Metropolitan Strikers")).toBeInTheDocument();
-    // Role, shirt number and club on one line.
+    // Role (in words, once: P7), shirt number and club on one line.
     expect(
-      screen.getByText("Captain (c) · #18 · Metropolitan Cricket Club"),
+      screen.getByText("Captain · #18 · Metropolitan Cricket Club"),
     ).toBeInTheDocument();
   });
 

@@ -536,11 +536,32 @@ export function formatTournamentFormat(format?: string | null): string {
 }
 
 /** Human-friendly label for player team roles. */
+/**
+ * The mark after a name for a squad role (M10, P7): " (c)", " (vc)",
+ * " (wk)", or nothing for anyone else. Squads show it instead of a line
+ * saying the role.
+ */
+export function roleMark(role?: string | null): string {
+  if (role === "captain") return " (c)";
+  if (role === "vice_captain") return " (vc)";
+  if (role === "wicket_keeper") return " (wk)";
+  return "";
+}
+
+/**
+ * A squad role worth a line under the name: one the mark does not carry
+ * and that is not plain "player" ("All-rounder"), else null.
+ */
+export function squadRoleLine(role?: string | null): string | null {
+  if (!role || role === "player" || roleMark(role)) return null;
+  return formatPlayerRole(role);
+}
+
 export function formatPlayerRole(role?: string | null): string {
   if (!role) return "Player";
   const map: Record<string, string> = {
     captain: "Captain",
-    vice_captain: "Vice Captain",
+    vice_captain: "Vice-captain",
     wicket_keeper: "Wicket-keeper",
     all_rounder: "All-rounder",
     batsman: "Batter",
