@@ -467,7 +467,7 @@ export function LiveMatchHUD({
                           "Target achieved"
                         )}
                       </h3>
-                      <p className={cn("text-xs font-medium sm:text-2xs", dim)}>
+                      <p className={cn("text-xs font-medium", dim)}>
                         Target:{" "}
                         <strong
                           className={cn("font-bold tabular-nums", bright)}
@@ -584,7 +584,7 @@ export function LiveMatchHUD({
                           CRR: {crr}
                         </span>
                       </h3>
-                      <p className={cn("text-2xs font-medium", dim)}>
+                      <p className={cn("text-xs font-medium", dim)}>
                         {ballsRem} balls remaining (
                         {oversFromBalls(ballsRem, bpo)} ov)
                       </p>
@@ -615,7 +615,7 @@ export function LiveMatchHUD({
                         : "border border-white/10 bg-black/25 text-white/80",
                     )}
                   >
-                    <span className="text-2xs font-semibold">
+                    <span className="text-xs font-semibold">
                       Projected score:
                     </span>
                     <div className="flex items-center gap-3">
@@ -659,7 +659,7 @@ export function LiveMatchHUD({
                 <span className="text-sm font-semibold text-foreground">
                   Batting
                 </span>
-                <span className="truncate text-2xs font-semibold tabular-nums text-muted-foreground/90">
+                <span className="truncate text-xs font-semibold tabular-nums text-muted-foreground/90">
                   (Stand: {partnership.runs} off {partnership.balls}b)
                 </span>
               </div>
@@ -759,7 +759,7 @@ export function LiveMatchHUD({
                             </span>
                           )}
                         </span>
-                        <span className="hidden pl-3.5 text-2xs text-muted-foreground sm:block">
+                        <span className="hidden pl-3.5 text-xs text-muted-foreground sm:block">
                           SR:{" "}
                           <strong className="font-semibold tabular-nums text-foreground">
                             {strikeRate(batter.runs, batter.balls)}
@@ -785,7 +785,7 @@ export function LiveMatchHUD({
                         onClick={change}
                         title={`Change ${batter.name}`}
                         aria-label={`Change ${batter.name}`}
-                        className="shadow-2xs inline-flex min-w-11 shrink-0 items-center justify-center gap-1 rounded-xl border border-border/80 bg-background/80 px-2 text-2xs font-bold text-foreground hover:bg-muted"
+                        className="shadow-2xs inline-flex min-w-11 shrink-0 items-center justify-center gap-1 rounded-xl border border-border/80 bg-background/80 px-2 text-xs font-bold text-foreground hover:bg-muted"
                       >
                         <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
                         <span className="hidden sm:inline">Change</span>
@@ -813,7 +813,7 @@ export function LiveMatchHUD({
                 <span className="text-sm font-semibold text-foreground">
                   Bowler
                 </span>
-                <span className="truncate text-2xs font-semibold tabular-nums text-muted-foreground/90">
+                <span className="truncate text-xs font-semibold tabular-nums text-muted-foreground/90">
                   (this over: {thisOverRuns} runs)
                 </span>
               </div>
@@ -892,7 +892,7 @@ export function LiveMatchHUD({
               {isPhone && bowlerAction}
             </div>
             {lastBalls.length === 0 && (
-              <p className="hidden text-[0.625rem] text-muted-foreground sm:block sm:text-2xs">
+              <p className="hidden text-[0.625rem] text-muted-foreground sm:block sm:text-xs">
                 Awaiting first ball of over
               </p>
             )}

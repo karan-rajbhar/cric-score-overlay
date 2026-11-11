@@ -214,7 +214,7 @@ export function PenaltyBonusDialog({
                 <Label htmlFor="penalty-runs" className="text-xs font-semibold">
                   Number of runs
                 </Label>
-                <span className="text-2xs text-muted-foreground">
+                <span className="text-xs text-muted-foreground">
                   A penalty is usually 5 runs
                 </span>
               </div>

@@ -101,7 +101,7 @@ function StandingTableRow({
           {status && (
             <span
               className={cn(
-                "inline-flex h-5 shrink-0 items-center rounded-full px-1.5 font-sans text-2xs font-semibold",
+                "inline-flex h-5 shrink-0 items-center rounded-full px-1.5 font-sans text-xs font-semibold",
                 status.cls,
               )}
               title={status.label}
@@ -120,7 +120,7 @@ function StandingTableRow({
       <td className={cn(figCell, "font-semibold text-foreground")}>
         {row.points}
         {row.adjustment && (
-          <span className="block text-2xs font-normal text-muted-foreground">
+          <span className="block text-xs font-normal text-muted-foreground">
             {row.adjustment}
           </span>
         )}

@@ -149,7 +149,7 @@ function StandRow({
       <div className="flex items-center justify-between gap-3">
         <span className="flex min-w-0 items-center gap-2 text-sm">
           <span
-            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-card font-score text-2xs font-semibold tabular-nums text-muted-foreground"
+            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-card font-score text-xs font-semibold tabular-nums text-muted-foreground"
             title={`${ordinal(s.wicket)} wicket stand`}
           >
             {s.wicket}

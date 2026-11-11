@@ -14,8 +14,9 @@ export default {
   theme: {
     extend: {
       fontSize: {
-        // The one size below text-xs: dense table cells, chips, axis labels.
-        "2xs": "0.6875rem",
+        // Chart axis ticks only. Everything else reads at text-xs (12px) or
+        // more: principle "12 px to read" (X5).
+        axis: "0.6875rem",
       },
       fontFamily: {
         sans: [

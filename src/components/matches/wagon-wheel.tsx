@@ -586,7 +586,7 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
             {/* Left Section: Runs, Balls, SR */}
             <div className="grid grid-cols-3 text-center px-1 sm:px-2">
               <div>
-                <div className="text-2xs font-medium text-muted-foreground">
+                <div className="text-xs font-medium text-muted-foreground">
                   Runs
                 </div>
                 <div className="font-score text-lg font-semibold tabular-nums text-foreground sm:text-2xl">
@@ -596,7 +596,7 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
                 </div>
               </div>
               <div>
-                <div className="text-2xs font-medium text-muted-foreground">
+                <div className="text-xs font-medium text-muted-foreground">
                   Balls
                 </div>
                 <div className="font-score text-lg font-semibold tabular-nums text-foreground sm:text-2xl">
@@ -606,7 +606,7 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
                 </div>
               </div>
               <div>
-                <div className="text-2xs font-medium text-muted-foreground">
+                <div className="text-xs font-medium text-muted-foreground">
                   SR
                 </div>
                 <div className="font-score text-lg font-semibold tabular-nums text-foreground sm:text-2xl">
@@ -620,7 +620,7 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
             {/* Right Section: Off-S, Leg-S */}
             <div className="grid grid-cols-2 text-center px-1 sm:px-2">
               <div>
-                <div className="text-2xs font-medium text-muted-foreground">
+                <div className="text-xs font-medium text-muted-foreground">
                   Off side
                 </div>
                 <div className="font-score text-lg font-semibold tabular-nums text-foreground sm:text-2xl">
@@ -630,7 +630,7 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
                 </div>
               </div>
               <div>
-                <div className="text-2xs font-medium text-muted-foreground">
+                <div className="text-xs font-medium text-muted-foreground">
                   Leg side
                 </div>
                 <div className="font-score text-lg font-semibold tabular-nums text-foreground sm:text-2xl">
@@ -797,12 +797,12 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
                       </span>
                       <span className="font-score font-semibold tabular-nums">
                         {st.runs} runs{" "}
-                        <span className="text-2xs text-muted-foreground font-normal">
+                        <span className="text-xs text-muted-foreground font-normal">
                           ({pct}%)
                         </span>
                       </span>
                     </div>
-                    <div className="mt-1 flex items-center justify-between text-2xs text-muted-foreground">
+                    <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
                       <span>{st.balls} balls</span>
                       <span className="flex items-center gap-2">
                         {st.fours > 0 && (

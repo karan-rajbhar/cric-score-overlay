@@ -185,32 +185,32 @@ export function MatchStats({ match }: MatchStatsProps) {
                 <div className="space-y-3.5 px-4 pb-4">
                   <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm">
                     <div className="rounded-xl bg-muted p-2.5">
-                      <span className="text-muted-foreground block text-2xs">Best over</span>
+                      <span className="text-muted-foreground block text-xs">Best over</span>
                       <span className="font-semibold tabular-nums text-foreground">
                         {best ? `Over ${best.over} (${best.runs} runs)` : "—"}
                       </span>
                     </div>
                     <div className="rounded-xl bg-muted p-2.5">
-                      <span className="text-muted-foreground block text-2xs">Run rate</span>
+                      <span className="text-muted-foreground block text-xs">Run rate</span>
                       <span className="font-semibold tabular-nums text-foreground">
                         {runRate(innings.total_runs, inningsBallCount(innings))}
                       </span>
                     </div>
                     <div className="rounded-xl bg-muted p-2.5">
-                      <span className="text-muted-foreground block text-2xs">Last 5 overs</span>
+                      <span className="text-muted-foreground block text-xs">Last 5 overs</span>
                       <span className="font-semibold tabular-nums text-foreground">
                         {last5.runs}/{last5.wickets}
                       </span>
                     </div>
                     <div className="rounded-xl bg-muted p-2.5">
-                      <span className="text-muted-foreground block text-2xs">Extras (runs)</span>
+                      <span className="text-muted-foreground block text-xs">Extras (runs)</span>
                       <span className="font-semibold tabular-nums text-foreground">
                         {extrasSplit(innings).total}
                       </span>
                     </div>
                   </div>
                   <div className="space-y-2 border-t border-border/50 pt-3">
-                    <span className="text-2xs font-medium text-muted-foreground block">
+                    <span className="text-xs font-medium text-muted-foreground block">
                       Phase analysis
                     </span>
                     {phases.map((p) => {
@@ -388,7 +388,7 @@ export function MatchStats({ match }: MatchStatsProps) {
                       </div>
                     </div>
 
-                    <div className="mt-4 flex flex-wrap gap-1.5 text-2xs text-muted-foreground">
+                    <div className="mt-4 flex flex-wrap gap-1.5 text-xs text-muted-foreground">
                       <span className="rounded-full bg-muted px-2 py-0.5 tabular-nums">
                         Wides {ex.wides}
                       </span>

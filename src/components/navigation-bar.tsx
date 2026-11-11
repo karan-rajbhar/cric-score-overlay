@@ -119,7 +119,7 @@ export function NavigationBar() {
               placeholder="Search matches, tournaments, players"
               className="h-10 w-full rounded-full border border-border bg-card pl-10 pr-14 text-sm transition-colors placeholder:text-muted-foreground focus-visible:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
             />
-            <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 select-none rounded-full border border-border bg-muted px-2 py-0.5 font-sans text-2xs font-medium text-muted-foreground sm:inline-block">
+            <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 select-none rounded-full border border-border bg-muted px-2 py-0.5 font-sans text-xs font-medium text-muted-foreground sm:inline-block">
               Ctrl K
             </kbd>
           </form>
@@ -234,7 +234,7 @@ export function NavigationBar() {
                       @{username}
                     </div>
                   )}
-                  <div className="truncate text-2xs text-muted-foreground">
+                  <div className="truncate text-xs text-muted-foreground">
                     {user.email}
                   </div>
                 </div>

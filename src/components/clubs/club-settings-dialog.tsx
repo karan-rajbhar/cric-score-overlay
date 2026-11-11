@@ -141,7 +141,7 @@ export function ClubSettingsDialog({ club }: ClubSettingsDialogProps) {
             />
             <div>
               <p className="text-xs font-semibold">Club emblem & banner</p>
-              <p className="text-2xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Manage custom crest logo and hero cover
               </p>
             </div>
@@ -295,7 +295,7 @@ export function ClubSettingsDialog({ club }: ClubSettingsDialogProps) {
             </div>
             <div className="grid grid-cols-3 gap-2">
               <div className="space-y-1">
-                <Label htmlFor="club-twitter" className="text-2xs">
+                <Label htmlFor="club-twitter" className="text-xs">
                   X / Twitter
                 </Label>
                 <Input
@@ -307,7 +307,7 @@ export function ClubSettingsDialog({ club }: ClubSettingsDialogProps) {
                 />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="club-instagram" className="text-2xs">
+                <Label htmlFor="club-instagram" className="text-xs">
                   Instagram
                 </Label>
                 <Input
@@ -319,7 +319,7 @@ export function ClubSettingsDialog({ club }: ClubSettingsDialogProps) {
                 />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="club-youtube" className="text-2xs">
+                <Label htmlFor="club-youtube" className="text-xs">
                   YouTube
                 </Label>
                 <Input

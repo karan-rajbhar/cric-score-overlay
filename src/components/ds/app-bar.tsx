@@ -86,7 +86,7 @@ function TabFace({ item }: { item: TabBarItem }) {
       </span>
       <span
         className={cn(
-          "text-2xs leading-none",
+          "text-xs leading-none",
           active
             ? "font-semibold text-foreground"
             : "font-medium text-muted-foreground",

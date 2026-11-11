@@ -191,7 +191,7 @@ function MatchOpponentCell({
           <p className="truncate text-xs font-semibold text-foreground">
             vs {opponentName(match, opponent)}
           </p>
-          <div className="flex items-center gap-1.5 text-2xs text-muted-foreground">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <span>{formatDate(match?.scheduled_at)}</span>
             {match && namedFormat(match) && (
               <>

@@ -63,7 +63,7 @@ function Identity() {
         {SIZES.map((s) => (
           <div key={s} className="flex flex-col items-center gap-1.5">
             <TeamCrest {...TEAMS.riverside} size={s} />
-            <span className="font-mono text-2xs text-muted-foreground">
+            <span className="font-mono text-xs text-muted-foreground">
               {s}
             </span>
           </div>

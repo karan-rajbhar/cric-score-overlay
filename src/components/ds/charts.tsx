@@ -168,7 +168,7 @@ function ChartTooltip({
   );
 }
 
-const axisText = "fill-muted-foreground font-score text-2xs tabular-nums";
+const axisText = "fill-muted-foreground font-score text-axis tabular-nums";
 
 /** Horizontal gridlines with their value labels on the left. */
 function YGrid({

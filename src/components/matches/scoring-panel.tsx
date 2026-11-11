@@ -1172,7 +1172,7 @@ export function ScoringPanel({
           )}
         </div>
 
-        <p className="hidden text-center text-2xs text-muted-foreground sm:block">
+        <p className="hidden text-center text-xs text-muted-foreground sm:block">
           Keys 0–6 score · . dot · W wicket · U undo · S swap · D/N/B/L extras ·
           ? help
         </p>

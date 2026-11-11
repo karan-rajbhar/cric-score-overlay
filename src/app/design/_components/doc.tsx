@@ -80,7 +80,7 @@ export function Specimen({
 /** Small caption under a variant inside a specimen. */
 export function Caption({ children }: { children: React.ReactNode }) {
   return (
-    <p className="mt-2 font-mono text-2xs text-muted-foreground">{children}</p>
+    <p className="mt-2 font-mono text-xs text-muted-foreground">{children}</p>
   );
 }
 

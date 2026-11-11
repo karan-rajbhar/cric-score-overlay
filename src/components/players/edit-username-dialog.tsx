@@ -204,7 +204,7 @@ export function EditUsernameDialog({
             </div>
 
             {/* Platform Rules Hint */}
-            <div className="rounded-lg bg-muted/40 p-3 text-2xs text-muted-foreground space-y-1">
+            <div className="rounded-lg bg-muted/40 p-3 text-xs text-muted-foreground space-y-1">
               <p className="font-semibold text-foreground">Handle Rules:</p>
               <ul className="list-disc pl-4 space-y-0.5">
                 <li>3 to 30 characters long</li>

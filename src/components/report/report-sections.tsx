@@ -397,7 +397,7 @@ export function SignoffCard({
               />
             )}
             <span className="mt-10 block border-b border-foreground/30" />
-            <span className="mt-1 text-2xs text-muted-foreground">
+            <span className="mt-1 text-xs text-muted-foreground">
               Signature and date
             </span>
           </div>
