@@ -2,30 +2,31 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { BackLink } from "~/components/ds/back-link";
 import { unstable_rethrow } from "next/navigation";
 import { Button } from "~/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
-import { Input } from "~/components/ui/input";
-import { Label } from "~/components/ui/label";
-import { Textarea } from "~/components/ui/textarea";
+import { Card, CardContent } from "~/components/ui/card";
 import {
+  Field,
+  Input,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "~/components/ui/select";
+  Textarea,
+} from "~/components/ds/field";
+import { ScreenBar } from "~/components/ds/screen";
+import { useFieldErrors } from "~/lib/hooks/useFieldErrors";
 import { createClub } from "../actions";
 import { useAuth } from "~/lib/auth";
-import { ChevronLeft, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { PageContainer } from "~/components/layout/page";
 import { NETWORK_ERROR_MESSAGE } from "~/lib/network-error";
 
 export default function CreateClubPage() {
   const { user, loading: authLoading } = useAuth();
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { errors, show, clear } = useFieldErrors<"name" | "short_name">();
 
   if (authLoading) {
     return (
@@ -55,117 +56,124 @@ export default function CreateClubPage() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    const form = e.currentTarget;
+    const fd = new FormData(form);
+    if (!String(fd.get("name") ?? "").trim()) {
+      show(form, { name: "Enter the club's name." });
+      return;
+    }
+    show(form, {});
     setSaving(true);
-    setError(null);
-    const fd = new FormData(e.currentTarget);
     try {
       // On success the action redirects to the new club.
       const res = await createClub(fd);
       if (res?.error) {
-        setError(res.error);
+        const message = res.error;
+        show(
+          form,
+          /short name/i.test(message)
+            ? { short_name: message }
+            : /name/i.test(message)
+              ? { name: message }
+              : { form: message },
+        );
         setSaving(false);
       }
     } catch (err) {
       unstable_rethrow(err);
-      setError(NETWORK_ERROR_MESSAGE);
+      show(form, { form: NETWORK_ERROR_MESSAGE });
       setSaving(false);
     }
   };
 
   return (
     <PageContainer size="form" stack={false}>
-        <Button variant="ghost" asChild className="mb-4">
-          <BackLink href="/clubs">
-            <ChevronLeft className="mr-2 h-4 w-4 shrink-0" /> Back
-          </BackLink>
-        </Button>
+      {/* The round Back of every screen, and the page's heading (F3, F6). */}
+      <ScreenBar className="mb-4" backHref="/clubs" title="New club" />
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Create club</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <Label htmlFor="name">Club name *</Label>
+      <Card>
+        <CardContent className="pt-6">
+          <form noValidate onSubmit={handleSubmit} className="space-y-4">
+            <Field label="Club name" error={errors.name}>
+              {(p) => (
                 <Input
-                  id="name"
+                  {...p}
                   name="name"
-                  required
                   placeholder="e.g. Riverside Cricket Club"
-                  className="mt-2"
+                  onChange={() => clear("name")}
                 />
-              </div>
-              <div>
-                <Label htmlFor="short_name">Short name</Label>
+              )}
+            </Field>
+            <Field
+              label="Short name"
+              optional
+              error={errors.short_name}
+              hint="Shown where the full name does not fit. Up to 10 letters."
+            >
+              {(p) => (
                 <Input
-                  id="short_name"
+                  {...p}
                   name="short_name"
                   placeholder="e.g. RCC"
-                  className="mt-2"
                   maxLength={10}
+                  onChange={() => clear("short_name")}
                 />
-              </div>
-              <div>
-                <Label htmlFor="location">Location</Label>
-                <Input
-                  id="location"
-                  name="location"
-                  placeholder="e.g. Mumbai"
-                  className="mt-2"
-                />
-              </div>
-              <div>
-                <Label htmlFor="club-type">Club type</Label>
+              )}
+            </Field>
+            <Field label="Location" optional>
+              {(p) => <Input {...p} name="location" placeholder="e.g. Mumbai" />}
+            </Field>
+            <Field label="Club type">
+              {(p) => (
                 <Select name="club_type" defaultValue="community">
-                  <SelectTrigger id="club-type" className="mt-2">
+                  <SelectTrigger id={p.id} aria-describedby={p["aria-describedby"]}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="community">Community club</SelectItem>
                     <SelectItem value="corporate">Corporate club</SelectItem>
-                    <SelectItem value="school">
-                      School / college academy
-                    </SelectItem>
+                    <SelectItem value="school">School / college academy</SelectItem>
                     <SelectItem value="professional">
                       Professional league club
                     </SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-              <div>
-                <Label htmlFor="description">Description</Label>
+              )}
+            </Field>
+            <Field label="Description" optional>
+              {(p) => (
                 <Textarea
-                  id="description"
+                  {...p}
                   name="description"
                   placeholder="About the club"
-                  className="mt-2"
                   rows={3}
                 />
-              </div>
-
-              {error && (
-                <div
-                  role="alert"
-                  className="rounded-md border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive"
-                >
-                  {error}
-                </div>
               )}
+            </Field>
 
-              <Button type="submit" disabled={saving} className="h-11 min-h-[44px] w-full">
-                {saving ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" />
-                    Creating club…
-                  </>
-                ) : (
-                  "Create club"
-                )}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+            {errors.form && (
+              <div
+                role="alert"
+                tabIndex={-1}
+                className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive"
+              >
+                {errors.form}
+              </div>
+            )}
+
+            <Button type="submit" disabled={saving} className="h-11 min-h-[44px] w-full">
+              {saving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" />
+                  Creating club…
+                </>
+              ) : (
+                "Create club"
+              )}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </PageContainer>
   );
 }

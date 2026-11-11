@@ -2,30 +2,25 @@
 
 import { Suspense, useState } from "react";
 import Link from "next/link";
-import { BackLink } from "~/components/ds/back-link";
 import { unstable_rethrow, useSearchParams } from "next/navigation";
 import { Button } from "~/components/ui/button";
+import { Card, CardContent, CardHeader, CardDescription } from "~/components/ui/card";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "~/components/ui/card";
-import { Input } from "~/components/ui/input";
-import { Label } from "~/components/ui/label";
-import { Textarea } from "~/components/ui/textarea";
-import {
+  Field,
+  Input,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "~/components/ui/select";
+  Textarea,
+} from "~/components/ds/field";
+import { ScreenBar } from "~/components/ds/screen";
+import { useFieldErrors } from "~/lib/hooks/useFieldErrors";
 import { createTeam } from "../actions";
 import { useAuth } from "~/lib/auth";
 import { useUserManagedClubsQuery } from "~/lib/hooks/useMatchQueries";
-import { ChevronDown, ChevronLeft, Loader2, Users, Shield } from "lucide-react";
+import { ChevronDown, Loader2, Users, Shield } from "lucide-react";
 import { TeamColourPicker } from "~/components/teams/team-colour-picker";
 import { isTeamColor } from "~/lib/team-colors";
 import { cn } from "~/lib/utils";
@@ -39,7 +34,7 @@ function CreateTeamForm() {
   const { user } = useAuth();
 
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { errors, show, clear } = useFieldErrors<"name" | "short_name" | "colours">();
   const { data: clubsData } = useUserManagedClubsQuery(
     user?.id,
     prefilledClubId,
@@ -54,13 +49,20 @@ function CreateTeamForm() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    const form = e.currentTarget;
+    const fd = new FormData(form);
+    const found: Partial<Record<"name" | "colours", string>> = {};
+    if (!String(fd.get("name") ?? "").trim()) found.name = "Enter the team's name.";
     if ([primary, secondary].some((c) => c.trim() !== "" && !isTeamColor(c))) {
-      setError("Team colours must look like #1a2b3c");
+      found.colours = "Team colours must look like #1a2b3c.";
+      setColoursOpen(true);
+    }
+    if (Object.keys(found).length > 0) {
+      show(form, found);
       return;
     }
+    show(form, {});
     setSaving(true);
-    setError(null);
-    const fd = new FormData(e.currentTarget);
     fd.set("primary_color", primary.trim());
     fd.set("secondary_color", secondary.trim());
     if (selectedClubId && selectedClubId !== "none") {
@@ -74,12 +76,22 @@ function CreateTeamForm() {
       // On success the action redirects to the new team's page.
       const res = await createTeam(fd);
       if (res?.error) {
-        setError(res.error);
+        const message = res.error;
+        show(
+          form,
+          /short name/i.test(message)
+            ? { short_name: message }
+            : /name/i.test(message)
+              ? { name: message }
+              : /colou?r/i.test(message)
+                ? { colours: message }
+                : { form: message },
+        );
         setSaving(false);
       }
     } catch (err) {
       unstable_rethrow(err);
-      setError(NETWORK_ERROR_MESSAGE);
+      show(form, { form: NETWORK_ERROR_MESSAGE });
       setSaving(false);
     }
   };
@@ -87,121 +99,108 @@ function CreateTeamForm() {
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center gap-2 text-primary">
-          <Users className="h-5 w-5 shrink-0" />
-          <span className="text-xs font-semibold text-primary">
-            New team
-          </span>
-        </div>
-        <CardTitle className="text-xl">Create a team</CardTitle>
         <CardDescription>
           Name the side and, if it plays for a club you run, link the club.
           You add players next.
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Label htmlFor="name">Team name *</Label>
-            <Input
-              id="name"
-              name="name"
-              required
-              maxLength={60}
-              placeholder="e.g. Royal Challengers"
-              className="mt-2"
-            />
+        <form noValidate onSubmit={handleSubmit} className="space-y-4">
+          <Field label="Team name" error={errors.name}>
+            {(p) => (
+              <Input
+                {...p}
+                name="name"
+                maxLength={60}
+                placeholder="e.g. Hilltop Hawks"
+                onChange={() => clear("name")}
+              />
+            )}
+          </Field>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field
+              label="Short name"
+              optional
+              error={errors.short_name}
+              hint="Shown on the scoreboard. Up to 5 letters."
+            >
+              {(p) => (
+                <Input
+                  {...p}
+                  name="short_name"
+                  placeholder="e.g. HAW"
+                  value={shortName}
+                  onChange={(e) => {
+                    setShortName(e.target.value.toUpperCase());
+                    clear("short_name");
+                  }}
+                  maxLength={5}
+                  autoCapitalize="characters"
+                />
+              )}
+            </Field>
+
+            <Field
+              label="Team type"
+              hint="A label on the team page. It changes nothing else."
+            >
+              {(p) => (
+                <Select name="team_type" defaultValue="club">
+                  <SelectTrigger id={p.id} aria-describedby={p["aria-describedby"]}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="club">Club team</SelectItem>
+                    <SelectItem value="tournament">Tournament squad</SelectItem>
+                    <SelectItem value="match">Match-only team</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            </Field>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
-            <div>
-              <Label htmlFor="short_name">Short name</Label>
-              <Input
-                id="short_name"
-                name="short_name"
-                placeholder="e.g. RCB"
-                value={shortName}
-                onChange={(e) => setShortName(e.target.value.toUpperCase())}
-                maxLength={5}
-                autoCapitalize="characters"
-                aria-describedby="short_name-hint"
-                className="mt-2 uppercase"
-              />
-              <p
-                id="short_name-hint"
-                className="mt-1 text-xs text-muted-foreground"
+          <Field label="Club" optional>
+            {(p) => (
+              <Select
+                value={selectedClubId || "none"}
+                onValueChange={(val) =>
+                  setSelectedClubId(val === "none" ? "" : val)
+                }
               >
-                Shown on the scoreboard. Up to 5 letters.
-              </p>
-            </div>
-
-            <div>
-              <Label htmlFor="team_type">Team type</Label>
-              <Select name="team_type" defaultValue="club">
-                <SelectTrigger
-                  id="team_type"
-                  aria-describedby="team_type-hint"
-                  className="mt-2"
-                >
-                  <SelectValue />
+                <SelectTrigger id={p.id} aria-describedby={p["aria-describedby"]}>
+                  <SelectValue placeholder="No club" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="club">Club team</SelectItem>
-                  <SelectItem value="tournament">Tournament squad</SelectItem>
-                  <SelectItem value="match">Match-only team</SelectItem>
+                  <SelectItem value="none">No club</SelectItem>
+                  {clubs.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      <div className="flex items-center gap-2">
+                        <Shield className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        <span>{c.name}</span>
+                        {c.short_name && (
+                          <span className="text-xs text-muted-foreground">
+                            ({c.short_name})
+                          </span>
+                        )}
+                      </div>
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
-              <p
-                id="team_type-hint"
-                className="mt-1 text-xs text-muted-foreground"
-              >
-                A label on the team page. It changes nothing else.
-              </p>
-            </div>
-          </div>
+            )}
+          </Field>
 
-          <div>
-            <Label htmlFor="club_select">Affiliated club (optional)</Label>
-            <Select
-              value={selectedClubId || "none"}
-              onValueChange={(val) =>
-                setSelectedClubId(val === "none" ? "" : val)
-              }
-            >
-              <SelectTrigger id="club_select" className="mt-2">
-                <SelectValue placeholder="Independent team (no club)" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">
-                  Independent (no club affiliation)
-                </SelectItem>
-                {clubs.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    <div className="flex items-center gap-2">
-                      <Shield className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                      <span>{c.name}</span>
-                      {c.short_name && (
-                        <span className="text-xs text-muted-foreground">
-                          ({c.short_name})
-                        </span>
-                      )}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label htmlFor="description">About the team</Label>
-            <Textarea
-              id="description"
-              name="description"
-              placeholder="Home ground, history or a short bio"
-              className="mt-2"
-              rows={3}
-            />
-          </div>
+          <Field label="About the team" optional>
+            {(p) => (
+              <Textarea
+                {...p}
+                name="description"
+                placeholder="Home ground, history or a short bio"
+                rows={3}
+              />
+            )}
+          </Field>
 
           <div className="rounded-lg border">
             <button
@@ -213,7 +212,11 @@ function CreateTeamForm() {
             >
               <span>
                 <span className="block text-sm font-medium">
-                  Team colours (optional)
+                  Team colours
+                  <span className="font-normal text-muted-foreground">
+                    {" "}
+                    (optional)
+                  </span>
                 </span>
                 <span className="block text-xs text-muted-foreground">
                   Used on scoreboards and overlays.
@@ -228,6 +231,15 @@ function CreateTeamForm() {
               />
             </button>
             <div id="team-colours" hidden={!coloursOpen} className="border-t p-3">
+              {errors.colours && (
+                <p
+                  role="alert"
+                  tabIndex={-1}
+                  className="mb-2 text-xs font-medium text-destructive"
+                >
+                  {errors.colours}
+                </p>
+              )}
               <TeamColourPicker
                 shortName={shortName}
                 primary={primary}
@@ -256,12 +268,13 @@ function CreateTeamForm() {
             </span>
           </label>
 
-          {error && (
+          {errors.form && (
             <div
               role="alert"
-              className="rounded-md bg-destructive/15 p-3 text-sm text-destructive"
+              tabIndex={-1}
+              className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive"
             >
-              {error}
+              {errors.form}
             </div>
           )}
 
@@ -281,24 +294,17 @@ function CreateTeamForm() {
   );
 }
 
-function CreateTeamBackButton() {
+/** The round Back of every screen, and the page's heading (F3, F6). */
+function CreateTeamBar() {
   const searchParams = useSearchParams();
   const clubId = searchParams.get("clubId");
   const tournamentId = searchParams.get("tournamentId");
-
   const backHref = tournamentId
     ? `/tournaments/${tournamentId}?tab=teams`
     : clubId
       ? `/clubs/${clubId}?tab=teams`
       : "/teams";
-
-  return (
-    <Button variant="ghost" asChild className="mb-4">
-      <BackLink href={backHref}>
-        <ChevronLeft className="mr-2 h-4 w-4 shrink-0" /> Back
-      </BackLink>
-    </Button>
-  );
+  return <ScreenBar className="mb-4" backHref={backHref} title="New team" />;
 }
 
 export default function CreateTeamPage() {
@@ -334,7 +340,7 @@ export default function CreateTeamPage() {
   return (
     <PageContainer size="form" stack={false}>
         <Suspense fallback={null}>
-          <CreateTeamBackButton />
+          <CreateTeamBar />
         </Suspense>
 
         <Suspense

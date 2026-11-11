@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AppSidebar } from "~/components/layout/app-sidebar";
 import { MobileTabBar } from "~/components/layout/mobile-tab-bar";
+import { isTaskPath } from "~/lib/navigation";
 import { NavigationBar } from "~/components/navigation-bar";
 import { useTrackVisits } from "~/lib/in-app-history";
 import { isReportPath } from "~/lib/report-route";
@@ -40,6 +41,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
 
+  const task = isTaskPath(pathname);
+
   // The printable reports (match, club statistics) bring their own toolbar
   // and layout.
   if (isReportPath(pathname)) {
@@ -47,8 +50,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    // Phones: room at the bottom for the floating tab bar.
-    <div className="flex min-h-screen flex-col bg-background text-foreground max-md:pb-24">
+    // Phones: room at the bottom for the floating tab bar (none on a task).
+    <div
+      className={`flex min-h-screen flex-col bg-background text-foreground ${task ? "" : "max-md:pb-24"}`}
+    >
         {/* Phones: no header (the tab bar and the More page hold its items;
             detail screens have their own back bar). */}
         <div className="contents max-md:hidden">
@@ -113,7 +118,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         </footer>
-        <MobileTabBar />
+        {!task && <MobileTabBar />}
       </div>
   );
 }

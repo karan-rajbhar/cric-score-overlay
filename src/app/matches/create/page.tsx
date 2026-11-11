@@ -820,7 +820,9 @@ function MatchSetupForm({ userId }: { userId: string }) {
 
         {/* Phones: sticks just above the floating tab bar (MobileTabBar:
             a 4.25rem bar over max(0.75rem, safe area)), never under it. */}
-        <div className="sticky bottom-[calc(4.25rem+max(0.75rem,env(safe-area-inset-bottom)))] z-10 -mx-4 border-t bg-background px-4 pb-3 pt-3 sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0">
+        {/* No tab bar under it on this task screen (F2): it sits at the
+            bottom edge, above the home indicator. */}
+        <div className="sticky bottom-0 z-10 -mx-4 border-t bg-background px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0">
           {submitError && (
             <p
               role="alert"

@@ -119,3 +119,11 @@ export const clubTrail = (): NavCrumb[] => [{ label: "Clubs", href: "/clubs" }];
 export const playerTrail = (): NavCrumb[] => [
   { label: "Players", href: "/players" },
 ];
+
+/**
+ * A task screen (a create form): no phone tab bar, so the form has the
+ * screen and one way out (its Back); the submit stays in reach (F2).
+ */
+export function isTaskPath(pathname: string | null | undefined): boolean {
+  return /^\/(matches|teams|clubs|tournaments)\/create\/?$/.test(pathname ?? "");
+}
