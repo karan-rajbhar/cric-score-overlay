@@ -75,6 +75,11 @@ export function isTournamentOver(status: string | null | undefined): boolean {
   return status === "completed" || status === "cancelled";
 }
 
+/** Knockout and mixed tournaments get rounds; leagues get round-robin fixtures. */
+export function isBracketFormat(format: string | null | undefined): boolean {
+  return format === "knockout" || format === "mixed";
+}
+
 /** The formats the tournament forms offer. */
 const TOURNAMENT_FORMATS: ReadonlySet<string> = new Set([
   "league",

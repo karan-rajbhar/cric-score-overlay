@@ -56,12 +56,12 @@ import { ListCard, ListRow, MetaItem } from "~/components/ds/list";
 import { TeamCrest } from "~/components/ds/avatar";
 import { ProfileHeader } from "~/components/ds/player-header";
 import { EntityActions } from "~/components/follow/entity-actions";
-import { isBracketFormat, NextRoundDialog } from "~/components/tournaments/next-round-dialog";
+import { NextRoundDialog } from "~/components/tournaments/next-round-dialog";
 import { StatGrid, StatTile } from "~/components/ds/stat-tile";
 import { PointsTable } from "~/components/ds/standings";
 import { matchGroupsOf } from "~/lib/match-groups";
 import { remainingMatchesByTeam } from "~/lib/tournament-standings";
-import { isTournamentOver } from "~/app/tournaments/rules";
+import { isBracketFormat, isTournamentOver } from "~/app/tournaments/rules";
 import { SponsorLogosDialog } from "~/components/streaming/sponsor-logos-manager";
 
 export const dynamic = "force-dynamic";

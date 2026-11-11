@@ -2,11 +2,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { createNextRound, previewNextRound } from "~/app/tournaments/bracket-actions";
-import {
-  NextRoundDialog,
-  isBracketFormat,
-  suggestedStart,
-} from "./next-round-dialog";
+import { isBracketFormat } from "~/app/tournaments/rules";
+import { NextRoundDialog, suggestedStart } from "./next-round-dialog";
 
 const refresh = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
