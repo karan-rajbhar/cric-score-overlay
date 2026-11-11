@@ -33,7 +33,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
-import { useSidebarStore } from "~/lib/stores/useSidebarStore";
+import {
+  sidebarModeOf,
+  useSidebarExpanded,
+  useSidebarStore,
+} from "~/lib/stores/useSidebarStore";
 import { useSignOut, useUsername } from "~/lib/hooks/useAccount";
 
 export function NavigationBar() {
@@ -43,7 +47,9 @@ export function NavigationBar() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const username = useUsername();
-  const { toggleCollapsed } = useSidebarStore();
+  const sidebar = useSidebarStore();
+  const { toggleCollapsed } = sidebar;
+  const sidebarOpen = useSidebarExpanded(sidebarModeOf(sidebar));
   useIosInstallHint(Boolean(user));
 
   // Keyboard shortcuts: Ctrl+K for search, Ctrl+B for the sidebar.
@@ -63,7 +69,7 @@ export function NavigationBar() {
   }, [toggleCollapsed]);
 
   return (
-    <nav className="sticky top-0 z-40 h-14 border-b border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85">
+    <header className="sticky top-0 z-40 h-14 border-b border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85">
       <div className="flex h-full items-center justify-between gap-2 px-3 sm:gap-3 sm:px-5">
         {/* Left: Sidebar toggle + Brand */}
         <div className="flex items-center gap-1.5 sm:gap-2.5">
@@ -75,6 +81,8 @@ export function NavigationBar() {
             onClick={toggleCollapsed}
             title="Toggle sidebar (Ctrl+B)"
             aria-label="Toggle sidebar"
+            aria-expanded={sidebarOpen}
+            aria-controls="app-sidebar"
           >
             <PanelLeft className="h-4 w-4 shrink-0" />
           </Button>
@@ -297,6 +305,6 @@ export function NavigationBar() {
           )}
         </div>
       </div>
-    </nav>
+    </header>
   );
 }

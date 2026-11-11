@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { useMediaQuery } from "~/lib/hooks/useMediaQuery";
 import { persist, createJSONStorage } from "zustand/middleware";
 
 /**
@@ -69,4 +70,13 @@ export function sidebarClasses(mode: SidebarMode) {
         rail: "lg:hidden",
       };
   }
+}
+
+/**
+ * Whether the sidebar shows its labels (the header's toggle says so with
+ * `aria-expanded`): "auto" opens them from `lg` only.
+ */
+export function useSidebarExpanded(mode: SidebarMode): boolean {
+  const wideScreen = useMediaQuery("(min-width: 1024px)");
+  return mode === "open" || (mode === "auto" && wideScreen);
 }

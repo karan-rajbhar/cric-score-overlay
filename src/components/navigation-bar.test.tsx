@@ -37,11 +37,13 @@ const mockToggleMobile = vi.fn();
 
 vi.mock("~/lib/stores/useSidebarStore", () => ({
   useSidebarStore: () => ({
-    isCollapsed: false,
-    isMobileOpen: false,
+    collapsed: false,
+    narrowOpen: false,
     toggleCollapsed: mockToggleCollapsed,
     toggleMobile: mockToggleMobile,
   }),
+  sidebarModeOf: () => "auto",
+  useSidebarExpanded: () => true,
 }));
 
 describe("NavigationBar Component", () => {
@@ -114,6 +116,10 @@ describe("NavigationBar Component", () => {
     const desktopCollapseBtn = screen.getByRole("button", {
       name: /toggle sidebar/i,
     });
+    // It says whether the sidebar is open, and which one (N26).
+    expect(desktopCollapseBtn).toHaveAttribute("aria-expanded", "true");
+    expect(desktopCollapseBtn).toHaveAttribute("aria-controls", "app-sidebar");
+    expect(screen.getByRole("banner")).toContainElement(desktopCollapseBtn);
     fireEvent.click(desktopCollapseBtn);
     expect(mockToggleCollapsed).toHaveBeenCalledTimes(1);
     fireEvent.keyDown(window, { key: "b", ctrlKey: true });

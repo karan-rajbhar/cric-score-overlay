@@ -79,6 +79,7 @@ export function AppSidebar() {
 
   return (
     <aside
+      id="app-sidebar"
       className={cn(
         "fixed bottom-0 left-0 top-14 z-30 hidden overflow-y-auto overflow-x-hidden border-r border-border/60 bg-card transition-all duration-300 ease-in-out md:block",
         cls.width,

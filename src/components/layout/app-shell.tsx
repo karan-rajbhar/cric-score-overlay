@@ -58,6 +58,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div
       className={`flex min-h-screen flex-col bg-background text-foreground ${task ? "" : "max-md:pb-24"}`}
     >
+        {/* The first stop for a keyboard: past the header and the sidebar
+            (WCAG 2.4.1, N26). */}
+        <a
+          href="#content"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[60] focus:rounded-full focus:bg-primary focus:px-4 focus:py-2.5 focus:text-sm focus:font-medium focus:text-primary-foreground focus:shadow-float focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+        >
+          Skip to content
+        </a>
         {/* Phones: no header (the tab bar and the More page hold its items;
             detail screens have their own back bar). */}
         <div className="contents max-md:hidden">
@@ -68,7 +76,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <AppSidebar />
 
           <main
-            className={`relative isolate min-w-0 flex-1 transition-all duration-300 ease-in-out ${
+            id="content"
+            tabIndex={-1}
+            className={`relative isolate min-w-0 flex-1 transition-all duration-300 ease-in-out focus:outline-none ${
               pad
             }`}
           >

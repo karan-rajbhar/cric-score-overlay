@@ -77,6 +77,21 @@ describe("AppShell Component", () => {
     expect(screen.getByRole("link", { name: "Clubs" })).toHaveAttribute("href", "/clubs");
   });
 
+  it("starts with a link past the navigation to the page (N26)", () => {
+    mockUsePathname.mockReturnValue("/matches");
+    const { container } = render(
+      <AppShell>
+        <div>Match Center</div>
+      </AppShell>,
+    );
+    const skip = screen.getByRole("link", { name: "Skip to content" });
+    expect(container.querySelector("a, button")).toBe(skip);
+    expect(skip).toHaveAttribute("href", "#content");
+    const main = screen.getByRole("main");
+    expect(main).toHaveAttribute("id", "content");
+    expect(main).toHaveAttribute("tabindex", "-1");
+  });
+
   it("leaves the rail's room on tablets and the full sidebar's from lg when not collapsed (N5)", () => {
     mockUsePathname.mockReturnValue("/dashboard");
     useSidebarStore.setState({ collapsed: false, narrowOpen: false });
