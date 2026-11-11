@@ -10,7 +10,7 @@ describe("PlayerMilestones", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("shows counts, best figures and recent milestones linked to matches", () => {
+  it("shows best figures and recent milestones linked to matches", () => {
     render(
       <PlayerMilestones
         batting={[
@@ -36,8 +36,8 @@ describe("PlayerMilestones", () => {
       />,
     );
     expect(screen.getByText("Milestones")).toBeInTheDocument();
-    const fifties = screen.getByText("Fifties").parentElement!;
-    expect(within(fifties).getByText("1")).toBeInTheDocument();
+    // The counts are on the Batting and Bowling cards, not again here (P4).
+    expect(screen.queryByText("Fifties")).not.toBeInTheDocument();
     expect(screen.getByText("Best batting").parentElement).toHaveTextContent(
       "72* (48 balls)",
     );
@@ -50,5 +50,25 @@ describe("PlayerMilestones", () => {
       within(recent).getAllByRole("link", { name: "Strikers vs Warriors" })[0],
     ).toHaveAttribute("href", "/matches/m1");
     expect(recent).toHaveTextContent("20 Jul 2024");
+  });
+
+  it("leaves out a best the player has none of (P4)", () => {
+    render(
+      <PlayerMilestones
+        batting={[
+          {
+            match_id: "m1",
+            runs_scored: 12,
+            balls_faced: 10,
+            is_out: true,
+            created_at: "2024-07-20T14:00:00.000Z",
+            match,
+          },
+        ]}
+        bowling={[]}
+      />,
+    );
+    expect(screen.getByText("Best batting")).toBeInTheDocument();
+    expect(screen.queryByText("Best bowling")).not.toBeInTheDocument();
   });
 });

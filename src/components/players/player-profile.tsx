@@ -87,23 +87,32 @@ function FigureCard({ title, figures }: { title: string; figures: Figure[] }) {
   );
 }
 
+/**
+ * A card per discipline the player has something in (P4): pass null for
+ * one they have not taken part in, and it is left out, not drawn as zeros.
+ */
 export function CareerCards({
   batting,
   bowling,
   fielding,
 }: {
-  batting: Figure[];
-  bowling: Figure[];
+  batting: Figure[] | null;
+  bowling: Figure[] | null;
   /** Absent for a season: fielding is kept for the whole career only. */
-  fielding?: Figure[];
+  fielding?: Figure[] | null;
 }) {
+  const cards = [
+    batting && { title: "Batting", figures: batting },
+    bowling && { title: "Bowling", figures: bowling },
+    fielding && { title: "Fielding", figures: fielding },
+  ].filter((c): c is { title: string; figures: Figure[] } => Boolean(c));
+  if (cards.length === 0) return null;
+  const cols = ["", "", "md:grid-cols-2", "md:grid-cols-3"][cards.length];
   return (
-    <div
-      className={`grid grid-cols-1 gap-4 ${fielding ? "md:grid-cols-3" : "md:grid-cols-2"}`}
-    >
-      <FigureCard title="Batting" figures={batting} />
-      <FigureCard title="Bowling" figures={bowling} />
-      {fielding && <FigureCard title="Fielding" figures={fielding} />}
+    <div className={`grid grid-cols-1 gap-4 ${cols}`}>
+      {cards.map((c) => (
+        <FigureCard key={c.title} title={c.title} figures={c.figures} />
+      ))}
     </div>
   );
 }

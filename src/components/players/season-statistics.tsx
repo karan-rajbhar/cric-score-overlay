@@ -101,17 +101,17 @@ export function SeasonStatistics({
         />
       )}
       {between}
+      {/* Each figure once: matches are in the tiles above (P4). */}
       {f ? (
         <CareerCards
-          batting={[
-            ["Matches", f.matches],
+          batting={bat.length === 0 ? null : [
             ["Runs", f.runs],
             ["Average", orDash(f.average)],
             ["Strike rate", orDash(f.strikeRate)],
             ["50s", f.halfCenturies],
             ["100s", f.centuries],
           ]}
-          bowling={[
+          bowling={bowl.length === 0 ? null : [
             ["Wickets", f.wickets],
             ["Average", orDash(f.bowlingAverage)],
             ["Economy", orDash(f.economy)],
@@ -120,9 +120,13 @@ export function SeasonStatistics({
         />
       ) : (
         <CareerCards
-          batting={allTime.batting}
-          bowling={allTime.bowling}
-          fielding={allTime.fielding}
+          batting={batting.length === 0 ? null : allTime.batting}
+          bowling={bowling.length === 0 ? null : allTime.bowling}
+          fielding={
+            allTime.fielding.some(([, v]) => Number(v) > 0)
+              ? allTime.fielding
+              : null
+          }
         />
       )}
       <PlayerMilestones batting={bat} bowling={bowl} />

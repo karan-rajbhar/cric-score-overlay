@@ -453,8 +453,8 @@ export default async function PlayerPage({
                 runs: totalRuns,
                 wickets: totalWickets,
                 catches: stats?.total_catches ?? 0,
+                // Matches are in the tiles above (P4).
                 batting: [
-                  ["Matches", totalMatches],
                   ["Runs", totalRuns],
                   ["Average", stats?.batting_average ?? "–"],
                   ["Strike rate", stats?.strike_rate ?? "–"],
