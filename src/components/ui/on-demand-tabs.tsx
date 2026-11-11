@@ -132,6 +132,7 @@ export function TabSkeleton() {
     // A screen tall, so the page keeps its length (and its scroll position)
     // while the tab's content is on its way.
     <div
+      role="status"
       className="min-h-[100svh] space-y-3"
       aria-busy="true"
       aria-label="Loading"

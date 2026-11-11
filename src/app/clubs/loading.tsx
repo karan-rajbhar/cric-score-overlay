@@ -1,11 +1,13 @@
 import { PageContainer } from "~/components/layout/page";
-import { CardGridSkeleton, PageHeaderSkeleton } from "~/components/ui/skeleton";
+import { CardGridSkeleton, PageHeaderSkeleton, LoadingScreen } from "~/components/ui/skeleton";
 
 export default function ClubsLoading() {
   return (
-    <PageContainer>
-      <PageHeaderSkeleton />
-      <CardGridSkeleton />
-    </PageContainer>
+    <LoadingScreen>
+      <PageContainer>
+        <PageHeaderSkeleton />
+        <CardGridSkeleton />
+      </PageContainer>
+    </LoadingScreen>
   );
 }
