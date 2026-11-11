@@ -467,7 +467,11 @@ function useScoringScreen() {
   const { isLocked: isScreenAwake } = useWakeLock(match?.status === "live");
 
   const [selectedTossWinner, setSelectedTossWinner] = useState<string>("");
-  const [tossDecision, setTossDecision] = useState<"bat" | "bowl">("bat");
+  // Nothing chosen until the scorer says (S7): a default Bat went on the
+  // record whenever nobody looked.
+  const [tossDecision, setTossDecision] = useState<"bat" | "bowl" | null>(
+    null,
+  );
   const [showEditBallDialog, setShowEditBallDialog] = useState(false);
   const [showMatchSettingsDialog, setShowMatchSettingsDialog] = useState(false);
   const [showPenaltyBonusDialog, setShowPenaltyBonusDialog] = useState(false);
@@ -2867,11 +2871,12 @@ function ScoringDialogs({ s }: { s: LoadedScreen }) {
         onOpenChange={(open) => setTossDialogDismissed(!open)}
         match={match}
         tossWinner={tossWinner}
-        tossDecision={tossDecision}
+        tossDecision={tossDecision ?? ""}
         onTossWinnerChange={setSelectedTossWinner}
         onTossDecisionChange={(v) => setTossDecision(v as never)}
         onConfirm={async () => {
-          const res = await handleStartMatch(tossWinner, tossDecision as never);
+          if (!tossDecision) return;
+          const res = await handleStartMatch(tossWinner, tossDecision);
           if (!res.error) {
             setTossDialogDismissed(true);
             setShowSelectBatsmen(true);

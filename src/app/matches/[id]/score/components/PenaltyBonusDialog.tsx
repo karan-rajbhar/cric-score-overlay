@@ -64,7 +64,8 @@ export function PenaltyBonusDialog({
   const [awardType, setAwardType] = useState<"penalty" | "bonus">("penalty");
   const [targetTeamId, setTargetTeamId] = useState<string | null>(null);
   const [runs, setRuns] = useState<number>(5);
-  const [reason, setReason] = useState<string>(COMMON_REASONS[0]!);
+  // No reason until the scorer picks one (S7): it goes on the record.
+  const [reason, setReason] = useState<string>("");
   const [customReason, setCustomReason] = useState("");
 
   // A fresh form each time it opens (the dialog stays mounted across
@@ -76,7 +77,7 @@ export function PenaltyBonusDialog({
       setAwardType("penalty");
       setTargetTeamId(null);
       setRuns(5);
-      setReason(COMMON_REASONS[0]!);
+      setReason("");
       setCustomReason("");
     }
   }
@@ -87,10 +88,12 @@ export function PenaltyBonusDialog({
   ].filter((t): t is { team: Team; side: string } => t !== null);
   const target = teams.find((t) => t.team.id === targetTeamId)?.team ?? null;
   const runsLabel = `${runs} run${runs === 1 ? "" : "s"}`;
+  const missingReason =
+    !reason || (reason === "Other" && !customReason.trim());
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!target || !runs) return;
+    if (!target || !runs || missingReason) return;
     const finalReason =
       reason === "Other" && customReason.trim() ? customReason.trim() : reason;
 
@@ -251,8 +254,8 @@ export function PenaltyBonusDialog({
                 Reason
               </Label>
               <Select value={reason} onValueChange={setReason}>
-                <SelectTrigger id="penalty-reason" className="h-11 text-xs">
-                  <SelectValue />
+                <SelectTrigger id="penalty-reason" className="h-11 text-sm">
+                  <SelectValue placeholder="Choose a reason" />
                 </SelectTrigger>
                 <SelectContent>
                   {COMMON_REASONS.map((r) => (
@@ -293,14 +296,16 @@ export function PenaltyBonusDialog({
             </Button>
             <Button
               type="submit"
-              disabled={isProcessing || !runs || !target}
+              disabled={isProcessing || !runs || !target || missingReason}
               className="min-h-11 bg-destructive font-semibold text-destructive-foreground hover:bg-destructive"
             >
               {isProcessing
                 ? "Awarding…"
-                : target
-                  ? `Award ${runsLabel} to ${target.name}`
-                  : "Choose a team"}
+                : !target
+                  ? "Choose a team"
+                  : missingReason
+                    ? "Choose a reason"
+                    : `Award ${runsLabel} to ${target.name}`}
             </Button>
           </DialogFooter>
         </form>

@@ -53,18 +53,27 @@ export function AbandonMatchDialog({
   onConfirm,
   isProcessing = false,
 }: AbandonMatchDialogProps) {
-  const [reason, setReason] = useState<string>(ABANDON_REASONS[0]!);
-  const [resultType, setResultType] = useState<"abandoned" | "no_result" | "win">(
-    "abandoned",
-  );
+  // Nothing chosen for the scorer (S7): the reason and the result go into
+  // the result text, and a default went on the record unread.
+  const [reason, setReason] = useState<string>("");
+  const [resultType, setResultType] = useState<
+    "abandoned" | "no_result" | "win" | ""
+  >("");
   const [winningTeamId, setWinningTeamId] = useState<string>("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const busy = isProcessing || saving;
+  const missing = !reason
+    ? "Choose a reason"
+    : !resultType
+      ? "Choose the result"
+      : resultType === "win" && !winningTeamId
+        ? "Choose the winner"
+        : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (busy) return;
+    if (busy || missing || !resultType) return;
     setSaving(true);
     try {
       const done = await onConfirm({
@@ -105,8 +114,8 @@ export function AbandonMatchDialog({
                 Reason for abandonment
               </Label>
               <Select value={reason} onValueChange={setReason}>
-                <SelectTrigger id="abandon-reason" className="h-9 text-xs">
-                  <SelectValue />
+                <SelectTrigger id="abandon-reason" className="h-11 text-sm">
+                  <SelectValue placeholder="Choose a reason" />
                 </SelectTrigger>
                 <SelectContent>
                   {ABANDON_REASONS.map((r) => (
@@ -128,8 +137,8 @@ export function AbandonMatchDialog({
                   setResultType(v as "abandoned" | "no_result" | "win")
                 }
               >
-                <SelectTrigger id="abandon-result" className="h-9 text-xs font-semibold">
-                  <SelectValue />
+                <SelectTrigger id="abandon-result" className="h-11 text-sm">
+                  <SelectValue placeholder="Choose the result" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="abandoned">
@@ -155,7 +164,7 @@ export function AbandonMatchDialog({
                   onValueChange={setWinningTeamId}
                   required
                 >
-                  <SelectTrigger id="winning-team" className="h-9 text-xs font-semibold">
+                  <SelectTrigger id="winning-team" className="h-11 text-sm">
                     <SelectValue placeholder="Select winning team" />
                   </SelectTrigger>
                   <SelectContent>
@@ -199,12 +208,14 @@ export function AbandonMatchDialog({
               type="submit"
               variant="destructive"
               size="sm"
-              disabled={busy || (resultType === "win" && !winningTeamId)}
+              disabled={busy || Boolean(missing)}
               className="font-semibold"
             >
               {busy
                 ? "Saving…"
-                : resultType === "win"
+                : missing
+                  ? missing
+                  : resultType === "win"
                   ? "Award the match"
                   : resultType === "no_result"
                     ? "End with no result"

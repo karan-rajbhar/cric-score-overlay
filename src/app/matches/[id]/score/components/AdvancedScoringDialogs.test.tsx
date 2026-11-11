@@ -5,12 +5,23 @@ import { PenaltyBonusDialog } from "./PenaltyBonusDialog";
 import { RetirePlayerDialog } from "./RetirePlayerDialog";
 import { ReviseTargetDialog } from "./ReviseTargetDialog";
 
+// Radix Select scrolls the chosen option into view; jsdom has no layout.
+Element.prototype.scrollIntoView ??= vi.fn();
+Element.prototype.hasPointerCapture ??= vi.fn(() => false);
+Element.prototype.releasePointerCapture ??= vi.fn();
+
+/** Picks an option of a Radix select by its label. */
+async function choose(label: RegExp, option: string | RegExp) {
+  fireEvent.click(screen.getByRole("combobox", { name: label }));
+  fireEvent.click(await screen.findByRole("option", { name: option }));
+}
+
 describe("Advanced Scoring Dialogs", () => {
   const team1 = { id: "t-1", name: "Lions" };
   const team2 = { id: "t-2", name: "Tigers" };
 
   describe("AbandonMatchDialog", () => {
-    it("renders and calls onConfirm with chosen reason and result type", () => {
+    it("asks for the reason and the result, then calls onConfirm with them", async () => {
       const onConfirm = vi.fn();
       render(
         <AbandonMatchDialog
@@ -27,6 +38,16 @@ describe("Advanced Scoring Dialogs", () => {
       ).toBeInTheDocument();
       const notesInput = screen.getByPlaceholderText(/thunderstorm/i);
       fireEvent.change(notesInput, { target: { value: "Waterlogged pitch after torrential rain" } });
+
+      // Nothing chosen for the scorer: the button says what is missing.
+      expect(
+        screen.getByRole("button", { name: "Choose a reason" }),
+      ).toBeDisabled();
+      await choose(/reason for abandonment/i, "Rain / Inclement Weather");
+      expect(
+        screen.getByRole("button", { name: "Choose the result" }),
+      ).toBeDisabled();
+      await choose(/official result type/i, /abandoned \(points shared/i);
 
       const confirmButton = screen.getByRole("button", { name: "Abandon match" });
       fireEvent.click(confirmButton);
@@ -66,6 +87,11 @@ describe("Advanced Scoring Dialogs", () => {
       );
 
       fireEvent.click(screen.getByRole("radio", { name: /Tigers/ }));
+      // No reason preselected either.
+      expect(
+        screen.getByRole("button", { name: "Choose a reason" }),
+      ).toBeDisabled();
+      await choose(/^reason$/i, "Player misconduct");
       fireEvent.click(
         screen.getByRole("button", { name: "Award 5 runs to Tigers" }),
       );
@@ -129,6 +155,7 @@ describe("Advanced Scoring Dialogs", () => {
       );
       fireEvent.click(screen.getByRole("radio", { name: /Lions/ }));
       fireEvent.click(screen.getByRole("button", { name: /Bonus runs/ }));
+      await choose(/^reason$/i, "Target or powerplay bonus");
       fireEvent.click(
         screen.getByRole("button", { name: "Award 1 run to Lions" }),
       );

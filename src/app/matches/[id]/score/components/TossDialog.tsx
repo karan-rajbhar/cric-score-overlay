@@ -46,11 +46,15 @@ export function TossDialog({
   const teams = [match.team1, match.team2];
   const winner = teams.find((t) => t.id === tossWinner);
   const loser = teams.find((t) => t.id !== tossWinner);
-  const batting = winner
-    ? tossDecision === "bat"
-      ? winner
-      : loser
-    : undefined;
+  const decided = tossDecision === "bat" || tossDecision === "bowl";
+  const batting =
+    winner && decided ? (tossDecision === "bat" ? winner : loser) : undefined;
+  // The button says what is still missing (S7, /design#spec-choice-dialog).
+  const missing = !winner
+    ? "Choose who won the toss"
+    : !decided
+      ? "Choose bat or bowl"
+      : null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -132,18 +136,18 @@ export function TossDialog({
           >
             {winner && batting
               ? `${winner.name} won the toss and chose to ${tossDecision}. ${batting.name} bat first.`
-              : "Choose who won the toss."}
+              : `${missing}.`}
           </p>
           <Button
             className="h-12 w-full text-sm font-semibold"
             onClick={onConfirm}
-            disabled={!winner || isProcessing}
+            disabled={Boolean(missing) || isProcessing}
             aria-describedby={statusId}
           >
             {isProcessing && (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
             )}
-            Start match
+            {missing ?? "Start match"}
           </Button>
         </div>
       </DialogContent>
