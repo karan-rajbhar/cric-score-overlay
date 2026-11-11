@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { setUrlParam } from "~/lib/url-state";
 import { Button } from "~/components/ui/button";
 import { Segmented } from "~/components/ds/tabs";
 import { Input } from "~/components/ui/input";
@@ -30,11 +32,37 @@ const statusOptions = [
   { value: "completed", label: "Results" },
 ] as const;
 
+type StatusFilter = (typeof statusOptions)[number]["value"];
+const isStatusFilter = (v: string | null): v is StatusFilter =>
+  statusOptions.some((o) => o.value === v);
+
+// useSearchParams needs a Suspense boundary for the static shell.
 export default function MatchesPage() {
+  return (
+    <Suspense>
+      <Matches />
+    </Suspense>
+  );
+}
+
+function Matches() {
   const { user, loading: authLoading } = useAuth();
-  const [statusFilter, setStatusFilter] =
-    useState<(typeof statusOptions)[number]["value"]>("all");
-  const [searchQuery, setSearchQuery] = useState("");
+  // The filter and the search live in the URL (?status=, ?search=), so a
+  // reload, Back from a match or a shared link keeps them (M5).
+  const params = useSearchParams();
+  const fromUrl = params.get("status");
+  const [statusFilter, setStatus] = useState<StatusFilter>(
+    isStatusFilter(fromUrl) ? fromUrl : "all",
+  );
+  const [searchQuery, setSearch] = useState(params.get("search") ?? "");
+  const setStatusFilter = (next: StatusFilter) => {
+    setStatus(next);
+    setUrlParam("status", next, "all");
+  };
+  const setSearchQuery = (next: string) => {
+    setSearch(next);
+    setUrlParam("search", next.trim(), "");
+  };
 
   const {
     data: matchesData,
@@ -123,7 +151,10 @@ export default function MatchesPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative w-full sm:max-w-xs">
           <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground shrink-0" />
+          {/* The shared list search's size: 40px, 16px text on phones (no
+              zoom on focus in iOS Safari). */}
           <Input
+            type="search"
             autoCorrect="off"
             autoCapitalize="none"
             spellCheck={false}
@@ -131,7 +162,7 @@ export default function MatchesPage() {
             placeholder="Filter by team, title or venue…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-9 w-full pl-9"
+            className="h-10 w-full pl-9 text-base sm:text-sm"
           />
         </div>
 

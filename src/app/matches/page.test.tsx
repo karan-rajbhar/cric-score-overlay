@@ -2,6 +2,10 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { makeMatch } from "~/test/factories";
 
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(window.location.search),
+}));
+
 vi.mock("~/lib/auth", () => ({
   useAuth: () => ({ user: null, loading: false }),
 }));
@@ -55,5 +59,19 @@ describe("Matches list", () => {
     expect(
       screen.getByRole("link", { name: 'Search all matches for "Tigers"' }),
     ).toHaveAttribute("href", "/search?q=Tigers");
+  });
+});
+
+describe("the Matches filters live in the URL (M5)", () => {
+  it("opens on the status and search the URL names, and writes changes back", async () => {
+    window.history.replaceState(null, "", "/matches?status=completed&search=lions");
+    render(<MatchesPage />);
+    expect(screen.getByRole("searchbox", { name: "Filter these matches" })).toHaveValue("lions");
+    fireEvent.change(screen.getByRole("searchbox", { name: "Filter these matches" }), {
+      target: { value: "tigers" },
+    });
+    expect(window.location.search).toContain("search=tigers");
+    expect(window.location.search).toContain("status=completed");
+    window.history.replaceState(null, "", "/");
   });
 });
