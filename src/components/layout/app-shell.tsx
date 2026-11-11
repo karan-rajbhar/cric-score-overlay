@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AppSidebar } from "~/components/layout/app-sidebar";
 import { MobileTabBar } from "~/components/layout/mobile-tab-bar";
+import { UpdateStrip } from "~/components/pwa/update-strip";
 import { isTaskPath } from "~/lib/navigation";
 import { NavigationBar } from "~/components/navigation-bar";
 import { useTrackVisits } from "~/lib/in-app-history";
@@ -66,6 +67,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         >
           Skip to content
         </a>
+        {/* A new version waiting: a strip in the flow, covering nothing.
+            Not on the scoring screen, where it would push the keys down
+            mid-match; it waits for the next page (N12). */}
+        <UpdateStrip />
         {/* Phones: no header (the tab bar and the More page hold its items;
             detail screens have their own back bar). */}
         <div className="contents max-md:hidden">
