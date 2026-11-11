@@ -41,6 +41,17 @@ export function noteVisit(
   }
   lastLength = historyLength;
   if (trail[trail.length - 1] !== pathname) trail = [...trail, pathname];
+  for (const l of listeners) l();
+}
+
+const listeners = new Set<() => void>();
+
+/** Called after each visit is noted (Back's label follows it, N25). */
+export function subscribeVisits(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
 }
 
 /**
