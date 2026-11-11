@@ -635,9 +635,13 @@ export function ScoringPanel({
                         getBallDisplay(ball),
                       )}
                       title={`Ball ${number}: ${getBallLabel(ball)} (tap to edit)`}
-                      aria-label={`Ball ${number}: ${getBallLabel(ball)}`}
                     >
+                      {/* The name starts with what the chip shows ("4"),
+                          for voice control (S12). */}
                       {ball}
+                      <span className="sr-only">
+                        , ball {number}: {getBallLabel(ball)}, edit
+                      </span>
                     </button>
                   );
                 })}
@@ -878,14 +882,12 @@ export function ScoringPanel({
                   key={runs}
                   type="button"
                   disabled={disabled || noRun}
+                  // Named by what the key shows ("4, Four"; with an extra
+                  // armed, "1, 2 Wd"), so voice control can say it (S12).
                   aria-label={
-                    isDot
-                      ? "0 runs (dot ball)"
-                      : isFour
-                        ? "4 runs (four)"
-                        : isSix
-                          ? "6 runs (six)"
-                          : `${runs} run${runs > 1 ? "s" : ""}`
+                    subLabel
+                      ? `${runs}, ${subLabel}`
+                      : `${runs} run${runs === 1 ? "" : "s"}`
                   }
                   title={
                     isDot
@@ -934,7 +936,7 @@ export function ScoringPanel({
                   )}
                   onClick={() => handleRunClick(runs)}
                 >
-                  <span className="leading-none">{runs}</span>
+                  <span className="leading-none">{runs}</span>{" "}
                   {subLabel && (
                     <span
                       className={cn(
@@ -963,7 +965,7 @@ export function ScoringPanel({
             <button
               type="button"
               disabled={disabled}
-              aria-label="More run options: 7 to 13+ runs"
+              aria-label="More, 7 to 13 runs"
               title="More run options (7, 8, 9, 10, 11, 12, 13, custom)"
               onClick={() => setShowMoreRuns((prev) => !prev)}
               className={cn(
@@ -979,7 +981,7 @@ export function ScoringPanel({
             >
               <span className="text-base font-semibold leading-none sm:text-lg">
                 More
-              </span>
+              </span>{" "}
               <span className="mt-1 font-sans text-xs font-bold leading-none text-muted-foreground">
                 7 to 13
               </span>

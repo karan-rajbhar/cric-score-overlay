@@ -438,7 +438,8 @@ export function LiveMatchHUD({
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex min-w-0 flex-1 items-center gap-2">
                     <div className="min-w-0">
-                      <h3
+                      {/* h2: the screen's h1 is above, nothing between (S12). */}
+                      <h2
                         data-testid="chase-equation-title"
                         className={cn(
                           "text-xs font-semibold sm:text-base",
@@ -466,7 +467,7 @@ export function LiveMatchHUD({
                         ) : (
                           "Target achieved"
                         )}
-                      </h3>
+                      </h2>
                       <p className={cn("text-xs font-medium", dim)}>
                         Target:{" "}
                         <strong
@@ -568,7 +569,7 @@ export function LiveMatchHUD({
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex min-w-0 flex-1 items-center gap-2">
                     <div>
-                      <h3
+                      <h2
                         className={cn(
                           "text-xs font-semibold sm:text-base",
                           bright,
@@ -583,7 +584,7 @@ export function LiveMatchHUD({
                         >
                           CRR: {crr}
                         </span>
-                      </h3>
+                      </h2>
                       <p className={cn("text-xs font-medium", dim)}>
                         {ballsRem} balls remaining (
                         {oversFromBalls(ballsRem, bpo)} ov)
