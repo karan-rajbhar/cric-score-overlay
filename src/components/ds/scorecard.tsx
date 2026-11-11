@@ -52,7 +52,9 @@ export function TableCard({
           </div>
         )}
       </header>
-      <div className="overflow-x-auto">{children}</div>
+      {/* relative: the headings' visually hidden labels (absolute) stay
+          in this scroll box, not in the page's width (M15). */}
+      <div className="relative overflow-x-auto">{children}</div>
     </section>
   );
 }
@@ -204,7 +206,7 @@ export function CreaseTable({
   className?: string;
 }) {
   return (
-    <div className={cn("overflow-x-auto", className)}>
+    <div className={cn("relative overflow-x-auto", className)}>
       <table className={figTable}>
         <thead>
           <HeadRow columns={BATTING_COLUMNS} />

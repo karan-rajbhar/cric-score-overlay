@@ -115,7 +115,8 @@ export function ReportToolbar({
           <BrandMark className="h-7 w-7" />
           {title}
         </span>
-        <div className="flex flex-wrap items-center gap-2">
+        {/* 44px to tap on phones, as everywhere (M15). */}
+        <div className="flex flex-wrap items-center gap-2 max-sm:[&>button]:h-11">
           {pdf.state !== "failed" && (
             <Button
               id="btn-share-pdf"
