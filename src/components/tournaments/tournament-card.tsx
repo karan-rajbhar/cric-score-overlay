@@ -1,25 +1,12 @@
 import type * as React from "react";
+import { endedByDate } from "~/app/tournaments/rules";
 import Link from "next/link";
 import { Trophy } from "lucide-react";
 import { cardSurface } from "~/components/ds/card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { formatTournamentFormat } from "~/lib/cricket";
 import { cn } from "~/lib/utils";
-import { dateRange } from "~/lib/dates";
-
-/**
- * Past its end date and never closed by its organiser: it reads "Ended",
- * not the "Ongoing" the stored status still says (T12).
- */
-function endedByDate(
-  t: { status?: string | null; end_date?: string | null },
-  today = new Date(),
-): boolean {
-  if (!t.end_date || t.status === "completed" || t.status === "cancelled")
-    return false;
-  const end = new Date(`${t.end_date.slice(0, 10)}T23:59:59`);
-  return !Number.isNaN(end.getTime()) && end < today;
-}
+import { dateRange, shortDate } from "~/lib/dates";
 
 /**
  * A tournament in a list: trophy crest, name and status, format and venue,
@@ -58,7 +45,11 @@ export function TournamentCard({
             {t.name}
           </span>
           {endedByDate(t) ? (
-            <StatusBadge status="completed" label="Ended" className="shrink-0" />
+            <StatusBadge
+              status="completed"
+              label={`Ended ${shortDate(t.end_date)}`}
+              className="shrink-0"
+            />
           ) : (
             <StatusBadge status={t.status ?? "upcoming"} className="shrink-0" />
           )}

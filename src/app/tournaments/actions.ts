@@ -647,6 +647,51 @@ export async function updateTournament(
 }
 
 /**
+ * Closes a tournament whose end date has passed (T12): its status only.
+ * Registrations, generated fixtures and new rounds stop, as for any
+ * completed tournament (`isTournamentOver`).
+ */
+export async function completeTournament(tournamentId: string) {
+  const db = await createServerClient();
+  const {
+    data: { user },
+  } = await db.auth.getUser();
+  if (!user) return { error: "You must be logged in" };
+
+  const isTournAdmin = await checkTournamentAdminAuth(
+    db,
+    tournamentId,
+    user.id,
+  );
+  if (!isTournAdmin) {
+    return {
+      error: "Only tournament organizers or club admins can close this tournament",
+    };
+  }
+
+  const { data: current } = await db
+    .from("tournaments")
+    .select("club_id")
+    .eq("id", tournamentId)
+    .single();
+
+  const { error } = await db
+    .from("tournaments")
+    .update({ status: "completed", updated_at: new Date().toISOString() })
+    .eq("id", tournamentId);
+  if (error) {
+    console.error("completeTournament error:", error);
+    return { error: error.message };
+  }
+
+  await refreshLiveMatchesFor(db, { tournamentId });
+  revalidatePath(`/tournaments/${tournamentId}`);
+  revalidatePath("/tournaments");
+  if (current?.club_id) revalidatePath(`/clubs/${current.club_id}`);
+  return { success: true as const };
+}
+
+/**
  * Deletes a tournament with its registrations and points table, and its
  * fixtures that never started (`delete_unplayed_fixtures`, the cleanup of
  * `delete_match`). Matches that started or finished stay, outside any

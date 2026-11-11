@@ -75,6 +75,20 @@ export function isTournamentOver(status: string | null | undefined): boolean {
   return status === "completed" || status === "cancelled";
 }
 
+/**
+ * Past its end date and never closed by its organiser: it reads "Ended
+ * <date>", not the "Ongoing" its stored status still says, and its
+ * organiser is asked to close it (T12).
+ */
+export function endedByDate(
+  t: { status?: string | null; end_date?: string | null },
+  today: Date = new Date(),
+): boolean {
+  if (!t.end_date || isTournamentOver(t.status)) return false;
+  const end = new Date(`${t.end_date.slice(0, 10)}T23:59:59`);
+  return !Number.isNaN(end.getTime()) && end < today;
+}
+
 /** Knockout and mixed tournaments get rounds; leagues get round-robin fixtures. */
 export function isBracketFormat(format: string | null | undefined): boolean {
   return format === "knockout" || format === "mixed";
