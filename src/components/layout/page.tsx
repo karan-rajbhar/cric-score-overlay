@@ -128,54 +128,5 @@ export function PageHeader({
   );
 }
 
-/** Heading for a block within a page: title, optional count and action. */
-export function SectionHeader({
-  title,
-  description,
-  count,
-  action,
-  live = false,
-  id,
-  as: Heading = "h2",
-  className,
-}: {
-  title: React.ReactNode;
-  description?: React.ReactNode;
-  count?: number;
-  action?: React.ReactNode;
-  /** Prefix the title with the app's red live dot. */
-  live?: boolean;
-  id?: string;
-  as?: "h2" | "h3";
-  className?: string;
-}) {
-  return (
-    <div className={cn("flex items-center justify-between gap-3", className)}>
-      <div className="min-w-0">
-        <div className="flex items-center gap-2">
-          {live && (
-            <span
-              className="h-1.5 w-1.5 shrink-0 rounded-full bg-live motion-safe:animate-pulse"
-              aria-hidden="true"
-            />
-          )}
-          <Heading
-            id={id}
-            className="truncate text-base font-semibold text-foreground"
-          >
-            {title}
-          </Heading>
-          {count !== undefined && (
-            <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium tabular-nums text-muted-foreground">
-              {count}
-            </span>
-          )}
-        </div>
-        {description && (
-          <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>
-        )}
-      </div>
-      {action && <div className="shrink-0">{action}</div>}
-    </div>
-  );
-}
+/** The one section title lives in the design system (N35). */
+export { SectionHeader } from "~/components/ds/list";

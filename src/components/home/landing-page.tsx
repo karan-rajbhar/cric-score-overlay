@@ -106,14 +106,8 @@ export function LandingPage() {
           id="live-matches-heading"
           title="Live now"
           live
-          action={
-            <Link
-              href="/matches"
-              className="text-sm font-medium text-muted-foreground hover:text-foreground"
-            >
-              All matches
-            </Link>
-          }
+          href="/matches"
+          actionLabel="All matches"
         />
         {liveLoading ? (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

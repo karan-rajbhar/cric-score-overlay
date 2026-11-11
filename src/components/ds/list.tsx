@@ -3,12 +3,20 @@ import Link from "next/link";
 import { ChevronRight, type LucideIcon } from "lucide-react";
 import { cn } from "~/lib/utils";
 
-/** Section title with an optional "See all" link on the right. */
+/**
+ * A section's title, the one for every screen (N35): an optional red live
+ * dot and count beside it, a line under it, and on the right a "See all"
+ * link (`href`) or any other `action`.
+ */
 export function SectionHeader({
   title,
   description,
   href,
   actionLabel = "See all",
+  action,
+  count,
+  live = false,
+  id,
   as: Heading = "h2",
   className,
 }: {
@@ -16,27 +24,53 @@ export function SectionHeader({
   description?: React.ReactNode;
   href?: string;
   actionLabel?: string;
+  /** In place of the "See all" link. */
+  action?: React.ReactNode;
+  count?: number;
+  /** The app's red live dot before the title. */
+  live?: boolean;
+  id?: string;
   as?: "h2" | "h3";
   className?: string;
 }) {
   return (
     <div className={cn("flex items-end justify-between gap-4", className)}>
       <div className="min-w-0">
-        <Heading className="text-balance text-xl font-semibold text-foreground">
-          {title}
-        </Heading>
+        <div className="flex items-center gap-2">
+          {live && (
+            <span
+              className="h-2 w-2 shrink-0 rounded-full bg-live motion-safe:animate-pulse"
+              aria-hidden="true"
+            />
+          )}
+          <Heading
+            id={id}
+            className="text-balance text-xl font-semibold text-foreground"
+          >
+            {title}
+          </Heading>
+          {count !== undefined && (
+            <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium tabular-nums text-muted-foreground">
+              {count}
+            </span>
+          )}
+        </div>
         {description && (
           <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>
         )}
       </div>
-      {href && (
-        <Link
-          href={href}
-          className="-my-3 inline-flex min-h-11 shrink-0 items-center gap-0.5 rounded-full text-sm font-medium text-muted-foreground hover:text-foreground"
-        >
-          {actionLabel}
-          <ChevronRight className="h-4 w-4" aria-hidden="true" />
-        </Link>
+      {action ? (
+        <div className="shrink-0">{action}</div>
+      ) : (
+        href && (
+          <Link
+            href={href}
+            className="-my-3 inline-flex min-h-11 shrink-0 items-center gap-0.5 rounded-full text-sm font-medium text-muted-foreground hover:text-foreground"
+          >
+            {actionLabel}
+            <ChevronRight className="h-4 w-4" aria-hidden="true" />
+          </Link>
+        )
       )}
     </div>
   );

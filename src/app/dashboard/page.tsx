@@ -243,7 +243,7 @@ export default function Dashboard() {
         <section className="space-y-4">
           <SectionHeader
             title={myUpcoming.length > 0 ? "Other upcoming matches" : "Upcoming"}
-            href="/matches"
+            href="/matches?status=scheduled"
             actionLabel="See more"
           />
           <UpcomingGroups matches={upcoming} />
@@ -251,7 +251,11 @@ export default function Dashboard() {
       )}
 
       <section className="space-y-4">
-        <SectionHeader title="Results" href="/matches" actionLabel="See more" />
+        <SectionHeader
+          title="Results"
+          href="/matches?status=completed"
+          actionLabel="See more"
+        />
         {recentLoading && recentMatches.length === 0 ? (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             <MatchCardSkeleton />
