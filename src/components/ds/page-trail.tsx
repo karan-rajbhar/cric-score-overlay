@@ -33,9 +33,10 @@ export function PageTrail({
         avoid={avoid}
         aria-label={label}
         title={label}
+        // 44px on a touch screen (a tablet), 36px with a mouse (N17).
         className={cn(
           buttonVariants({ variant: "surface", size: "icon-sm" }),
-          "shrink-0",
+          "shrink-0 [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11",
         )}
       >
         <ChevronLeft />

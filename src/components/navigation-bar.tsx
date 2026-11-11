@@ -8,11 +8,13 @@ import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 import { ThemeToggle } from "~/components/ui/theme-toggle";
 import {
+  Home as HomeIcon,
   LogOut,
+  Mail,
   Search,
   Plus,
+  PlusCircle,
   PanelLeft,
-  Radio,
   Trophy,
   Users,
   Shield,
@@ -105,7 +107,7 @@ export function NavigationBar() {
           <Button
             variant="ghost"
             size="sm"
-            className="hidden h-9 w-9 p-0 text-muted-foreground hover:text-foreground md:flex"
+            className="hidden h-9 w-9 p-0 text-muted-foreground hover:text-foreground md:flex [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11"
             onClick={toggleCollapsed}
             title="Toggle sidebar (Ctrl+B)"
             aria-label="Toggle sidebar"
@@ -117,7 +119,7 @@ export function NavigationBar() {
 
           <Link
             href={user ? "/dashboard" : "/"}
-            className="flex shrink-0 items-center gap-2 rounded-lg"
+            className="flex shrink-0 items-center gap-2 rounded-lg [@media(pointer:coarse)]:min-h-11"
             aria-label="CricScore home"
           >
             <BrandMark />
@@ -169,7 +171,7 @@ export function NavigationBar() {
             asChild
             variant="ghost"
             size="sm"
-            className={`h-9 w-9 touch-manipulation p-0 text-muted-foreground hover:text-foreground lg:hidden ${onSearchPage ? "hidden" : ""}`}
+            className={`h-9 w-9 touch-manipulation p-0 text-muted-foreground hover:text-foreground lg:hidden [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11 ${onSearchPage ? "hidden" : ""}`}
             title="Search"
             aria-label="Search"
           >
@@ -190,6 +192,7 @@ export function NavigationBar() {
               <DropdownMenuTrigger asChild>
                 <Button
                   size="sm"
+                  className="[@media(pointer:coarse)]:h-11"
                 >
                   <Plus className="h-3.5 w-3.5 shrink-0" />
                   <span className="hidden sm:inline">Create</span>
@@ -203,16 +206,16 @@ export function NavigationBar() {
                   Create
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem asChild className="cursor-pointer text-xs">
+                <DropdownMenuItem asChild className="cursor-pointer">
                   <Link
                     href="/matches/create"
                     className="flex items-center gap-2"
                   >
-                    <Radio className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <PlusCircle className="h-4 w-4 shrink-0 text-muted-foreground" />
                     <span>New match</span>
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild className="cursor-pointer text-xs">
+                <DropdownMenuItem asChild className="cursor-pointer">
                   <Link
                     href="/teams/create"
                     className="flex items-center gap-2"
@@ -221,7 +224,7 @@ export function NavigationBar() {
                     <span>New team</span>
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild className="cursor-pointer text-xs">
+                <DropdownMenuItem asChild className="cursor-pointer">
                   <Link
                     href="/tournaments/create"
                     className="flex items-center gap-2"
@@ -230,7 +233,7 @@ export function NavigationBar() {
                     <span>New tournament</span>
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild className="cursor-pointer text-xs">
+                <DropdownMenuItem asChild className="cursor-pointer">
                   <Link
                     href="/clubs/create"
                     className="flex items-center gap-2"
@@ -250,7 +253,7 @@ export function NavigationBar() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
-                  className="flex h-9 w-9 touch-manipulation items-center justify-center rounded-full transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  className="flex h-9 w-9 touch-manipulation items-center justify-center rounded-full transition-opacity [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   aria-label="User menu"
                 >
                   {/* The same avatar as Home and More: photo, else the
@@ -274,7 +277,7 @@ export function NavigationBar() {
                     {user.user_metadata?.full_name || "CricScore User"}
                   </div>
                   {username && (
-                    <div className="font-mono text-xs text-muted-foreground">
+                    <div className="text-xs text-muted-foreground">
                       @{username}
                     </div>
                   )}
@@ -283,42 +286,54 @@ export function NavigationBar() {
                   </div>
                 </div>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem asChild className="cursor-pointer text-xs">
-                  <Link href="/dashboard">Home</Link>
+                <DropdownMenuItem asChild className="cursor-pointer">
+                  <Link href="/dashboard" className="flex items-center gap-2">
+                    <HomeIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span>Home</span>
+                  </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild className="cursor-pointer text-xs">
+                <DropdownMenuItem asChild className="cursor-pointer">
                   <Link
                     href={`/players/${username ? `@${username}` : user.id}`}
                     className="flex items-center gap-2"
                   >
-                    <UserIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <UserIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
                     <span>My profile</span>
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild className="cursor-pointer text-xs">
-                  <Link href="/teams">My teams</Link>
+                <DropdownMenuItem asChild className="cursor-pointer">
+                  <Link href="/teams" className="flex items-center gap-2">
+                    <Users className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span>My teams</span>
+                  </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild className="cursor-pointer text-xs">
-                  <Link href="/clubs">My clubs</Link>
+                <DropdownMenuItem asChild className="cursor-pointer">
+                  <Link href="/clubs" className="flex items-center gap-2">
+                    <Shield className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span>My clubs</span>
+                  </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onSelect={() => setInviteOpen(true)}
-                  className="flex cursor-pointer items-center gap-2 text-xs"
+                  className="flex cursor-pointer items-center gap-2"
                 >
-                  <UserPlus className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <UserPlus className="h-4 w-4 shrink-0 text-muted-foreground" />
                   <span>Invite someone</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild className="cursor-pointer text-xs">
-                  <Link href="/invitations">Manage invites</Link>
+                <DropdownMenuItem asChild className="cursor-pointer">
+                  <Link href="/invitations" className="flex items-center gap-2">
+                    <Mail className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span>Invites</span>
+                  </Link>
                 </DropdownMenuItem>
                 <InstallAppMenuItem />
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={handleSignOut}
                   disabled={signOutLoading}
-                  className="cursor-pointer text-xs text-destructive hover:bg-destructive/10 focus:bg-destructive/10"
+                  className="cursor-pointer text-destructive hover:bg-destructive/10 focus:bg-destructive/10"
                 >
-                  <LogOut className="mr-2 h-3.5 w-3.5 shrink-0" />
+                  <LogOut className="mr-2 h-4 w-4 shrink-0" />
                   <span>Sign out</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
