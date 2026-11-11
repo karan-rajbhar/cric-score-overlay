@@ -74,4 +74,16 @@ describe("the Matches filters live in the URL (M5)", () => {
     expect(window.location.search).toContain("status=completed");
     window.history.replaceState(null, "", "/");
   });
+
+  it("says what is empty for the filter chosen (M6)", () => {
+    window.history.replaceState(null, "", "/matches?status=live");
+    render(<MatchesPage />);
+    expect(screen.getByText("Nothing live right now")).toBeInTheDocument();
+    // Signing in comes back to the list.
+    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute(
+      "href",
+      "/auth/login?redirect=%2Fmatches",
+    );
+    window.history.replaceState(null, "", "/");
+  });
 });

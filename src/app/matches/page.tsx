@@ -20,7 +20,8 @@ import {
   PageHeader,
   SectionHeader,
 } from "~/components/layout/page";
-import { Plus, Search, Radio } from "lucide-react";
+import { CalendarDays, Plus, Radio, Search, Trophy } from "lucide-react";
+import { signInHref } from "~/lib/sign-in";
 import { useAuth } from "~/lib/auth";
 import type { Match } from "~/lib/match-types";
 import { matchGroupsOf } from "~/lib/match-groups";
@@ -44,6 +45,33 @@ export default function MatchesPage() {
     </Suspense>
   );
 }
+
+/** What an empty list says, per status filter (M6). */
+const EMPTY: Record<
+  StatusFilter,
+  { icon: typeof Radio; title: string; description: string }
+> = {
+  all: {
+    icon: Radio,
+    title: "No matches yet",
+    description: "Matches appear here once they are scheduled or started.",
+  },
+  live: {
+    icon: Radio,
+    title: "Nothing live right now",
+    description: "No match is being scored at the moment.",
+  },
+  scheduled: {
+    icon: CalendarDays,
+    title: "No fixtures scheduled",
+    description: "Upcoming matches appear here once they are scheduled.",
+  },
+  completed: {
+    icon: Trophy,
+    title: "No results yet",
+    description: "Finished matches and their results appear here.",
+  },
+};
 
 function Matches() {
   const { user, loading: authLoading } = useAuth();
@@ -188,17 +216,14 @@ function Matches() {
         ) : error ? (
           <CouldNotLoad what="matches" onRetry={() => void refetch()} />
         ) : filteredMatches.length === 0 ? (
+          // Says what is empty, per filter (M6).
           <EmptyState
-            icon={Radio}
-            title="No matches found"
+            icon={searchAll ? Search : EMPTY[statusFilter].icon}
+            title={searchAll ? "No matches found" : EMPTY[statusFilter].title}
             description={
               searchAll
                 ? `None of the latest matches match "${searchQuery.trim()}". Search all matches to look further back.`
-                : statusFilter === "live"
-                  ? "No matches are being scored right now."
-                  : statusFilter === "scheduled"
-                    ? "No upcoming matches on the schedule."
-                    : "No matches match the selected criteria."
+                : EMPTY[statusFilter].description
             }
             primaryAction={
               searchAll
@@ -211,7 +236,7 @@ function Matches() {
                     }
                   : {
                       label: "Sign in",
-                      href: "/auth/login",
+                      href: signInHref("/matches"),
                     }
             }
           />
