@@ -84,6 +84,15 @@ export const SCORECARD_FIELDS = [
 ] as const;
 
 /**
+ * The storage arrays the scoring screen keeps on its innings, as stored
+ * (ids, no names), in `getScoringState` and every delta applied to it: the
+ * stands (the batter dialog reads who has shared a ball) and the fall of
+ * wickets (its Scorecard view words each dismissal, naming the players
+ * from the squads it holds).
+ */
+export const SCORING_SCREEN_STORAGE = ["fall_of_wickets", "partnerships"] as const;
+
+/**
  * `value` with every string equal to `oldId` replaced by `newId`, however
  * deep (a player's id inside scorecard arrays and ball entries).
  */

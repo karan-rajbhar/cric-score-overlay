@@ -40,10 +40,14 @@ beforeEach(() => {
 });
 
 describe("FollowButton", () => {
-  it("sends signed-out visitors to sign in", () => {
+  it("tells signed-out visitors what following needs, with Sign in", async () => {
     user = null;
     renderButton();
-    expect(screen.getByRole("link", { name: "Follow" })).toHaveAttribute(
+    fireEvent.click(screen.getByRole("button", { name: "Follow" }));
+    const dialog = await screen.findByRole("dialog", { name: "Follow Strikers" });
+    expect(dialog).toHaveTextContent(/Accounts are by invite/);
+    expect(dialog).toHaveTextContent(/this page updates by itself/);
+    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute(
       "href",
       "/auth/login?redirect=%2Fteams%2Ft1",
     );

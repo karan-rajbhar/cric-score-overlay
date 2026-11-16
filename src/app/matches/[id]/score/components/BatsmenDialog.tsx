@@ -272,6 +272,8 @@ export function BatsmenDialog({
     onConfirm({ strikerId: draft.striker, nonStrikerId: draft.nonStriker });
   };
 
+  // Each end as a card: its name in a pill (the pill the list marks its
+  // batter with), who is there, the one being filled outlined.
   const slotButton = (slot: Slot, label: string, id: string | null) => {
     const locked = Boolean(newBatterSlot) && slot !== newBatterSlot;
     const active = newBatterSlot ? slot === newBatterSlot : activeSlot === slot;
@@ -283,22 +285,31 @@ export function BatsmenDialog({
         disabled={locked}
         onClick={() => setActiveSlot(slot)}
         className={cn(
-          "flex min-h-14 min-w-0 flex-col items-start justify-center rounded-lg border px-3 py-2 text-left transition-colors disabled:cursor-default",
+          "flex min-h-16 min-w-0 flex-col items-start justify-center gap-1 rounded-xl border-2 px-3 py-2 text-left transition-colors disabled:cursor-default",
           active
-            ? "border-primary bg-primary/10"
+            ? "border-primary bg-card"
             : locked
-              ? "border-border/70 bg-muted/40"
-              : "border-border/70 bg-background hover:bg-muted",
+              ? "border-transparent bg-muted/50"
+              : "border-transparent bg-card shadow-soft hover:bg-muted",
         )}
       >
-        <span className="text-xs text-muted-foreground">{label}</span>
         <span
           className={cn(
-            "w-full truncate text-sm font-medium",
-            !id && "text-muted-foreground",
+            "rounded-full px-2 py-0.5 text-xs font-semibold",
+            slot === "striker"
+              ? "bg-primary text-primary-foreground"
+              : "bg-primary-soft text-primary-soft-foreground",
           )}
         >
-          {nameOf(id) ?? "Choose"}
+          {label}
+        </span>
+        <span
+          className={cn(
+            "w-full truncate text-sm",
+            id ? "font-semibold text-foreground" : "text-muted-foreground",
+          )}
+        >
+          {nameOf(id) ?? (active ? "Choosing…" : "Choose")}
         </span>
         {note && <span className="text-xs text-muted-foreground">{note}</span>}
       </button>
@@ -321,6 +332,19 @@ export function BatsmenDialog({
   const correctionRows = rows.filter(
     (r) => !r.disabledReason && !r.tag && !batted(r.id),
   );
+  // Everyone else in the squad, with why they are not offered: a new name
+  // that sounds like one of them ("Sandip Sir" for "Sandeep sir") is caught
+  // and pointed at Fix a mistake rather than added as a second person.
+  const notOffered = rows
+    .filter((r) => !correctionRows.includes(r))
+    .map((r) => ({
+      id: r.id,
+      name: r.name,
+      username: r.username ?? null,
+      unavailable:
+        r.disabledReason ??
+        (r.tag || batted(r.id) ? "Has batted in this innings" : null),
+    }));
   const canReplace = fixing && Boolean(rightId) && !isProcessing;
   const replace = () => {
     if (!canReplace || !battedOccupant || !rightId || !onReplace) return;
@@ -334,17 +358,40 @@ export function BatsmenDialog({
       : changing
         ? `Change ${nameOf(focusEnd === "striker" ? strikerId : nonStrikerId) ?? "batter"}`
         : "Batters at the crease";
+  const openers = !strikerId && !nonStrikerId;
   const confirmLabel = fixing
     ? rightId
       ? `Replace with ${nameOf(rightId)}`
       : "Choose who was batting"
     : survivor
-      ? "Confirm new batter"
-      : !strikerId && !nonStrikerId
-        ? "Confirm openers"
+      ? newBatterSlot && draft[newBatterSlot]
+        ? `Confirm: ${nameOf(draft[newBatterSlot])} comes in`
+        : "Confirm new batter"
+      : openers
+        ? draft.striker && draft.nonStriker
+          ? `Start with ${nameOf(draft.striker)} on strike and ${nameOf(draft.nonStriker)}`
+          : "Choose both batters"
         : changing
           ? "Confirm change"
           : "Confirm batters";
+  // The openers: what to tap next, and that the other end's pick stays.
+  const openersHint =
+    draft.striker && draft.nonStriker
+      ? "Both ends are chosen. Tap an end to change it, or swap ends."
+      : activeSlot === "striker"
+        ? draft.nonStriker
+          ? `Tap the striker. ${nameOf(draft.nonStriker)} stays marked as non-striker.`
+          : "Tap the striker, then the non-striker."
+        : draft.striker
+          ? `Now tap the non-striker. ${nameOf(draft.striker)} stays marked as striker.`
+          : "Tap the non-striker.";
+  /** The end a row's player is chosen for in the dialog, marked in place. */
+  const markOf = (id: string) =>
+    id === draft.striker
+      ? { label: "Striker", strong: true }
+      : id === draft.nonStriker
+        ? { label: "Non-striker" }
+        : null;
   // Only who can be picked: those out never are; after a wicket, the pair
   // at the crease is not being chosen either.
   const pickable = rows.filter(
@@ -373,8 +420,8 @@ export function BatsmenDialog({
                   ? "Swap ends, correct a wrong pick, or retire them."
                   : changing
                     ? "Tap who replaces them. The other batter stays."
-                    : !strikerId && !nonStrikerId
-                      ? "Tap the striker, then the non-striker."
+                    : openers
+                      ? openersHint
                       : "Tap a player to fill the highlighted end."}
           </DialogDescription>
         </DialogHeader>
@@ -385,7 +432,9 @@ export function BatsmenDialog({
               type="button"
               variant="ghost"
               size="icon"
-              className="h-auto w-9 self-stretch"
+              // As tall as the end cards; 44 px wide to tap (the grid's
+              // gaps take the rest).
+              className="h-auto w-11 self-stretch"
               onClick={swapEnds}
               disabled={!draft.striker && !draft.nonStriker}
               aria-label="Swap ends"
@@ -447,6 +496,7 @@ export function BatsmenDialog({
                 }
                 emptyMessage="Everyone else in the squad has batted."
                 noun="batter"
+                alsoNamed={notOffered}
               />
               <Button
                 type="button"
@@ -507,15 +557,16 @@ export function BatsmenDialog({
                     ? "Choose striker"
                     : "Choose non-striker"
               }
-              // The opener picked for the other end is marked too, so both
-              // choices show in the list, not only this slot's (S13).
-              rows={pickable.map((r) => {
-                const other =
-                  pickingFor === "striker" ? draft.nonStriker : draft.striker;
-                if (survivor || r.id !== other) return r;
-                const mark = pickingFor === "striker" ? "Non-striker" : "Striker";
-                return { ...r, tag: r.tag ? `${r.tag} · ${mark}` : mark };
-              })}
+              // Both ends' choices are marked in place with their end's
+              // pill, so the striker picked first stays in sight while the
+              // non-striker is chosen (S13). The crease's own tags give way:
+              // the marks say where each batter will be.
+              rows={pickable.map((r) => ({
+                ...r,
+                tag:
+                  r.tag === "Striker" || r.tag === "Non-striker" ? null : r.tag,
+                mark: markOf(r.id),
+              }))}
               selectedId={
                 pickingFor === "striker" ? draft.striker : draft.nonStriker
               }
@@ -537,7 +588,7 @@ export function BatsmenDialog({
           {/* Pinned on phones: reachable however long the squad is */}
           <div className="max-sm:sticky max-sm:bottom-0 max-sm:z-10 max-sm:-mx-4 max-sm:-mb-4 max-sm:border-t max-sm:border-border/70 max-sm:bg-card max-sm:px-4 max-sm:pb-4 max-sm:pt-3">
             <Button
-              className="h-11 w-full text-sm font-semibold"
+              className="h-auto min-h-11 w-full whitespace-normal text-balance py-2 text-sm font-semibold"
               onClick={fixing ? replace : confirm}
               disabled={fixing ? !canReplace : !canConfirm}
             >

@@ -33,7 +33,7 @@ import { useAuth } from "~/lib/auth";
 import { cn } from "~/lib/utils";
 import { MatchHero, scoreLineSides } from "~/components/matches/match-hero";
 import { ContentSheet, ScreenBar, TopStrip } from "~/components/ds/screen";
-import MatchDetailLoading from "./loading";
+import MatchDetailLoading, { type MatchPreview } from "./loading";
 import { EmptyState } from "~/components/ui/empty-state";
 import { CouldNotLoad } from "~/components/ui/could-not-load";
 import { ChevronLeft, Play, AlertCircle } from "lucide-react";
@@ -317,7 +317,11 @@ function TabTitle({
   return label ? <h2 className="sr-only">{label}</h2> : null;
 }
 
-function MatchDetailsPageContent() {
+function MatchDetailsPageContent({
+  preview,
+}: {
+  preview?: MatchPreview | null;
+}) {
   const params = useParams();
   const searchParams = useSearchParams();
   const matchId = params.id as string;
@@ -348,7 +352,7 @@ function MatchDetailsPageContent() {
   const { data: isScorerAdmin } = useMatchAdminQuery(matchId, user?.id);
 
   if (loading) {
-    return <MatchDetailLoading />;
+    return <MatchDetailLoading preview={preview} />;
   }
 
   // Gone while open (deleted), or a read that failed: never the database's
@@ -398,10 +402,15 @@ function MatchDetailsPageContent() {
   );
 }
 
-export function MatchDetailsPage() {
+export function MatchDetailsPage({
+  preview,
+}: {
+  /** The server's read of the match: its score in the first HTML. */
+  preview?: MatchPreview | null;
+}) {
   return (
-    <Suspense fallback={<MatchDetailLoading />}>
-      <MatchDetailsPageContent />
+    <Suspense fallback={<MatchDetailLoading preview={preview} />}>
+      <MatchDetailsPageContent preview={preview} />
     </Suspense>
   );
 }

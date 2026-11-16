@@ -37,6 +37,13 @@ export function matchStart(iso?: string | null) {
   return { date: cardDate(iso), time: timeOfDay(iso) };
 }
 
+/** "Sun 15 Nov, 09:20": when a result was played (the day alone, untimed). */
+function playedAt(iso: string | null | undefined): string {
+  const day = cardDate(iso);
+  const time = timeOfDay(iso);
+  return day && time ? `${day}, ${time}` : day;
+}
+
 /** "158 for 9 (20.0 overs)": a score as it is read aloud. */
 const spokenScore = (inn: InningsRef) =>
   `${inn.runs} for ${inn.wickets} (${inn.overs} overs)`;
@@ -171,11 +178,12 @@ export function MatchCard({
         ],
         note: result ?? chase,
       })}
-      // A result says when it was played (M4); a live one is today.
+      // A result says when it was played (M4), to the minute: two sides that
+      // met three times on a Sunday are three cards; a live one is today.
       competition={[
         status === "live" || status === "innings_break"
           ? null
-          : cardDate(match.scheduled_at ?? match.actual_start_time),
+          : playedAt(match.scheduled_at ?? match.actual_start_time),
         competition,
         format,
       ]

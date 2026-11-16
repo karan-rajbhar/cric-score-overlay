@@ -164,7 +164,9 @@ export function BowlerDialog({
   const ballsBowled = `${overBowling?.balls} ball${overBowling?.balls === 1 ? "" : "s"}`;
   // The task, in the title; the action, on the button.
   const confirmLabel = !overBowling
-    ? "Confirm bowler"
+    ? draftBowlerId
+      ? `Confirm: ${nameOf(draftBowlerId)} to bowl`
+      : "Confirm bowler"
     : !reason
       ? "Choose what happened"
       : reason === "wrong_bowler"

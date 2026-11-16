@@ -3,6 +3,7 @@
 import {
   INNINGS_INTERNAL_FIELDS,
   overDocId,
+  SCORING_SCREEN_STORAGE,
   toBallEntry,
   withoutScorecardStorage,
   type OversRow,
@@ -267,10 +268,10 @@ export async function getScoringState(matchId: string) {
       for (const k of INNINGS_INTERNAL_FIELDS) delete copy[k];
       baseInnings = copy as unknown as InningsRow & { id: string };
     }
-    // The stands stay: the batter dialog reads who has shared a ball.
+    // The stands and the fall of wickets stay (SCORING_SCREEN_STORAGE).
     if (stored?.innings) {
       stored.innings = (stored.innings as object[]).map((inn) =>
-        withoutScorecardStorage(inn, ["partnerships"]),
+        withoutScorecardStorage(inn, SCORING_SCREEN_STORAGE),
       );
     }
     if (stored) await attachMatchTeams(db, [stored]);

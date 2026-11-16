@@ -8,7 +8,7 @@
 
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { cert, initializeApp } from "firebase-admin/app";
+import { applicationDefault, cert, initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -53,6 +53,9 @@ async function assertEmulator() {
 
 /** @param {string} project */
 function remoteCredential(project) {
+  // `--adc`: the credentials in GOOGLE_APPLICATION_CREDENTIALS (for example
+  // a Firebase CLI login) instead of the service account in .env.local.
+  if (process.argv.includes("--adc")) return applicationDefault();
   try {
     process.loadEnvFile(resolve(here, "../../.env.local"));
   } catch {

@@ -42,6 +42,21 @@ describe("OnDemandTabs", () => {
     expect(replace).not.toHaveBeenCalled();
   });
 
+  it("fetches a costly fallback once when nothing cheap is offered", () => {
+    // A visitor to a club with no teams: the plain URL opens on Stats.
+    render(
+      <OnDemandTabs fallback="stats" tabs={["stats", "members"]} onDemand={["stats", "members"]}>
+        <TabsList>
+          <TabsTrigger value="stats">Stats</TabsTrigger>
+          <TabsTrigger value="members">Members</TabsTrigger>
+        </TabsList>
+        <OnDemandPanels>the page</OnDemandPanels>
+      </OnDemandTabs>,
+    );
+    expect(replace).toHaveBeenCalledTimes(1);
+    expect(replace).toHaveBeenCalledWith("/clubs/c1?tab=stats", { scroll: false });
+  });
+
   it("opens the tab a link names", () => {
     window.history.replaceState(null, "", "/clubs/c1?tab=stats");
     renderTabs();

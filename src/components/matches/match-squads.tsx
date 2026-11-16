@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Avatar, TeamCrest } from "~/components/ds/avatar";
 import { Card } from "~/components/ds/card";
 import { ListCard } from "~/components/ds/list";
@@ -17,7 +18,14 @@ function Squad({ team }: { team: MatchTeam }) {
       <div className="flex items-center gap-2.5 px-1">
         <TeamCrest {...teamRef(team)} size="sm" />
         <h3 className="min-w-0 flex-1 truncate text-base font-semibold text-foreground">
-          {team.name}
+          {/* The team's page (not prefetched: a page of reads). */}
+          <Link
+            href={`/teams/${team.id}`}
+            prefetch={false}
+            className="rounded-sm underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {team.name}
+          </Link>
         </h3>
         {players.length > 0 && (
           <span className="shrink-0 text-xs text-muted-foreground">

@@ -5,6 +5,7 @@ import { Check, Copy, MessageCircle } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Label } from "~/components/ui/label";
 import { Textarea } from "~/components/ui/textarea";
+import { cardDate, timeOfDay } from "~/lib/dates";
 
 /**
  * Sign-in link for an invite. Keeps `@` readable while still escaping `+`;
@@ -16,18 +17,46 @@ export function inviteLink(email: string, next?: string): string {
   return `${window.location.origin}/auth/login?invite=${param}${after}`;
 }
 
+/** The match a scorer is invited to, as the message names it. */
+export interface InviteMatch {
+  id: string;
+  title?: string | null;
+  scheduled_at?: string | null;
+  venue?: string | null;
+}
+
+/** "Sun 22 Nov, 10:00 · Kamothe ground": when and where, if known. */
+export function inviteMatchWhen(match: InviteMatch): string {
+  const day = cardDate(match.scheduled_at);
+  const time = timeOfDay(match.scheduled_at);
+  return [day && time ? `${day}, ${time}` : day, match.venue?.trim()]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+/**
+ * The sign-in message for an app invite; for a scorer, it names the match
+ * (its title, day, time and ground), so the message says what it is for.
+ */
 export function inviteMessage(
   inviter: string | undefined,
   email: string,
-  scoreMatchId?: string,
+  scoreMatch?: string | InviteMatch,
 ): string {
   const who = inviter?.trim() || "Someone";
-  const what = scoreMatchId
-    ? "to help score a match on CricScore"
+  const match =
+    typeof scoreMatch === "string" ? { id: scoreMatch } : scoreMatch;
+  const title = match?.title?.trim();
+  const what = match
+    ? title
+      ? `to help score ${title} on CricScore`
+      : "to help score a match on CricScore"
     : "to CricScore";
-  const next = scoreMatchId ? `/matches/${scoreMatchId}/score` : undefined;
+  const when = match ? inviteMatchWhen(match) : "";
+  const next = match ? `/matches/${match.id}/score` : undefined;
   return (
     `${who} invited you ${what}\n` +
+    (when ? `${when}\n` : "") +
     `Open ${inviteLink(email, next)} and sign in with Google using ${email}.`
   );
 }

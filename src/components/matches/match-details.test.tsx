@@ -21,7 +21,7 @@ describe("MatchDetails", () => {
     expect(screen.getByText("20 overs per innings")).toBeInTheDocument();
     expect(screen.getByText("Wankhede Stadium")).toBeInTheDocument();
     expect(
-      screen.getByText(/Royal Tigers won the toss and elected to bat/i),
+      screen.getByText(/Royal Tigers won the toss and chose to bat/i),
     ).toBeInTheDocument();
   });
 

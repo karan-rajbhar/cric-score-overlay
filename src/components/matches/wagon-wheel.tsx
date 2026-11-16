@@ -280,408 +280,421 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
       </CardHeader>
 
       <CardContent className="space-y-4 p-4 pt-2 sm:p-5 sm:pt-2">
-        {/* Wagon Wheel SVG Canvas */}
-        <div className="flex flex-col items-center justify-center">
-          <div className="relative aspect-square w-full max-w-[390px] sm:max-w-[440px]">
-            <svg
-              role="img"
-              aria-label="Cricket wagon wheel shot distribution map"
-              viewBox="0 0 500 500"
-              className="h-full w-full select-none"
-            >
-              <title>Cricket wagon wheel shot distribution map</title>
-
-              {/* 1. Outer Dark Segmented Donut Ring (8 Sectors) */}
-              {SECTORS.map((s) => {
-                const isSelected = selectedSectorId === s.id;
-                const pathD = describeDonutSegment(
-                  CX,
-                  CY,
-                  R_GRASS,
-                  R_OUTER,
-                  s.angleStart,
-                  s.angleEnd,
-                );
-
-                return (
-                  <path
-                    key={`donut-${s.id}`}
-                    d={pathD}
-                    strokeWidth="2"
-                    className={cn(
-                      "cursor-pointer transition-colors duration-150",
-                      isSelected ? FIELD.ringSelected : cn(FIELD.ring, FIELD.ringHover),
-                    )}
-                    onClick={() => handleSectorClick(s.id)}
-                  >
-                    <title>
-                      {s.label}: {sectorStats.get(s.id)?.runs ?? 0} runs
-                    </title>
-                  </path>
-                );
-              })}
-
-              {/* Outer boundary rim stroke */}
-              <circle
-                cx={CX}
-                cy={CY}
-                r={R_OUTER}
-                fill="none"
-                strokeWidth="1"
-                className={FIELD.rim}
-              />
-
-              {/* 2. Thin Divider Lines separating the 8 outer sectors */}
-              {SECTORS.map((s) => {
-                const innerPt = polarToCartesian(CX, CY, R_GRASS, s.angleStart);
-                const outerPt = polarToCartesian(CX, CY, R_OUTER, s.angleStart);
-                return (
-                  <line
-                    key={`divider-${s.id}`}
-                    x1={innerPt.x}
-                    y1={innerPt.y}
-                    x2={outerPt.x}
-                    y2={outerPt.y}
-                    strokeWidth="2"
-                    className={FIELD.divider}
-                  />
-                );
-              })}
-
-              {/* 3. Outer Ring Sector Run Figures (matching reference screenshot) */}
-              {SECTORS.map((s) => {
-                const txtPos = polarToCartesian(CX, CY, R_TEXT, s.midAngle);
-                const runsInSector = sectorStats.get(s.id)?.runs ?? 0;
-                const isSelected = selectedSectorId === s.id;
-
-                return (
-                  <text
-                    key={`text-${s.id}`}
-                    x={txtPos.x}
-                    y={txtPos.y}
-                    fontSize="18"
-                    fontWeight="600"
-                    textAnchor="middle"
-                    dominantBaseline="central"
-                    className={cn(
-                      "pointer-events-none select-none font-score tabular-nums",
-                      isSelected ? FIELD.labelSelected : FIELD.label,
-                    )}
-                  >
-                    {runsInSector}
-                  </text>
-                );
-              })}
-
-              {/* 4. Center Grass Turf Circle */}
-              <circle
-                cx={CX}
-                cy={CY}
-                r={R_GRASS}
-                strokeWidth="1"
-                className={FIELD.grass}
-              />
-
-              {/* Interactive Turf Wedges Inside Boundary */}
-              {SECTORS.map((s) => {
-                const isSelected = selectedSectorId === s.id;
-                const turfWedgeD = describeWedge(
-                  CX,
-                  CY,
-                  R_GRASS,
-                  s.angleStart,
-                  s.angleEnd,
-                );
-
-                return (
-                  <path
-                    key={`turf-wedge-${s.id}`}
-                    d={turfWedgeD}
-                    className={cn(
-                      "cursor-pointer transition-colors duration-150",
-                      isSelected ? FIELD.wedgeSelected : FIELD.wedge,
-                    )}
-                    onClick={() => handleSectorClick(s.id)}
-                  >
-                    <title>
-                      {s.label}: {sectorStats.get(s.id)?.runs ?? 0} runs
-                    </title>
-                  </path>
-                );
-              })}
-
-              {/* 5. Concentric Turf Guide Rings */}
-              {/* 30-Yard Circle */}
-              <circle
-                cx={CX}
-                cy={CY}
-                r={R_30YD}
-                strokeWidth="1.2"
-                strokeDasharray="4 4"
-                className={FIELD.ring30}
-              />
-              {/* Inner Guide Circle */}
-              <circle
-                cx={CX}
-                cy={CY}
-                r={R_INNER_GUIDE}
-                strokeWidth="1"
-                strokeDasharray="3 3"
-                className={FIELD.guide}
-              />
-
-              {/* Radial divider lines across grass connecting center to outer sectors */}
-              {SECTORS.map((s) => {
-                const outerPt = polarToCartesian(CX, CY, R_GRASS, s.angleStart);
-                return (
-                  <line
-                    key={`turf-line-${s.id}`}
-                    x1={CX}
-                    y1={CY}
-                    x2={outerPt.x}
-                    y2={outerPt.y}
-                    strokeWidth="0.8"
-                    strokeDasharray="3 3"
-                    className={FIELD.radial}
-                  />
-                );
-              })}
-
-              {/* 6. Central Pitch & Creases */}
-              <rect
-                x={CX - 8}
-                y={CY - 26}
-                width={16}
-                height={52}
-                rx={2.5}
-                strokeWidth="1"
-                className={FIELD.pitch}
-              />
-              {/* Bowling crease (bottom, the bowler's end) */}
-              <line
-                x1={CX - 8}
-                y1={CY + 16}
-                x2={CX + 8}
-                y2={CY + 16}
-                strokeWidth="1.2"
-                className={FIELD.crease}
-              />
-              {/* Batting crease (top, the striker's end) */}
-              <line
-                x1={CX - 8}
-                y1={BATTER_CONTACT_Y}
-                x2={CX + 8}
-                y2={BATTER_CONTACT_Y}
-                strokeWidth="1.2"
-                className={FIELD.crease}
-              />
-              {/* Stumps: the striker's at the top, the bowler's end below */}
-              <circle cx={CX} cy={CY + 20} r={1.8} className={FIELD.farStumps} />
-              <g className={FIELD.stumps}>
-                <rect x={CX - 5} y={CY - 25} width={1.8} height={6} rx={0.6} />
-                <rect x={CX - 0.9} y={CY - 25} width={1.8} height={6} rx={0.6} />
-                <rect x={CX + 3.2} y={CY - 25} width={1.8} height={6} rx={0.6} />
-              </g>
-
-              {/* Striker Batting Crease Spot */}
-              <circle
-                cx={CX}
-                cy={BATTER_CONTACT_Y}
-                r={4}
-                strokeWidth="1.5"
-                className={FIELD.batter}
-              />
-
-              {/* 7. Shot Trajectory Rays */}
-              {mappedShots.map((shot, idx) => {
-                const isMatchingRun =
-                  activeRunFilter === null ||
-                  shot.runs_scored === activeRunFilter;
-                const isMatchingSector =
-                  selectedSectorId === null ||
-                  shot.sectorId === selectedSectorId;
-                const isVisible = isMatchingRun && isMatchingSector;
-
-                // End coordinates calculated from angle and distance
-                const length = R_GRASS * shot.distPercent;
-                const endPt = polarToCartesian(CX, CY, length, shot.angle);
-
-                const { cls: strokeClass, width: strokeWidth } = shotStyle(
-                  shot.runs_scored ?? 0,
-                  Boolean(shot.is_wicket),
-                );
-
-                // Opacity handling
-                const opacity = isVisible
-                  ? 0.95
-                  : activeRunFilter !== null || selectedSectorId !== null
-                    ? 0.08
-                    : 0.85;
-
-                return (
-                  <g key={`shot-${idx}`} className="transition-opacity">
-                    <line
-                      x1={CX}
-                      y1={BATTER_CONTACT_Y}
-                      x2={endPt.x}
-                      y2={endPt.y}
-                      strokeWidth={strokeWidth}
-                      strokeOpacity={opacity}
-                      strokeLinecap="round"
-                      className={strokeClass}
-                    />
-                    {/* Small round marker at the end of boundaries */}
-                    {shot.runs_scored &&
-                      shot.runs_scored >= 4 &&
-                      isVisible && (
-                        <circle
-                          cx={endPt.x}
-                          cy={endPt.y}
-                          r={shot.runs_scored === 6 ? 3.5 : 2.8}
-                          strokeWidth="1"
-                          fillOpacity={opacity}
-                          className={cn(
-                            shot.runs_scored >= 6 ? "fill-six" : "fill-four",
-                            "stroke-card",
-                          )}
-                        />
-                      )}
-                  </g>
-                );
-              })}
-            </svg>
-          </div>
-
-          {unplacedShots > 0 && (
-            <p className="mt-1.5 text-center text-xs text-muted-foreground">
-              {mappedShots.length === 0
-                ? "No shot directions recorded for this innings."
-                : `${unplacedShots} scoring ${unplacedShots === 1 ? "shot has" : "shots have"} no direction recorded and ${unplacedShots === 1 ? "is" : "are"} not shown.`}
-            </p>
-          )}
-
-          {/* Active Sector Indicator (if filtered by sector) */}
-          {selectedSectorId && activeSectorInfo && (
-            <div className="mt-2 flex items-center gap-2">
-              <Badge
-                variant="secondary"
-                className="gap-1.5"
-              >
-                Sector: {activeSectorInfo.label} ({sectorStats.get(selectedSectorId)?.runs ?? 0} runs)
-                <button
-                  type="button"
-                  onClick={() => setSelectedSectorId(null)}
-                  className="ml-1 rounded-full p-0.5 hover:bg-accent"
-                  aria-label="Clear sector filter"
+        {/* Nothing placed: say so in a line, not a field of zeros; the
+            filters stay, as another innings or batter may have shots. */}
+        {mappedShots.length > 0 ? (
+          <>
+            {/* Wagon Wheel SVG Canvas */}
+            <div className="flex flex-col items-center justify-center">
+              <div className="relative aspect-square w-full max-w-[390px] sm:max-w-[440px]">
+                <svg
+                  role="img"
+                  aria-label="Cricket wagon wheel shot distribution map"
+                  viewBox="0 0 500 500"
+                  className="h-full w-full select-none"
                 >
-                  <RotateCcw className="h-3 w-3" />
-                </button>
-              </Badge>
-            </div>
-          )}
-        </div>
+                  <title>Cricket wagon wheel shot distribution map</title>
 
-        {/* Metrics: runs, balls, strike rate | off side, leg side runs */}
-        <div className="rounded-2xl bg-muted p-3 sm:p-4">
-          <div className="grid grid-cols-2 divide-x divide-border/60">
-            {/* Left Section: Runs, Balls, SR */}
-            <div className="grid grid-cols-3 text-center px-1 sm:px-2">
-              <div>
-                <div className="text-xs font-medium text-muted-foreground">
-                  Runs
-                </div>
-                <div className="font-score text-lg font-semibold tabular-nums text-foreground sm:text-2xl">
-                  {activeRunFilter !== null || selectedSectorId !== null
-                    ? totalRuns
-                    : overallTotals.runs}
-                </div>
-              </div>
-              <div>
-                <div className="text-xs font-medium text-muted-foreground">
-                  Balls
-                </div>
-                <div className="font-score text-lg font-semibold tabular-nums text-foreground sm:text-2xl">
-                  {activeRunFilter !== null || selectedSectorId !== null
-                    ? totalBalls
-                    : overallTotals.balls}
-                </div>
-              </div>
-              <div>
-                <div className="text-xs font-medium text-muted-foreground">
-                  SR
-                </div>
-                <div className="font-score text-lg font-semibold tabular-nums text-foreground sm:text-2xl">
-                  {activeRunFilter !== null || selectedSectorId !== null
-                    ? strikeRate
-                    : overallTotals.sr}
-                </div>
-              </div>
-            </div>
+                  {/* 1. Outer Dark Segmented Donut Ring (8 Sectors) */}
+                  {SECTORS.map((s) => {
+                    const isSelected = selectedSectorId === s.id;
+                    const pathD = describeDonutSegment(
+                      CX,
+                      CY,
+                      R_GRASS,
+                      R_OUTER,
+                      s.angleStart,
+                      s.angleEnd,
+                    );
 
-            {/* Right Section: Off-S, Leg-S */}
-            <div className="grid grid-cols-2 text-center px-1 sm:px-2">
-              <div>
-                <div className="text-xs font-medium text-muted-foreground">
-                  Off side
-                </div>
-                <div className="font-score text-lg font-semibold tabular-nums text-foreground sm:text-2xl">
-                  {activeRunFilter !== null || selectedSectorId !== null
-                    ? offSideRuns
-                    : overallTotals.off}
-                </div>
-              </div>
-              <div>
-                <div className="text-xs font-medium text-muted-foreground">
-                  Leg side
-                </div>
-                <div className="font-score text-lg font-semibold tabular-nums text-foreground sm:text-2xl">
-                  {activeRunFilter !== null || selectedSectorId !== null
-                    ? legSideRuns
-                    : overallTotals.leg}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+                    return (
+                      <path
+                        key={`donut-${s.id}`}
+                        d={pathD}
+                        strokeWidth="2"
+                        className={cn(
+                          "cursor-pointer transition-colors duration-150",
+                          isSelected ? FIELD.ringSelected : cn(FIELD.ring, FIELD.ringHover),
+                        )}
+                        onClick={() => handleSectorClick(s.id)}
+                      >
+                        <title>
+                          {s.label}: {sectorStats.get(s.id)?.runs ?? 0} runs
+                        </title>
+                      </path>
+                    );
+                  })}
 
-        {/* Run filter: tap a value to show only those shots. */}
-        <div
-          role="group"
-          aria-label="Filter shots by runs"
-          className="grid grid-cols-5 gap-1.5 sm:gap-2"
-        >
-          {([1, 2, 3, 4, 6] as const).map((r) => {
-            const active = activeRunFilter === r;
-            return (
-              <button
-                key={r}
-                type="button"
-                onClick={() => handleToggleRunFilter(r)}
-                aria-pressed={active}
-                // Named by what it shows ("1s 34"), as voice control
-                // needs (X4); the title says what a tap does.
-                title={`Show only the ${r}s`}
-                className={cn(
-                  "flex flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                  active
-                    ? "bg-primary-soft ring-1 ring-primary/40"
-                    : "bg-muted hover:bg-accent",
-                )}
-              >
-                <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <span
-                    aria-hidden="true"
-                    className={cn("h-2 w-2 rounded-full", SHOT_FILL[String(r)])}
+                  {/* Outer boundary rim stroke */}
+                  <circle
+                    cx={CX}
+                    cy={CY}
+                    r={R_OUTER}
+                    fill="none"
+                    strokeWidth="1"
+                    className={FIELD.rim}
                   />
-                  {r}s
-                </span>{" "}
-                <span className="font-score text-base font-semibold tabular-nums text-foreground">
-                  {runCounts[r]}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+
+                  {/* 2. Thin Divider Lines separating the 8 outer sectors */}
+                  {SECTORS.map((s) => {
+                    const innerPt = polarToCartesian(CX, CY, R_GRASS, s.angleStart);
+                    const outerPt = polarToCartesian(CX, CY, R_OUTER, s.angleStart);
+                    return (
+                      <line
+                        key={`divider-${s.id}`}
+                        x1={innerPt.x}
+                        y1={innerPt.y}
+                        x2={outerPt.x}
+                        y2={outerPt.y}
+                        strokeWidth="2"
+                        className={FIELD.divider}
+                      />
+                    );
+                  })}
+
+                  {/* 3. Outer Ring Sector Run Figures (matching reference screenshot) */}
+                  {SECTORS.map((s) => {
+                    const txtPos = polarToCartesian(CX, CY, R_TEXT, s.midAngle);
+                    const runsInSector = sectorStats.get(s.id)?.runs ?? 0;
+                    const isSelected = selectedSectorId === s.id;
+
+                    return (
+                      <text
+                        key={`text-${s.id}`}
+                        x={txtPos.x}
+                        y={txtPos.y}
+                        fontSize="18"
+                        fontWeight="600"
+                        textAnchor="middle"
+                        dominantBaseline="central"
+                        className={cn(
+                          "pointer-events-none select-none font-score tabular-nums",
+                          isSelected ? FIELD.labelSelected : FIELD.label,
+                        )}
+                      >
+                        {runsInSector}
+                      </text>
+                    );
+                  })}
+
+                  {/* 4. Center Grass Turf Circle */}
+                  <circle
+                    cx={CX}
+                    cy={CY}
+                    r={R_GRASS}
+                    strokeWidth="1"
+                    className={FIELD.grass}
+                  />
+
+                  {/* Interactive Turf Wedges Inside Boundary */}
+                  {SECTORS.map((s) => {
+                    const isSelected = selectedSectorId === s.id;
+                    const turfWedgeD = describeWedge(
+                      CX,
+                      CY,
+                      R_GRASS,
+                      s.angleStart,
+                      s.angleEnd,
+                    );
+
+                    return (
+                      <path
+                        key={`turf-wedge-${s.id}`}
+                        d={turfWedgeD}
+                        className={cn(
+                          "cursor-pointer transition-colors duration-150",
+                          isSelected ? FIELD.wedgeSelected : FIELD.wedge,
+                        )}
+                        onClick={() => handleSectorClick(s.id)}
+                      >
+                        <title>
+                          {s.label}: {sectorStats.get(s.id)?.runs ?? 0} runs
+                        </title>
+                      </path>
+                    );
+                  })}
+
+                  {/* 5. Concentric Turf Guide Rings */}
+                  {/* 30-Yard Circle */}
+                  <circle
+                    cx={CX}
+                    cy={CY}
+                    r={R_30YD}
+                    strokeWidth="1.2"
+                    strokeDasharray="4 4"
+                    className={FIELD.ring30}
+                  />
+                  {/* Inner Guide Circle */}
+                  <circle
+                    cx={CX}
+                    cy={CY}
+                    r={R_INNER_GUIDE}
+                    strokeWidth="1"
+                    strokeDasharray="3 3"
+                    className={FIELD.guide}
+                  />
+
+                  {/* Radial divider lines across grass connecting center to outer sectors */}
+                  {SECTORS.map((s) => {
+                    const outerPt = polarToCartesian(CX, CY, R_GRASS, s.angleStart);
+                    return (
+                      <line
+                        key={`turf-line-${s.id}`}
+                        x1={CX}
+                        y1={CY}
+                        x2={outerPt.x}
+                        y2={outerPt.y}
+                        strokeWidth="0.8"
+                        strokeDasharray="3 3"
+                        className={FIELD.radial}
+                      />
+                    );
+                  })}
+
+                  {/* 6. Central Pitch & Creases */}
+                  <rect
+                    x={CX - 8}
+                    y={CY - 26}
+                    width={16}
+                    height={52}
+                    rx={2.5}
+                    strokeWidth="1"
+                    className={FIELD.pitch}
+                  />
+                  {/* Bowling crease (bottom, the bowler's end) */}
+                  <line
+                    x1={CX - 8}
+                    y1={CY + 16}
+                    x2={CX + 8}
+                    y2={CY + 16}
+                    strokeWidth="1.2"
+                    className={FIELD.crease}
+                  />
+                  {/* Batting crease (top, the striker's end) */}
+                  <line
+                    x1={CX - 8}
+                    y1={BATTER_CONTACT_Y}
+                    x2={CX + 8}
+                    y2={BATTER_CONTACT_Y}
+                    strokeWidth="1.2"
+                    className={FIELD.crease}
+                  />
+                  {/* Stumps: the striker's at the top, the bowler's end below */}
+                  <circle cx={CX} cy={CY + 20} r={1.8} className={FIELD.farStumps} />
+                  <g className={FIELD.stumps}>
+                    <rect x={CX - 5} y={CY - 25} width={1.8} height={6} rx={0.6} />
+                    <rect x={CX - 0.9} y={CY - 25} width={1.8} height={6} rx={0.6} />
+                    <rect x={CX + 3.2} y={CY - 25} width={1.8} height={6} rx={0.6} />
+                  </g>
+
+                  {/* Striker Batting Crease Spot */}
+                  <circle
+                    cx={CX}
+                    cy={BATTER_CONTACT_Y}
+                    r={4}
+                    strokeWidth="1.5"
+                    className={FIELD.batter}
+                  />
+
+                  {/* 7. Shot Trajectory Rays */}
+                  {mappedShots.map((shot, idx) => {
+                    const isMatchingRun =
+                      activeRunFilter === null ||
+                      shot.runs_scored === activeRunFilter;
+                    const isMatchingSector =
+                      selectedSectorId === null ||
+                      shot.sectorId === selectedSectorId;
+                    const isVisible = isMatchingRun && isMatchingSector;
+
+                    // End coordinates calculated from angle and distance
+                    const length = R_GRASS * shot.distPercent;
+                    const endPt = polarToCartesian(CX, CY, length, shot.angle);
+
+                    const { cls: strokeClass, width: strokeWidth } = shotStyle(
+                      shot.runs_scored ?? 0,
+                      Boolean(shot.is_wicket),
+                    );
+
+                    // Opacity handling
+                    const opacity = isVisible
+                      ? 0.95
+                      : activeRunFilter !== null || selectedSectorId !== null
+                        ? 0.08
+                        : 0.85;
+
+                    return (
+                      <g key={`shot-${idx}`} className="transition-opacity">
+                        <line
+                          x1={CX}
+                          y1={BATTER_CONTACT_Y}
+                          x2={endPt.x}
+                          y2={endPt.y}
+                          strokeWidth={strokeWidth}
+                          strokeOpacity={opacity}
+                          strokeLinecap="round"
+                          className={strokeClass}
+                        />
+                        {/* Small round marker at the end of boundaries */}
+                        {shot.runs_scored &&
+                          shot.runs_scored >= 4 &&
+                          isVisible && (
+                            <circle
+                              cx={endPt.x}
+                              cy={endPt.y}
+                              r={shot.runs_scored === 6 ? 3.5 : 2.8}
+                              strokeWidth="1"
+                              fillOpacity={opacity}
+                              className={cn(
+                                shot.runs_scored >= 6 ? "fill-six" : "fill-four",
+                                "stroke-card",
+                              )}
+                            />
+                          )}
+                      </g>
+                    );
+                  })}
+                </svg>
+              </div>
+
+              {unplacedShots > 0 && (
+                <p className="mt-1.5 text-center text-xs text-muted-foreground">
+                  {mappedShots.length === 0
+                    ? "No shot directions recorded for this innings."
+                    : `${unplacedShots} scoring ${unplacedShots === 1 ? "shot has" : "shots have"} no direction recorded and ${unplacedShots === 1 ? "is" : "are"} not shown.`}
+                </p>
+              )}
+
+              {/* Active Sector Indicator (if filtered by sector) */}
+              {selectedSectorId && activeSectorInfo && (
+                <div className="mt-2 flex items-center gap-2">
+                  <Badge
+                    variant="secondary"
+                    className="gap-1.5"
+                  >
+                    Sector: {activeSectorInfo.label} ({sectorStats.get(selectedSectorId)?.runs ?? 0} runs)
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSectorId(null)}
+                      className="ml-1 rounded-full p-0.5 hover:bg-accent"
+                      aria-label="Clear sector filter"
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                </div>
+              )}
+            </div>
+
+            {/* Metrics: runs, balls, strike rate | off side, leg side runs */}
+            <div className="rounded-2xl bg-muted p-3 sm:p-4">
+              <div className="grid grid-cols-2 divide-x divide-border/60">
+                {/* Left Section: Runs, Balls, SR */}
+                <div className="grid grid-cols-3 text-center px-1 sm:px-2">
+                  <div>
+                    <div className="text-xs font-medium text-muted-foreground">
+                      Runs
+                    </div>
+                    <div className="font-score text-lg font-semibold tabular-nums text-foreground sm:text-2xl">
+                      {activeRunFilter !== null || selectedSectorId !== null
+                        ? totalRuns
+                        : overallTotals.runs}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-medium text-muted-foreground">
+                      Balls
+                    </div>
+                    <div className="font-score text-lg font-semibold tabular-nums text-foreground sm:text-2xl">
+                      {activeRunFilter !== null || selectedSectorId !== null
+                        ? totalBalls
+                        : overallTotals.balls}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-medium text-muted-foreground">
+                      SR
+                    </div>
+                    <div className="font-score text-lg font-semibold tabular-nums text-foreground sm:text-2xl">
+                      {activeRunFilter !== null || selectedSectorId !== null
+                        ? strikeRate
+                        : overallTotals.sr}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Section: Off-S, Leg-S */}
+                <div className="grid grid-cols-2 text-center px-1 sm:px-2">
+                  <div>
+                    <div className="text-xs font-medium text-muted-foreground">
+                      Off side
+                    </div>
+                    <div className="font-score text-lg font-semibold tabular-nums text-foreground sm:text-2xl">
+                      {activeRunFilter !== null || selectedSectorId !== null
+                        ? offSideRuns
+                        : overallTotals.off}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-medium text-muted-foreground">
+                      Leg side
+                    </div>
+                    <div className="font-score text-lg font-semibold tabular-nums text-foreground sm:text-2xl">
+                      {activeRunFilter !== null || selectedSectorId !== null
+                        ? legSideRuns
+                        : overallTotals.leg}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Run filter: tap a value to show only those shots. */}
+            <div
+              role="group"
+              aria-label="Filter shots by runs"
+              className="grid grid-cols-5 gap-1.5 sm:gap-2"
+            >
+              {([1, 2, 3, 4, 6] as const).map((r) => {
+                const active = activeRunFilter === r;
+                return (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => handleToggleRunFilter(r)}
+                    aria-pressed={active}
+                    // Named by what it shows ("1s 34"), as voice control
+                    // needs (X4); the title says what a tap does.
+                    title={`Show only the ${r}s`}
+                    className={cn(
+                      "flex flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      active
+                        ? "bg-primary-soft ring-1 ring-primary/40"
+                        : "bg-muted hover:bg-accent",
+                    )}
+                  >
+                    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <span
+                        aria-hidden="true"
+                        className={cn("h-2 w-2 rounded-full", SHOT_FILL[String(r)])}
+                      />
+                      {r}s
+                    </span>{" "}
+                    <span className="font-score text-base font-semibold tabular-nums text-foreground">
+                      {runCounts[r]}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+          </>
+        ) : (
+          <p className="rounded-xl bg-muted px-3 py-4 text-center text-sm text-muted-foreground">
+            {selectedBatterId === "all"
+              ? "No shot directions recorded for this innings."
+              : "No shot directions recorded for this batter."}
+          </p>
+        )}
 
         {/* Filters: innings and batter */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
@@ -758,90 +771,94 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
           </div>
         </div>
 
-        {/* Expandable Detailed Sector Breakdown for Power Analysis */}
-        <div className="border-t border-border/50 pt-2">
-          <button
-            type="button"
-            onClick={() => setShowDetailedBreakdown((prev) => !prev)}
-            className="flex min-h-11 w-full items-center justify-between rounded-lg px-2 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors md:min-h-8"
-          >
-            <span>Detailed scoring zones breakdown</span>
-            {showDetailedBreakdown ? (
-              <ChevronUp className="h-4 w-4" />
-            ) : (
-              <ChevronDown className="h-4 w-4" />
-            )}
-          </button>
+        {mappedShots.length > 0 && (
+          <>
+            {/* Expandable Detailed Sector Breakdown for Power Analysis */}
+            <div className="border-t border-border/50 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowDetailedBreakdown((prev) => !prev)}
+                className="flex min-h-11 w-full items-center justify-between rounded-lg px-2 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors md:min-h-8"
+              >
+                <span>Detailed scoring zones breakdown</span>
+                {showDetailedBreakdown ? (
+                  <ChevronUp className="h-4 w-4" />
+                ) : (
+                  <ChevronDown className="h-4 w-4" />
+                )}
+              </button>
 
-          {showDetailedBreakdown && (
-            <div className="mt-2.5 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-              {SECTORS.map((s) => {
-                const st = sectorStats.get(s.id) ?? {
-                  runs: 0,
-                  balls: 0,
-                  fours: 0,
-                  sixes: 0,
-                  dots: 0,
-                };
-                const totalRunsAll = overallTotals.runs;
-                const pct =
-                  totalRunsAll > 0
-                    ? Math.round((st.runs / totalRunsAll) * 100)
-                    : 0;
-                const isSelected = selectedSectorId === s.id;
+              {showDetailedBreakdown && (
+                <div className="mt-2.5 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  {SECTORS.map((s) => {
+                    const st = sectorStats.get(s.id) ?? {
+                      runs: 0,
+                      balls: 0,
+                      fours: 0,
+                      sixes: 0,
+                      dots: 0,
+                    };
+                    const totalRunsAll = overallTotals.runs;
+                    const pct =
+                      totalRunsAll > 0
+                        ? Math.round((st.runs / totalRunsAll) * 100)
+                        : 0;
+                    const isSelected = selectedSectorId === s.id;
 
-                return (
-                  <div
-                    key={`detail-${s.id}`}
-                    onClick={() => handleSectorClick(s.id)}
-                    className={cn(
-                      "cursor-pointer rounded-xl border p-2.5 transition-all select-none",
-                      isSelected
-                        ? "border-primary/40 bg-primary-soft text-foreground"
-                        : "border-border/60 bg-card hover:bg-muted/40",
-                    )}
-                  >
-                    <div className="flex items-center justify-between font-medium">
-                      <span className="flex items-center gap-1.5">
-                        <span
-                          className={cn(
-                            "inline-block h-2 w-2 rounded-full",
-                            s.side === "off"
-                              ? "bg-series-1"
-                              : "bg-series-2",
-                          )}
-                        />
-                        {s.label}
-                      </span>
-                      <span className="font-score font-semibold tabular-nums">
-                        {st.runs} runs{" "}
-                        <span className="text-xs text-muted-foreground font-normal">
-                          ({pct}%)
-                        </span>
-                      </span>
-                    </div>
-                    <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
-                      <span>{st.balls} balls</span>
-                      <span className="flex items-center gap-2">
-                        {st.fours > 0 && (
-                          <span className="font-medium text-four">
-                            {st.fours}×4s
-                          </span>
+                    return (
+                      <div
+                        key={`detail-${s.id}`}
+                        onClick={() => handleSectorClick(s.id)}
+                        className={cn(
+                          "cursor-pointer rounded-xl border p-2.5 transition-all select-none",
+                          isSelected
+                            ? "border-primary/40 bg-primary-soft text-foreground"
+                            : "border-border/60 bg-card hover:bg-muted/40",
                         )}
-                        {st.sixes > 0 && (
-                          <span className="font-medium text-six">
-                            {st.sixes}×6s
+                      >
+                        <div className="flex items-center justify-between font-medium">
+                          <span className="flex items-center gap-1.5">
+                            <span
+                              className={cn(
+                                "inline-block h-2 w-2 rounded-full",
+                                s.side === "off"
+                                  ? "bg-series-1"
+                                  : "bg-series-2",
+                              )}
+                            />
+                            {s.label}
                           </span>
-                        )}
-                        <span>{st.dots} dots</span>
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
+                          <span className="font-score font-semibold tabular-nums">
+                            {st.runs} runs{" "}
+                            <span className="text-xs text-muted-foreground font-normal">
+                              ({pct}%)
+                            </span>
+                          </span>
+                        </div>
+                        <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
+                          <span>{st.balls} balls</span>
+                          <span className="flex items-center gap-2">
+                            {st.fours > 0 && (
+                              <span className="font-medium text-four">
+                                {st.fours}×4s
+                              </span>
+                            )}
+                            {st.sixes > 0 && (
+                              <span className="font-medium text-six">
+                                {st.sixes}×6s
+                              </span>
+                            )}
+                            <span>{st.dots} dots</span>
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </>
+        )}
       </CardContent>
     </Card>
   );

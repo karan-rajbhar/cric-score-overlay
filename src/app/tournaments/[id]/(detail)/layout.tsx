@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { RegisterTeamDialog } from "~/components/tournaments/register-team-dialog";
 import { TournamentManageDialog } from "~/components/tournaments/tournament-manage-dialog";
+import { tournamentFormatLabel } from "~/app/matches/create/match-setup";
 import { RescheduleMatchDialog } from "~/components/matches/reschedule-match-dialog";
 import { EmptyState } from "~/components/ui/empty-state";
 import {
@@ -60,7 +61,10 @@ import { NextRoundDialog } from "~/components/tournaments/next-round-dialog";
 import { StatGrid, StatTile } from "~/components/ds/stat-tile";
 import { PointsTable } from "~/components/ds/standings";
 import { matchGroupsOf } from "~/lib/match-groups";
-import { remainingMatchesByTeam } from "~/lib/tournament-standings";
+import {
+  POINTS_RULE_NOTE,
+  remainingMatchesByTeam,
+} from "~/lib/tournament-standings";
 import {
   endedByDate,
   isBracketFormat,
@@ -237,6 +241,8 @@ export default async function TournamentLayout({
 
   const isTournamentAdmin =
     !!user && (tournament.created_by === user.id || isClubAdmin);
+  // "8 overs", not "Custom" (the app's one wording of a format).
+  const formatLabel = tournamentFormatLabel(tournament);
 
   // Organisers manage the tournament here; a club's seasons can be linked.
   const seasons: Array<{ id: string; name: string }> =
@@ -393,14 +399,18 @@ export default async function TournamentLayout({
   // Scheduling and following are over when the tournament is.
   const over = isTournamentOver(tournament.status);
   const ended = endedByDate(tournament);
-  const registerTeam = canRegisterTeams && !over && (
-    <RegisterTeamDialog
-      tournamentId={tournament.id}
-      availableTeams={isTournamentAdmin ? undefined : availableTeams}
-      registeredTeamIds={registeredTeamIds}
-      isOrganiser={isTournamentAdmin}
-    />
-  );
+  const registerTeamWith = (variant: "default" | "outline") =>
+    canRegisterTeams &&
+    !over && (
+      <RegisterTeamDialog
+        tournamentId={tournament.id}
+        availableTeams={isTournamentAdmin ? undefined : availableTeams}
+        registeredTeamIds={registeredTeamIds}
+        isOrganiser={isTournamentAdmin}
+        variant={variant}
+      />
+    );
+  const registerTeam = registerTeamWith("default");
   const scheduleMatch = isTournamentAdmin && !over && (
     <Button asChild size="sm" className="gap-1.5">
       <Link href={`/matches/create?tournamentId=${tournament.id}`}>
@@ -509,7 +519,7 @@ export default async function TournamentLayout({
             <Chip tone="outline">
               {formatTournamentFormat(tournament.tournament_format)} format
             </Chip>
-            {tournament.match_format && <Chip>{tournament.match_format}</Chip>}
+            {formatLabel && <Chip>{formatLabel}</Chip>}
             {tournament.club && (
               <Link href={`/clubs/${(tournament.club as { id: string }).id}`}>
                 <Chip tone="outline" className="hover:bg-accent">
@@ -543,7 +553,9 @@ export default async function TournamentLayout({
               name={tournament.name}
               only={over ? "calendar" : undefined}
             />
-            {registerTeam}
+            {/* One primary action: Schedule match for an organiser, else
+                Register team. */}
+            {registerTeamWith(scheduleMatch ? "outline" : "default")}
             {sponsors}
             {scheduleMatch}
             {manage}
@@ -607,9 +619,9 @@ export default async function TournamentLayout({
               )}
             </div>
           ) : (
+            <>
             <PointsTable
               title="Points table"
-              aside="Net run rate breaks ties"
               rows={(standings ?? []).map((s) => {
                 const teamObj = s.team as {
                   id: string;
@@ -653,6 +665,10 @@ export default async function TournamentLayout({
                 };
               })}
             />
+            <p className="px-1 text-xs text-muted-foreground">
+              {POINTS_RULE_NOTE}
+            </p>
+            </>
           )}
         </TabsContent>
 

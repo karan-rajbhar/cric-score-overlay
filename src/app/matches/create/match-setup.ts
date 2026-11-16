@@ -5,6 +5,7 @@
  * localStorage.
  */
 import type { MatchFormat } from "../types";
+import { matchFormatLabel, namedFormat } from "~/lib/cricket";
 
 export interface SetupTeam {
   id: string;
@@ -81,6 +82,21 @@ export interface TournamentRulesSource {
   /** Legacy field, read when `overs_per_innings` is not set. */
   custom_overs?: number | null;
   wickets_per_innings?: number | null;
+}
+
+/**
+ * A tournament's match format in the app's one wording (`matchFormatLabel`):
+ * "T20 · 20 overs", or "8 overs" for Custom; null when it sets none.
+ */
+export function tournamentFormatLabel(t: TournamentRulesSource): string | null {
+  const rules = tournamentRules(t);
+  if (rules.overs === undefined) {
+    return namedFormat({ match_format: t.match_format });
+  }
+  return matchFormatLabel({
+    match_format: rules.format,
+    overs_per_innings: rules.overs,
+  });
 }
 
 /**

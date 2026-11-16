@@ -24,6 +24,7 @@ import {
   battingRowsOf,
   bowlingRowsOf,
   bySeq,
+  SCORING_SCREEN_STORAGE,
   withoutScorecardStorage,
   type OversRow,
 } from "./firebase/scorecard";
@@ -192,9 +193,9 @@ export function applyScoringDelta<M extends SnapshotMatch, D>(
     innings = prevInnings.map((inn) => {
       const doc = written.get(inn.id);
       if (!doc) return inn;
-      // As `getScoringState` shows it: the stands stay.
+      // As `getScoringState` shows it (SCORING_SCREEN_STORAGE).
       return {
-        ...withoutScorecardStorage(doc, ["partnerships"]),
+        ...withoutScorecardStorage(doc, SCORING_SCREEN_STORAGE),
         batting_performances: withUser(battingRowsOf(doc)),
         bowling_performances: withUser(bowlingRowsOf(doc)),
       } as unknown as SnapshotInnings;

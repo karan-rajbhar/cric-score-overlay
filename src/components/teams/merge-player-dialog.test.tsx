@@ -147,3 +147,25 @@ describe("MergePlayerDialog", () => {
     );
   });
 });
+
+describe("MergePlayerDialog starts the search", () => {
+  it("on the duplicate's own name", () => {
+    open();
+    expect(screen.getByRole("searchbox")).toHaveValue(duplicate.name);
+  });
+});
+
+describe("MergePlayerDialog from Possible duplicates", () => {
+  it("searches for the suggested player first", () => {
+    render(
+      <MergePlayerDialog
+        open
+        onOpenChange={vi.fn()}
+        teamId="t1"
+        player={duplicate}
+        suggestion="Rahul Sharma"
+      />,
+    );
+    expect(screen.getByRole("searchbox")).toHaveValue("Rahul Sharma");
+  });
+});

@@ -29,6 +29,12 @@ export const ERROR_MESSAGES: Record<string, string> = {
     "This player still has a part in this match, so they stay in the squad.",
   player_not_batted:
     "This batter has not faced a ball yet: change them instead of correcting.",
+  batter_already_out:
+    "That would put a batter at the crease after they were out. Check the ball where the mix-up starts and the ball where it ends.",
+  over_not_found: "That over has no balls to correct.",
+  ball_not_found:
+    "That ball is no longer in the log, perhaps undone meanwhile. Reload and try again.",
+  innings_not_found: "That innings could not be found. Reload and try again.",
   too_many_batsmen: "All 11 batsmen have already batted.",
   match_not_live: "The match is not live.",
   super_over_needs_tie:

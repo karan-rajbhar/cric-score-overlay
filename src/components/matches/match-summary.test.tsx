@@ -57,9 +57,10 @@ describe("MatchSummary - Key Moments", () => {
 
     render(<MatchSummary match={matchWithToss} />);
 
+    // One sentence for the toss, in key moments and match details alike.
     expect(
-      screen.getByText(/Mumbai Stars won the toss and chose to bat/i),
-    ).toBeDefined();
+      screen.getAllByText(/Mumbai Stars won the toss and chose to bat/i).length,
+    ).toBeGreaterThan(0);
   });
 
   it("displays milestones and wickets in Key Moments", () => {

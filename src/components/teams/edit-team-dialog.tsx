@@ -21,6 +21,8 @@ import { TeamLogoEditor } from "~/components/teams/team-logo-editor";
 import { TeamColourPicker } from "~/components/teams/team-colour-picker";
 import { isTeamColor } from "~/lib/team-colors";
 import { updateTeam } from "~/app/teams/actions";
+import { setTeamClub } from "~/app/clubs/club-teams";
+import { useConfirm } from "~/components/ui/confirm-dialog";
 import { NETWORK_ERROR_MESSAGE } from "~/lib/network-error";
 
 export interface EditableTeam {
@@ -31,6 +33,8 @@ export interface EditableTeam {
   logo_url?: string | null;
   primary_color?: string | null;
   secondary_color?: string | null;
+  /** The club it plays for: it can be taken out here (joining is the club's "Add a team"). */
+  club?: { id: string; name: string } | null;
 }
 
 /**
@@ -49,6 +53,33 @@ export function EditTeamDialog({ team }: { team: EditableTeam }) {
   const [secondary, setSecondary] = useState(team.secondary_color ?? "");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [askConfirm, confirmDialog] = useConfirm();
+
+  const leaveClub = async () => {
+    if (!team.club) return;
+    const ok = await askConfirm({
+      title: `Take ${team.name} out of ${team.club.name}?`,
+      description: `Its squad and matches stay as they are; it no longer shows among ${team.club.name}'s teams. A club admin can add it again.`,
+      cancelLabel: "Keep",
+      confirmLabel: "Take out",
+      destructive: true,
+    });
+    if (!ok) return;
+    startTransition(async () => {
+      try {
+        const res = await setTeamClub(team.id, null);
+        if (res.error) {
+          setError(res.error);
+          return;
+        }
+        toast.success(`${team.name} is no longer a ${team.club!.name} team`);
+        setOpen(false);
+        router.refresh();
+      } catch {
+        setError(NETWORK_ERROR_MESSAGE);
+      }
+    });
+  };
 
   const handleOpenChange = (next: boolean) => {
     if (pending) return;
@@ -104,6 +135,8 @@ export function EditTeamDialog({ team }: { team: EditableTeam }) {
   };
 
   return (
+    <>
+    {confirmDialog}
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="h-10 gap-1.5">
@@ -185,6 +218,23 @@ export function EditTeamDialog({ team }: { team: EditableTeam }) {
             />
           </fieldset>
 
+          {team.club && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border p-3 text-sm">
+              <span className="min-w-0">
+                Plays for <span className="font-medium">{team.club.name}</span>
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => void leaveClub()}
+                disabled={pending}
+              >
+                Take out of the club
+              </Button>
+            </div>
+          )}
+
           {error && (
             <p id={ids.error} role="alert" className="text-sm text-destructive">
               {error}
@@ -210,5 +260,6 @@ export function EditTeamDialog({ team }: { team: EditableTeam }) {
         </form>
       </DialogContent>
     </Dialog>
+    </>
   );
 }

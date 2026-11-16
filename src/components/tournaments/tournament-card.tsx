@@ -1,5 +1,6 @@
 import type * as React from "react";
 import { endedByDate } from "~/app/tournaments/rules";
+import { tournamentFormatLabel } from "~/app/matches/create/match-setup";
 import Link from "next/link";
 import { Trophy } from "lucide-react";
 import { cardSurface } from "~/components/ds/card";
@@ -25,6 +26,8 @@ export function TournamentCard({
     status?: string | null;
     tournament_format?: string | null;
     match_format?: string | null;
+    overs_per_innings?: number | null;
+    custom_overs?: number | null;
     venue?: string | null;
     start_date?: string | null;
     end_date?: string | null;
@@ -57,7 +60,7 @@ export function TournamentCard({
         <span className="block truncate text-sm text-muted-foreground">
           {[
             formatTournamentFormat(t.tournament_format),
-            t.match_format,
+            tournamentFormatLabel(t),
             t.venue,
           ]
             .filter(Boolean)

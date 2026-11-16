@@ -141,7 +141,13 @@ const REGISTRABLE_TEAMS = 200;
  * else gets none (their own teams come with the page).
  */
 export async function getRegistrableTeams(tournamentId: string): Promise<{
-  data: Array<{ id: string; name: string; short_name: string | null }>;
+  data: Array<{
+    id: string;
+    name: string;
+    short_name: string | null;
+    /** Squad size, which tells two teams of one name apart. */
+    players: number;
+  }>;
   error: string | null;
 }> {
   const db = await createServerClient();
@@ -152,18 +158,25 @@ export async function getRegistrableTeams(tournamentId: string): Promise<{
   if (!(await checkTournamentAdminAuth(db, tournamentId, user.id))) {
     return { data: [], error: null };
   }
+  // The roster rides on the team document: no read more.
   const { data, error } = await db
     .from("teams")
-    .select("id, name, short_name")
+    .select("id, name, short_name, roster")
     .order("name_lower")
     .limit(REGISTRABLE_TEAMS);
   if (error) return { data: [], error: error.message };
   return {
-    data: (data ?? []) as Array<{
-      id: string;
-      name: string;
-      short_name: string | null;
-    }>,
+    data: (
+      (data ?? []) as Array<{
+        id: string;
+        name: string;
+        short_name: string | null;
+        roster?: unknown[] | null;
+      }>
+    ).map(({ roster, ...team }) => ({
+      ...team,
+      players: Array.isArray(roster) ? roster.length : 0,
+    })),
     error: null,
   };
 }
@@ -430,15 +443,18 @@ async function withoutFixtures<P extends { homeTeamId: string; awayTeamId: strin
 }
 
 /**
- * Round-robin fixtures for the confirmed teams, one round a day starting at
- * `firstMatchAt` (an ISO timestamp the organiser's browser builds from
- * their local day and time). Without it: the start date (or today) at
- * 10:00 UTC. Matches take the rules the match wizard would
- * (`fixtureRulesOf`); a pair that already has a fixture gets none.
+ * Round-robin fixtures for the confirmed teams, one round a day (or, with
+ * `every: "week"`, one a week, on the first match's weekday: a club that
+ * plays on Sundays) starting at `firstMatchAt` (an ISO timestamp the
+ * organiser's browser builds from their local day and time). Without it:
+ * the start date (or today) at 10:00 UTC. Matches take the rules the match
+ * wizard would (`fixtureRulesOf`); a pair that already has a fixture gets
+ * none.
  */
 export async function generateTournamentFixtures(
   tournamentId: string,
   firstMatchAt?: string,
+  every: "day" | "week" = "day",
 ) {
   const { generateRoundRobinFixtures } = await import(
     "~/lib/tournament-scheduler"
@@ -527,7 +543,10 @@ export async function generateTournamentFixtures(
     const team2 = teamById.get(p.awayTeamId) ?? null;
     const team1Name = team1?.name ?? "Team 1";
     const team2Name = team2?.name ?? "Team 2";
-    const matchDate = new Date(startDate.getTime() + (p.round - 1) * 86400000);
+    const gapDays = every === "week" ? 7 : 1;
+    const matchDate = new Date(
+      startDate.getTime() + (p.round - 1) * gapDays * 86400000,
+    );
 
     return {
       title: `${team1Name} vs ${team2Name} (Round ${p.round})`,

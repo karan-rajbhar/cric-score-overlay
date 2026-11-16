@@ -150,3 +150,14 @@ describe("tournamentRules", () => {
     );
   });
 });
+
+describe("tournamentFormatLabel", () => {
+  it("words a tournament's format as matches do", async () => {
+    const { tournamentFormatLabel } = await import("./match-setup");
+    expect(tournamentFormatLabel({ match_format: "Custom", overs_per_innings: 8 })).toBe("8 overs");
+    expect(tournamentFormatLabel({ match_format: "T20", overs_per_innings: 20 })).toBe("T20 · 20 overs");
+    // Older tournaments keep their overs in custom_overs.
+    expect(tournamentFormatLabel({ match_format: "Custom", custom_overs: 12 })).toBe("12 overs");
+    expect(tournamentFormatLabel({ match_format: "Custom" })).toBeNull();
+  });
+});

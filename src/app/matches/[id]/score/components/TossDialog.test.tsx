@@ -59,6 +59,15 @@ describe("TossDialog", () => {
     expect(onConfirm).toHaveBeenCalledWith("t2", "bowl");
   });
 
+  it("does not say twice who bats when the winner chose to bat", () => {
+    render(<Harness onConfirm={vi.fn()} />);
+    fireEvent.click(screen.getByRole("radio", { name: "Tigers" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Bat" }));
+    expect(
+      screen.getByText("Tigers won the toss and chose to bat."),
+    ).toBeInTheDocument();
+  });
+
   it("says once when players are in both squads (S1)", () => {
     const { rerender } = render(
       <TossDialog

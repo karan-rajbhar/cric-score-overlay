@@ -42,6 +42,18 @@ import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import type { ScoringState } from "~/app/matches/types";
 import type { ScoringDelta } from "~/lib/scoring-delta";
+import { dismissesEitherBatter } from "~/lib/cricket";
+import {
+  battedOnAfter,
+  battingAfterOut,
+  laterBallsTo,
+  overBowlerFixes,
+  swapBattersFixes,
+  type BallPlayersFix,
+  type CorrectionNote,
+} from "~/lib/scoring-correction";
+
+export type { BallPlayersFix };
 import type { DataSource } from "../datasource";
 import {
   headerFromCache,
@@ -86,6 +98,7 @@ import {
   checkBallArgs as checkBall,
   creaseChangeError,
   DISMISSAL_TYPES,
+  editedBall,
   EXTRA_TYPES,
   fielderOf,
   inningsComplete,
@@ -951,10 +964,15 @@ async function runOnce<R>(
 function lastChangeBy(
   ctx: ScoringContext,
   now: string,
+  correction?: CorrectionNote | null,
 ): LiveStateLastChange | undefined {
-  return ctx.uid
-    ? { uid: ctx.uid, name: ctx.scorerName ?? null, at: now }
-    : undefined;
+  if (!ctx.uid) return undefined;
+  return {
+    uid: ctx.uid,
+    name: ctx.scorerName ?? null,
+    at: now,
+    ...(correction ? { correction } : {}),
+  };
 }
 
 async function finishWithState(
@@ -983,12 +1001,16 @@ async function finishWithState(
   return recordState(ctx.ds, matchId, after);
 }
 
-/** After a mutation that returns nothing: standings + live_state. */
+/**
+ * After a mutation that returns nothing: standings + live_state.
+ * `lastChange`: a correction's author and note (else the previous one stays).
+ */
 async function finishQuietly(
   ctx: ScoringContext,
   matchId: string,
   before: MatchesRow | null,
   changed: Changed,
+  lastChange?: LiveStateLastChange,
 ): Promise<void> {
   const after = (await ctx.ds.getById(
     "matches",
@@ -1000,7 +1022,7 @@ async function finishQuietly(
     matchId,
     ctx.db,
     changed.overs,
-    undefined,
+    lastChange,
     changed.innings,
   );
 }
@@ -1513,6 +1535,12 @@ export interface UpdateBallArgs {
   p_bowler_id?: string | null;
   /** On a no-ball: byes / leg byes rather than runs off the bat. */
   p_no_ball_runs?: string | null;
+  /**
+   * The edit makes this ball a wicket of a batter the log has batting on
+   * after it: the batter who came in, who takes those later entries
+   * (`laterBallsTo`). Without it such an edit is refused.
+   */
+  p_later_batter_id?: string | null;
 }
 
 export async function updateBall(
@@ -1536,6 +1564,7 @@ export async function updateBall(
   const noBallRuns = noBallRunsOf(extraType, args.p_no_ball_runs);
   if (noBallRuns === undefined) throw new DbQueryError("invalid_input", "22000");
   const now = new Date().toISOString();
+  let note: CorrectionNote | null = null;
 
   const tracked = await runOnce(ctx, async (t) => {
     // New ball ids name their over document (1 read); older ones are
@@ -1568,11 +1597,18 @@ export async function updateBall(
     if (!over || !found || !found.innings_id) {
       throw new DbQueryError("ball_not_found", "22000");
     }
-    const ball: BallByBallRow = {
-      ...found,
-      ...(args.p_batsman_id ? { batsman_id: args.p_batsman_id } : {}),
-      ...(args.p_bowler_id ? { bowler_id: args.p_bowler_id } : {}),
-    };
+    const ball = editedBall(found, {
+      runsScored: args.p_runs_scored,
+      extras: args.p_extras,
+      extraType,
+      isWicket,
+      dismissalType: args.p_dismissal_type,
+      fielderId: args.p_fielder_id,
+      dismissedPlayerId: args.p_dismissed_player_id,
+      batsmanId: args.p_batsman_id,
+      bowlerId: args.p_bowler_id,
+      noBallRuns,
+    });
     const innings = await t.doc<InningsRow>("innings", over.innings_id);
     if (!innings) throw new DbQueryError("ball_not_found", "22000");
     const bundle = matchOvers
@@ -1583,35 +1619,342 @@ export async function updateBall(
         )
       : await loadInningsBundle(t, match, innings);
 
-    const patch: Partial<BallByBallRow> = {
-      runs_scored: args.p_runs_scored ?? 0,
-      extras: args.p_extras ?? 0,
-      extra_type: extraType,
-      is_wicket: isWicket,
-      dismissal_type: isWicket ? (args.p_dismissal_type ?? null) : null,
-      fielder_id: isWicket
-        ? fielderOf(args.p_dismissal_type, args.p_fielder_id)
-        : null,
-      dismissed_player_id: isWicket
-        ? (args.p_dismissed_player_id ?? ball.batsman_id ?? null)
-        : null,
-    };
-    const balls = bundle.balls.map((b) => {
-      if (b.id !== ball.id) return b;
-      const edited: BallByBallRow = { ...ball, ...patch };
-      if (noBallRuns) edited.no_ball_runs = noBallRuns;
-      else delete edited.no_ball_runs;
-      return edited;
-    });
+    let balls = bundle.balls.map((b) => (b.id === ball.id ? ball : b));
+    if (args.p_later_batter_id) {
+      // A wicket added after the batter batted on: the later entries were
+      // the batter who came in.
+      const sorted = sortBySeq(balls);
+      const on = battedOnAfter(sorted, ball);
+      if (!on) throw new DbQueryError("invalid_input", "22000");
+      await requireInSquad(t, innings.team_id, new Set([args.p_later_batter_id]));
+      balls = laterBallsTo(sorted, ball.id, on.outId, args.p_later_batter_id);
+    }
+    // Never a batter at the crease after they were out (a wicket added on
+    // a ball the batter batted on after, without saying who came in).
+    const already = battingAfterOut(sortBySeq(bundle.balls));
+    if ([...battingAfterOut(sortBySeq(balls))].some((k) => !already.has(k)))
+      throw new DbQueryError("batter_already_out", "22000");
     const out = runRecompute(bundle, balls, now);
     const after = writeRecompute(t, bundle, out, balls, now);
     await settleAfterEdit(t, match, innings, after, sortBySeq(balls), now);
+    note = {
+      kind: "edit_ball",
+      innings_number: innings.innings_number,
+      over: ball.over_number,
+      ball: ball.ball_number,
+    };
     return match;
   });
   if (!tracked) return recordState(ctx.ds, matchId);
   const [before, overs] = tracked;
 
-  return finishWithState(ctx, matchId, before, overs, lastChangeBy(ctx, now));
+  return finishWithState(
+    ctx,
+    matchId,
+    before,
+    overs,
+    lastChangeBy(ctx, now, note),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// correct_ball_players
+// ---------------------------------------------------------------------------
+
+/** The innings a correction works on, as read in its transaction. */
+interface CorrectionTarget {
+  match: WithId<MatchesRow>;
+  innings: WithId<InningsRow>;
+  /** Its ball log, in `seq` order. */
+  balls: BallByBallRow[];
+}
+
+/**
+ * What a correction changes: the fixes per entry (empty: nothing to do)
+ * and the note for `live_state.last_change`.
+ */
+interface CorrectionPlan {
+  fixes: BallPlayersFix[];
+  note: CorrectionNote;
+}
+
+/**
+ * Runs a correction of who took part in entries of one innings' ball log:
+ * `plan` reads the log and says which entries change, then the innings is
+ * recomputed from the corrected log as after Edit ball (records, statistics
+ * and live documents follow, and a finished match is settled again). When
+ * batters change, the batting order follows the log (each batter's first
+ * ball, the openers keeping theirs). Refused: a player outside the squad
+ * of the side they played for, a batter at both ends, a striker-only
+ * dismissal given to the non-striker, and a batter named after they were
+ * out (unless the log already had that). A replayed client action is not
+ * applied twice.
+ */
+async function correctBalls(
+  ctx: ScoringContext,
+  matchId: string,
+  inningsId: string,
+  plan: (target: CorrectionTarget) => CorrectionPlan,
+): Promise<ScoringState> {
+  await requireAdmin(ctx, matchId);
+  const now = new Date().toISOString();
+  let note: CorrectionNote | null = null;
+  const tracked = await runOnce(ctx, async (t) => {
+    const [match, innings] = await Promise.all([
+      t.doc<MatchesRow>("matches", matchId),
+      t.doc<InningsRow>("innings", inningsId),
+    ]);
+    if (!match) throw new DbQueryError("match_not_found", "22000");
+    if (!innings || innings.match_id !== matchId)
+      throw new DbQueryError("innings_not_found", "22000");
+    await guardClientAction(t, ctx, match);
+    requireScorecard(innings);
+    const bundle = await loadInningsBundle(t, match, innings);
+    const planned = plan({ match, innings, balls: sortBySeq(bundle.balls) });
+    if (planned.fixes.length === 0) return null;
+    const fixes = new Map(planned.fixes.map((f) => [f.ball_id, f]));
+    if (fixes.size !== planned.fixes.length)
+      throw new DbQueryError("invalid_input", "22000");
+
+    let found = 0;
+    const balls = bundle.balls.map((b) => {
+      const fix = fixes.get(b.id);
+      if (!fix) return b;
+      found += 1;
+      return correctedBall(b, fix);
+    });
+    if (found !== fixes.size) throw new DbQueryError("ball_not_found", "22000");
+    await requireSquadsHold(t, match, innings, planned.fixes);
+    const already = battingAfterOut(sortBySeq(bundle.balls));
+    if ([...battingAfterOut(sortBySeq(balls))].some((k) => !already.has(k)))
+      throw new DbQueryError("batter_already_out", "22000");
+
+    const out = runRecompute(bundle, balls, now);
+    const battersChanged = planned.fixes.some(
+      (f) => f.batsman_id !== undefined || f.non_striker_id !== undefined,
+    );
+    const after = writeRecompute(
+      t,
+      bundle,
+      battersChanged
+        ? { ...out, batting: inLogOrder(out.batting, balls) }
+        : out,
+      balls,
+      now,
+    );
+    await settleAfterEdit(t, match, innings, after, sortBySeq(balls), now);
+    note = { ...planned.note, innings_number: innings.innings_number };
+    return match;
+  });
+  if (!tracked || !tracked[0]) return recordState(ctx.ds, matchId);
+  const [before, changed] = tracked;
+  return finishWithState(
+    ctx,
+    matchId,
+    before,
+    changed,
+    lastChangeBy(ctx, now, note),
+  );
+}
+
+/**
+ * Corrects who took part in entries of one innings' ball log, entry by
+ * entry: the striker, non-striker, batter out, bowler and fielder, with the
+ * runs, extras and everything else left as recorded (see
+ * {@link correctBalls}). For a repair nothing else expresses; the scoring
+ * screen uses {@link swapBatters} and {@link correctOverBowler}.
+ */
+export async function correctBallPlayers(
+  ctx: ScoringContext,
+  args: {
+    p_match_id: string;
+    p_innings_id: string;
+    p_balls: BallPlayersFix[];
+  },
+): Promise<ScoringState> {
+  if (args.p_balls.length === 0)
+    throw new DbQueryError("invalid_input", "22000");
+  return correctBalls(ctx, args.p_match_id, args.p_innings_id, ({ balls }) => {
+    const first = balls.find((b) => b.id === args.p_balls[0]!.ball_id);
+    return {
+      fixes: args.p_balls,
+      note: {
+        kind: "edit_ball",
+        over: first?.over_number ?? null,
+        ball: first?.ball_number ?? null,
+      },
+    };
+  });
+}
+
+/**
+ * The batters were at the wrong ends: from `p_from_ball_id` to
+ * `p_to_ball_id` (null: the end of the innings), the two batters at the
+ * crease on the first ball change places wherever the log names them, as
+ * striker, non-striker or batter out. A wicket in the range moves with
+ * them, so after it the batter left in carries on under their own name:
+ * this also fixes a wicket given to the wrong batter (from that ball to
+ * the end of the innings).
+ */
+export async function swapBatters(
+  ctx: ScoringContext,
+  args: {
+    p_match_id: string;
+    p_innings_id: string;
+    p_from_ball_id: string;
+    p_to_ball_id?: string | null;
+  },
+): Promise<ScoringState> {
+  return correctBalls(ctx, args.p_match_id, args.p_innings_id, ({ balls }) => {
+    if (!balls.some((b) => b.id === args.p_from_ball_id))
+      throw new DbQueryError("ball_not_found", "22000");
+    if (args.p_to_ball_id && !balls.some((b) => b.id === args.p_to_ball_id))
+      throw new DbQueryError("ball_not_found", "22000");
+    const range = swapBattersFixes(
+      balls,
+      args.p_from_ball_id,
+      args.p_to_ball_id ?? null,
+    );
+    if (!range) throw new DbQueryError("invalid_input", "22000");
+    const { fixes, a, b, first, last } = range;
+    return {
+      fixes,
+      note: {
+        kind: "swap_batters",
+        over: first.over_number,
+        ball: first.ball_number,
+        to_over: last?.over_number ?? null,
+        to_ball: last?.ball_number ?? null,
+        from_id: a,
+        to_id: b,
+      },
+    };
+  });
+}
+
+/**
+ * Someone else bowled a whole over: every ball of over `p_over_number`
+ * (0-based) goes to `p_bowler_id`, with its figures, wickets and maidens.
+ * Fielders stay as they are; entries without a bowler (events) too.
+ */
+export async function correctOverBowler(
+  ctx: ScoringContext,
+  args: {
+    p_match_id: string;
+    p_innings_id: string;
+    p_over_number: number;
+    p_bowler_id: string;
+  },
+): Promise<ScoringState> {
+  if (!args.p_bowler_id || !Number.isInteger(args.p_over_number))
+    throw new DbQueryError("invalid_input", "22000");
+  return correctBalls(ctx, args.p_match_id, args.p_innings_id, ({ balls }) => {
+    const over = overBowlerFixes(balls, args.p_over_number, args.p_bowler_id);
+    if (!over) throw new DbQueryError("over_not_found", "22000");
+    return {
+      fixes: over.fixes,
+      note: {
+        kind: "over_bowler",
+        over: args.p_over_number,
+        from_id: over.from,
+        to_id: args.p_bowler_id,
+      },
+    };
+  });
+}
+
+
+/** One entry with `fix` applied, refused when it no longer makes sense. */
+function correctedBall(ball: BallByBallRow, fix: BallPlayersFix): BallByBallRow {
+  const next: BallByBallRow = { ...ball };
+  if (fix.batsman_id !== undefined) next.batsman_id = fix.batsman_id;
+  if (fix.non_striker_id !== undefined) next.non_striker_id = fix.non_striker_id;
+  if (fix.bowler_id !== undefined) next.bowler_id = fix.bowler_id;
+  if (ball.is_wicket) {
+    if (fix.dismissed_player_id !== undefined)
+      next.dismissed_player_id = fix.dismissed_player_id;
+    if (fix.fielder_id !== undefined)
+      next.fielder_id = fielderOf(ball.dismissal_type, fix.fielder_id);
+    const out = next.dismissed_player_id ?? next.batsman_id;
+    const atCrease = out === next.batsman_id || out === next.non_striker_id;
+    if (
+      !atCrease ||
+      (out !== next.batsman_id && !dismissesEitherBatter(ball.dismissal_type))
+    ) {
+      throw new DbQueryError("invalid_input", "22000");
+    }
+  } else if (
+    fix.dismissed_player_id !== undefined ||
+    fix.fielder_id !== undefined
+  ) {
+    throw new DbQueryError("invalid_input", "22000");
+  }
+  if (!next.batsman_id || next.batsman_id === next.non_striker_id)
+    throw new DbQueryError("invalid_input", "22000");
+  return next;
+}
+
+/** The players a correction names are in the squads they played for. */
+async function requireSquadsHold(
+  t: ScoringTx,
+  match: MatchesRow,
+  innings: InningsRow,
+  fixes: readonly BallPlayersFix[],
+): Promise<void> {
+  const fieldingTeam =
+    innings.team_id === match.team1_id ? match.team2_id : match.team1_id;
+  const named = (keys: (keyof BallPlayersFix)[]) =>
+    new Set(fixes.flatMap((f) => keys.map((k) => f[k]).filter(isId)));
+  await requireInSquad(
+    t,
+    innings.team_id,
+    named(["batsman_id", "non_striker_id", "dismissed_player_id"]),
+  );
+  await requireInSquad(t, fieldingTeam, named(["bowler_id", "fielder_id"]));
+}
+
+function isId(v: unknown): v is string {
+  return typeof v === "string" && v !== "";
+}
+
+async function requireInSquad(
+  t: ScoringTx,
+  teamId: string | null | undefined,
+  ids: Set<string>,
+): Promise<void> {
+  if (ids.size === 0) return;
+  if (!teamId) throw new DbQueryError("player_not_in_team", "22000");
+  const roster = await t.where<TeamPlayersRow>("team_players", [
+    ["team_id", "==", teamId],
+  ]);
+  const squad = new Set(roster.map((r) => r.user_id));
+  if ([...ids].some((id) => !squad.has(id)))
+    throw new DbQueryError("player_not_in_team", "22000");
+}
+
+/**
+ * The batting rows numbered in the order the log brings each batter in:
+ * their first entry at either end, ties (the openers) in their stored
+ * order; rows the log does not name come after.
+ */
+function inLogOrder(
+  rows: BattingPerformancesRow[],
+  balls: readonly BallByBallRow[],
+): BattingPerformancesRow[] {
+  const first = new Map<string, number>();
+  sortBySeq([...balls]).forEach((b, i) => {
+    for (const id of [b.batsman_id, b.non_striker_id])
+      if (id && !first.has(id)) first.set(id, i);
+  });
+  const rank = (r: BattingPerformancesRow) =>
+    first.get(r.user_id) ?? Number.POSITIVE_INFINITY;
+  return [...rows]
+    .sort(
+      (a, b) =>
+        rank(a) - rank(b) ||
+        (a.batting_position ?? 0) - (b.batting_position ?? 0),
+    )
+    .map((r, i) => ({ ...r, batting_position: i + 1 }));
 }
 
 // ---------------------------------------------------------------------------
@@ -2056,6 +2399,7 @@ export async function replaceBatter(
   if (!from || !to || from === to)
     throw new DbQueryError("invalid_input", "22000");
   const now = new Date().toISOString();
+  let inningsNumber: number | null = null;
   const tracked = await runOnce(ctx, async (t) => {
     const match = await t.doc<MatchesRow>("matches", matchId);
     await requireAdminOf(ctx, matchId, match);
@@ -2122,9 +2466,23 @@ export async function replaceBatter(
     const out = runRecompute(edited, balls, now);
     const after = writeRecompute(t, edited, out, balls, now);
     await syncIfCompleted(t, match, innings, after, now);
+    inningsNumber = innings.innings_number;
     return match;
   });
-  if (tracked) await finishQuietly(ctx, matchId, tracked[0], tracked[1]);
+  if (tracked) {
+    await finishQuietly(
+      ctx,
+      matchId,
+      tracked[0],
+      tracked[1],
+      lastChangeBy(ctx, now, {
+        kind: "replace_batter",
+        innings_number: inningsNumber,
+        from_id: from,
+        to_id: to,
+      }),
+    );
+  }
   return null;
 }
 
@@ -2253,7 +2611,18 @@ export async function movePlayer(
     await syncMatchRecords(t, matchId, matchAfter, after, now);
     return [match, teamId] as const;
   });
-  if (teamId) await finishQuietly(ctx, matchId, match, changed);
+  if (teamId) {
+    // A scorer's Replace tells the other scorer; a merge of profiles is not
+    // a scoring change.
+    const lastChange = asScorer
+      ? lastChangeBy(ctx, now, {
+          kind: "replace_player",
+          from_id: from,
+          to_id: to,
+        })
+      : undefined;
+    await finishQuietly(ctx, matchId, match, changed, lastChange);
+  }
   return teamId;
 }
 

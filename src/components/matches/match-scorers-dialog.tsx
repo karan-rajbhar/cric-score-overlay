@@ -16,7 +16,15 @@ import { Button as DsButton } from "~/components/ds/button";
 import { Chip } from "~/components/ds/chip";
 import { SearchField } from "~/components/ds/field";
 import { ListCard, ListRow } from "~/components/ds/list";
-import { UserPlus, Copy, Check, Trash2, Loader2, Share2 } from "lucide-react";
+import {
+  UserPlus,
+  Copy,
+  Check,
+  Trash2,
+  Loader2,
+  MessageCircle,
+  Share2,
+} from "lucide-react";
 import {
   getMatchScorers,
   addMatchScorer,
@@ -26,7 +34,12 @@ import {
 } from "~/app/matches/mutations";
 import { toast } from "sonner";
 import { inviteToApp } from "~/app/invitations/actions";
-import { InviteShare, inviteMessage } from "~/components/invite-share";
+import {
+  InviteShare,
+  inviteMatchWhen,
+  inviteMessage,
+  type InviteMatch,
+} from "~/components/invite-share";
 import { MatchStreamersSection } from "~/components/matches/match-streamers-section";
 import { useAuth } from "~/lib/auth";
 import { NETWORK_ERROR_MESSAGE } from "~/lib/network-error";
@@ -35,6 +48,8 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 interface MatchScorersDialogProps {
   matchId: string;
+  /** Its title, day and ground, named in the invite and link messages. */
+  match?: Omit<InviteMatch, "id">;
   isCreator?: boolean;
   triggerButton?: React.ReactNode;
   /** Opened from elsewhere (a menu): no button of its own. */
@@ -44,6 +59,7 @@ interface MatchScorersDialogProps {
 
 export function MatchScorersDialog({
   matchId,
+  match,
   isCreator = false,
   triggerButton,
   open: openProp,
@@ -166,7 +182,9 @@ export function MatchScorersDialog({
             typeof user?.user_metadata?.full_name === "string"
               ? user.user_metadata.full_name
               : undefined;
-          setShareText(inviteMessage(name, invite.shareEmail, matchId));
+          setShareText(
+            inviteMessage(name, invite.shareEmail, { ...match, id: matchId }),
+          );
         }
         setQuery("");
         setSearchResults([]);
@@ -228,6 +246,19 @@ export function MatchScorersDialog({
         ? window.location.origin
         : "";
     return `${origin}/matches/${matchId}/score`;
+  };
+
+  /** The scoring link with what it is for: the match, when and where. */
+  const scoringLinkMessage = () => {
+    const about = match ? inviteMatchWhen({ ...match, id: matchId }) : "";
+    const title = match?.title?.trim();
+    return [
+      title ? `Score ${title} on CricScore` : "Score this match on CricScore",
+      about,
+      getScoringUrl(),
+    ]
+      .filter(Boolean)
+      .join("\n");
   };
 
   const copyScoringLink = async () => {
@@ -325,14 +356,21 @@ export function MatchScorersDialog({
               disabled={submitting}
               autoComplete="off"
             />
-            <DsButton
-              type="submit"
-              disabled={!query.trim()}
-              loading={submitting}
-              className="shrink-0"
-            >
-              Add
-            </DsButton>
+            {/* Found players have their own Add: the field's button is
+                for an email (or a name nobody matched), never a second Add
+                beside theirs. */}
+            {(EMAIL_PATTERN.test(query.trim()) ||
+              searching ||
+              searchResults.length === 0) && (
+              <DsButton
+                type="submit"
+                disabled={!query.trim()}
+                loading={submitting}
+                className="shrink-0"
+              >
+                Add
+              </DsButton>
+            )}
           </form>
           <p className="text-xs text-muted-foreground">
             Not on CricScore yet? Enter their Google email to invite them.
@@ -439,6 +477,17 @@ export function MatchScorersDialog({
             Send it to the scorers above: it opens live scoring for this match.
           </p>
           <div className="flex flex-wrap gap-2">
+            {/* WhatsApp first: where a club's scorers are. */}
+            <DsButton asChild variant="outline" size="sm">
+              <a
+                href={`https://wa.me/?text=${encodeURIComponent(scoringLinkMessage())}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <MessageCircle aria-hidden="true" />
+                WhatsApp
+              </a>
+            </DsButton>
             <DsButton variant="outline" size="sm" onClick={copyScoringLink}>
               {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
               {copied ? "Copied" : "Copy link"}

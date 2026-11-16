@@ -5,6 +5,16 @@ import { usePathname } from "next/navigation";
 import { Check, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "~/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "~/components/ui/dialog";
 import type { FollowKind } from "~/lib/follows/store";
 import { useFollow } from "~/lib/follows/use-follows";
 import { usePush } from "~/lib/push/use-push";
@@ -18,10 +28,20 @@ const FOLLOW_NOTE: Record<FollowKind, string> = {
   tournament: "Its matches show under Following on your home screen.",
 };
 
+/** Signed out, what following needs, said where it was asked for. */
+const SIGNED_OUT_NOTE: Record<FollowKind, string> = {
+  team: "Following puts their matches on your CricScore home screen.",
+  player: "Following puts their teams' matches on your CricScore home screen.",
+  match: "Following keeps it on your CricScore home screen.",
+  tournament: "Following puts its matches on your CricScore home screen.",
+};
+
 /**
  * Follow / Following for a team, player, match or tournament. Signed out it
- * links to sign in. After following it offers notifications once, where
- * this device supports them.
+ * says what following needs (an account, which is by invite) and that this
+ * page keeps itself up to date meanwhile, with Sign in for those who have
+ * one, instead of leading straight to the sign-in wall. After following it
+ * offers notifications once, where this device supports them.
  */
 export function FollowButton({
   kind,
@@ -39,12 +59,34 @@ export function FollowButton({
 
   if (!signedIn) {
     return (
-      <Button variant="outline" size="sm" asChild className="gap-1.5">
-        <Link href={`/auth/login?redirect=${encodeURIComponent(pathname ?? "/")}`}>
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          Follow
-        </Link>
-      </Button>
+      <Dialog>
+        <DialogTrigger asChild>
+          <Button variant="outline" size="sm" className="gap-1.5">
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            Follow
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-balance">Follow {name}</DialogTitle>
+            <DialogDescription>
+              {SIGNED_OUT_NOTE[kind]} Accounts are by invite: ask your club
+              or a scorer for one. You can keep watching here without one:
+              this page updates by itself.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <DialogClose asChild>
+              <Button variant="outline">Close</Button>
+            </DialogClose>
+            <Button asChild>
+              <Link href={`/auth/login?redirect=${encodeURIComponent(pathname ?? "/")}`}>
+                Sign in
+              </Link>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     );
   }
 

@@ -247,7 +247,10 @@ describe("WicketDialog", () => {
         screen.getByRole("button", { name: "Confirm wicket" }),
       ).toHaveAccessibleDescription("Choose the catcher");
       rerender(<WicketDialog {...base} dismissalType="caught" fielderId="u-1" />);
-      expect(screen.getByRole("button", { name: "Confirm wicket" })).toBeEnabled();
+      // Complete: the button says what it records.
+      expect(
+        screen.getByRole("button", { name: /^Confirm: .+ c / }),
+      ).toBeEnabled();
     });
 
     it("drops a dismissal the armed extra rules out instead of picking one", () => {

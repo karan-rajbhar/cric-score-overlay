@@ -67,6 +67,9 @@ export function TeamPicker({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [mode, setMode] = useState<"list" | "create">("list");
+  // The list has a Recent group only when one of this device's recent teams
+  // is offered; the description says so only then.
+  const hasRecent = groups.some((g) => g.teams.some((t) => recentIds.includes(t.id)));
 
   const openPicker = () => {
     setQuery("");
@@ -135,7 +138,11 @@ export function TeamPicker({
             <DialogDescription>
               {mode === "create"
                 ? "Add players now or later, while scoring."
-                : "Recent teams are listed first."}
+                : hasRecent
+                  ? "Recent teams are listed first."
+                  : onCreate
+                    ? "Search for a team, or add a new one."
+                    : "Search for a team."}
             </DialogDescription>
           </DialogHeader>
 

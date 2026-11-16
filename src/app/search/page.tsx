@@ -1,4 +1,4 @@
-import { cardDate } from "~/lib/dates";
+import { cardDate, timeOfDay } from "~/lib/dates";
 import { globalSearch } from "./actions";
 import { Input } from "~/components/ui/input";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -133,9 +133,16 @@ export default async function SearchPage({
                 key={x.id}
                 href={`/matches/${x.id}`}
                 title={x.title}
-                // When and where, so two of one name differ (N13).
+                // The result, then when (to the minute) and where, so two of
+                // one name on one day differ (N13).
                 subtitle={
-                  [cardDate(x.scheduled_at), x.venue]
+                  [
+                    x.status === "completed" ? x.result_description : null,
+                    [cardDate(x.scheduled_at), timeOfDay(x.scheduled_at)]
+                      .filter(Boolean)
+                      .join(", "),
+                    x.venue,
+                  ]
                     .filter(Boolean)
                     .join(" · ") || "Date to be confirmed"
                 }

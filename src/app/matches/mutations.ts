@@ -1107,6 +1107,8 @@ export async function updateBall(params: {
   bowlerId?: string | null;
   /** On a no-ball: byes / leg byes rather than runs off the bat. */
   noBallRuns?: NoBallRuns | null;
+  /** A wicket added after the batter batted on: who came in (`update_ball`). */
+  laterBatterId?: string | null;
   /** Idempotency key (offline queue id): a replay is not applied twice. */
   clientActionId?: string | null;
 }): Promise<{ data: ScoringState | null; error: string | null }> {
@@ -1146,6 +1148,7 @@ export async function updateBall(params: {
       p_fielder_id: params.fielderId ?? null,
       p_dismissed_player_id: params.dismissedPlayerId ?? null,
       p_no_ball_runs: params.noBallRuns ?? null,
+      p_later_batter_id: params.laterBatterId ?? null,
       p_client_action_id: params.clientActionId ?? null,
     });
 
@@ -1169,6 +1172,96 @@ export async function updateBall(params: {
       ),
     };
   }
+}
+
+/**
+ * Runs a correction of who took part in balls (`swap_batters`,
+ * `correct_over_bowler`) for a scorer of the match, then settles the match
+ * as an edit does (it can finish the match or close an innings).
+ */
+async function runBallCorrection(
+  matchId: string,
+  rpcName: "swap_batters" | "correct_over_bowler",
+  args: Record<string, unknown>,
+): Promise<{ data: ScoringState | null; error: string | null }> {
+  try {
+    const db = await createServerClient();
+    const {
+      data: { user },
+    } = await db.auth.getUser();
+    if (!user) {
+      return { data: null, error: "You must be logged in to correct balls" };
+    }
+    const { allowed, match: before } = await matchAdminCheck(
+      db,
+      matchId,
+      user.id,
+    );
+    if (!allowed) {
+      return {
+        data: null,
+        error: "Only match administrators or designated scorers can correct balls",
+      };
+    }
+    const { data, error } = await db.rpc<ScoringState>(rpcName, {
+      p_match_id: matchId,
+      ...args,
+    });
+    if (error) {
+      console.error(`${rpcName} failed:`, error);
+      return { data: null, error: friendlyError(error.message) };
+    }
+    await settleProgress(db, matchId, before, data);
+    invalidateMatchCache(matchId);
+    revalidatePath(`/matches/${matchId}`);
+    revalidatePath(`/matches/${matchId}/score`);
+    return { data, error: null };
+  } catch (err) {
+    console.error(`Unexpected error in ${rpcName}:`, err);
+    return {
+      data: null,
+      error: friendlyError(
+        err instanceof Error ? err.message : "Failed to correct the balls",
+      ),
+    };
+  }
+}
+
+/**
+ * The batters were at the wrong ends from `fromBallId` to `toBallId` (null:
+ * the end of the innings): they change places on every ball between.
+ */
+export async function swapBatters(params: {
+  matchId: string;
+  inningsId: string;
+  fromBallId: string;
+  toBallId?: string | null;
+  /** Idempotency key (offline queue id): a replay is not applied twice. */
+  clientActionId?: string | null;
+}): Promise<{ data: ScoringState | null; error: string | null }> {
+  return runBallCorrection(params.matchId, "swap_batters", {
+    p_innings_id: params.inningsId,
+    p_from_ball_id: params.fromBallId,
+    p_to_ball_id: params.toBallId ?? null,
+    p_client_action_id: params.clientActionId ?? null,
+  });
+}
+
+/** Someone else bowled the whole over (`overNumber`, 0-based). */
+export async function correctOverBowler(params: {
+  matchId: string;
+  inningsId: string;
+  overNumber: number;
+  bowlerId: string;
+  /** Idempotency key (offline queue id): a replay is not applied twice. */
+  clientActionId?: string | null;
+}): Promise<{ data: ScoringState | null; error: string | null }> {
+  return runBallCorrection(params.matchId, "correct_over_bowler", {
+    p_innings_id: params.inningsId,
+    p_over_number: params.overNumber,
+    p_bowler_id: params.bowlerId,
+    p_client_action_id: params.clientActionId ?? null,
+  });
 }
 
 export async function startSuperOver(

@@ -15,9 +15,11 @@ import type { Match } from "~/lib/match-types";
 import {
   formatBowlerOvers,
   formatDecimalOvers,
+  formatFowOvers,
   formatHowOut,
   isCaughtAndBowled,
   sidesInBattingOrder,
+  tossSentence,
 } from "~/lib/cricket";
 import { playerHrefOf } from "~/lib/player-href";
 import { playerAwardOf } from "~/lib/player-award";
@@ -56,7 +58,7 @@ function keyMomentsOf(match: Match): Moment[] {
       moments.push({
         id: "toss",
         label: "Toss",
-        title: `${winner.name} won the toss and chose to ${match.toss_decision ?? "bat"}`,
+        title: tossSentence(winner.name, match.toss_decision),
         icon: <Coins className="h-4 w-4 text-warning" />,
       });
     }
@@ -82,7 +84,7 @@ function keyMomentsOf(match: Match): Moment[] {
           );
           moments.push({
             id: `fow-${fow.id}`,
-            label: `Over ${formatDecimalOvers(fow.overs_at_fall)}`,
+            label: `Over ${formatFowOvers(fow.overs_at_fall, match.balls_per_over ?? 6)}`,
             title: `${fow.batsman?.full_name ?? "Batter"} ${howOut}`,
             description: `${fow.runs_at_fall}/${fow.wicket_number}`,
             icon: <XCircle className="h-4 w-4 text-wicket" />,
@@ -433,10 +435,13 @@ export function MatchSummary({ match }: MatchSummaryProps) {
           </>
         )
       )}
-      {/* While live the latest first. Before the start, nothing to say. */}
+      {/* The latest first, live or over: a phone shows five, and they are
+          the ones that decided it (oldest first, a finished match showed the
+          toss and the first innings, the chase behind "Show all"). Before
+          the start, nothing to say. */}
       {(match.status !== "scheduled" || moments.length > 0) && (
         <KeyMoments
-          moments={live ? [...moments].reverse() : moments}
+          moments={[...moments].reverse()}
           finished={["completed", "abandoned", "cancelled"].includes(
             match.status,
           )}

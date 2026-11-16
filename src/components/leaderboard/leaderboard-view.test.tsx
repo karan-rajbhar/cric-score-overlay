@@ -105,7 +105,13 @@ describe("LeaderboardView Component", () => {
     selectTab(battingTabTrigger);
 
     // Verify batting table headers
-    expect(screen.getByText("Runs")).toBeInTheDocument();
+    // A club page shows it too: "Runs", never "Tournament runs".
+    expect(screen.getAllByText("Runs").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/tournament runs/i)).toBeNull();
+    // Each name opens the player's page.
+    const links = screen.getAllByRole("link", { name: "Virat Kohli" });
+    expect(links.length).toBeGreaterThan(0);
+    expect(links[0]).toHaveAttribute("href", expect.stringContaining("u1"));
     expect(screen.getByText("HS")).toBeInTheDocument();
     expect(screen.getByText("Avg")).toBeInTheDocument();
     expect(screen.getByText("SR")).toBeInTheDocument();
@@ -206,7 +212,7 @@ describe("LeaderboardView Component", () => {
     expect(screen.getByRole("columnheader", { name: /sr \(knock\)/i })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: /knock 4s/i })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: /knock 6s/i })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: /total tournament runs/i })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: /total runs/i })).toBeInTheDocument();
 
     // Toggle to All Columns view
     const allColsButton = screen.getByRole("button", { name: /all columns/i });
@@ -233,7 +239,7 @@ describe("LeaderboardView Component", () => {
     expect(screen.getByRole("columnheader", { name: /best figures \(bbi\)/i })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: /overs in spell/i })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: /spell economy/i })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: /total tournament wkts/i })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: /total wickets/i })).toBeInTheDocument();
 
     // Toggle to All Columns view
     const allColsButton = screen.getByRole("button", { name: /all columns/i });

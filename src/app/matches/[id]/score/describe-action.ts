@@ -67,5 +67,9 @@ export function describeQueuedAction(
       return `${name(action.payload.fromId, "A batter")}'s innings given to ${name(action.payload.toId, "another batter")}`;
     case "updateBall":
       return "Correction of a ball";
+    case "swapBatters":
+      return "Batters' ends corrected";
+    case "correctOverBowler":
+      return `Over ${action.payload.overNumber + 1} given to ${name(action.payload.bowlerId, "another bowler")}`;
   }
 }

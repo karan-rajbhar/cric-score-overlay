@@ -210,6 +210,20 @@ type DeliveryFields = {
   no_ball_runs?: string | null;
 };
 
+/**
+ * Dismissals that may take either batter (run out, obstructing the field)
+ * and retirements, which either batter may take; every other dismissal is
+ * the striker's.
+ */
+export function dismissesEitherBatter(type: string | null | undefined): boolean {
+  return (
+    type === "run_out" ||
+    type === "obstructing" ||
+    type === "retired_hurt" ||
+    type === "retired_out"
+  );
+}
+
 /** A batter is out on this entry: retired hurt is neither out nor a wicket. */
 export function isWicketFall(
   b: Pick<DeliveryFields, "is_wicket" | "dismissal_type">,
@@ -720,8 +734,33 @@ export const formatDecimalOvers = (
 };
 
 /** Format Fall of Wicket overs notation (e.g., 2.5 -> "2.5"). */
-export const formatFowOvers = (overs: number | null | undefined): string =>
-  formatDecimalOvers(overs);
+/**
+ * The toss in one sentence, the same on every surface: "Rohan won the toss
+ * and chose to bat" (a decision that is not "bowl" is batting).
+ */
+export function tossSentence(
+  winnerName: string,
+  decision: string | null | undefined,
+): string {
+  return `${winnerName} won the toss and chose to ${decision === "bowl" ? "bowl" : "bat"}`;
+}
+
+/**
+ * The ball a wicket fell on, in ball notation, from the overs completed at
+ * its fall (`overs_at_fall`): 5.2 stays "5.2", and 7.0, the 7th over's last
+ * ball, is "6.6" ("6.8" with 8-ball overs), as the Balls tab and scorecards
+ * write it. (A wicket off an extra before the next over's first legal ball
+ * also reads 7.0; the stored entry cannot tell it apart.)
+ */
+export const formatFowOvers = (
+  overs: number | null | undefined,
+  ballsPerOver: number = 6,
+): string => {
+  const text = formatDecimalOvers(overs);
+  const [whole, ball] = text.split(".").map(Number);
+  if (ball === 0 && (whole ?? 0) > 0) return `${(whole ?? 0) - 1}.${ballsPerOver}`;
+  return text;
+};
 
 export interface PlayerImpactScore {
   playerId: string;

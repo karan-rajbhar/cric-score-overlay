@@ -490,6 +490,53 @@ describe("PlayerPicker never suggests a duplicate by accident", () => {
     await waitFor(() => expect(onAdd).toHaveBeenCalledWith("Rohit Sharma"));
   });
 
+  it("catches a spelling of someone in the squad who cannot be picked, and points to the fix", async () => {
+    const onAdd = renderPicker(async () => none, {
+      alsoNamed: [
+        { id: "s", name: "Sandeep sir", unavailable: "Has batted in this innings" },
+      ],
+    });
+    type("Sandip Sir");
+    const add = await screen.findByRole("button", { name: /Add .Sandip Sir. to Lions/ });
+    await waitFor(() => expect(add).toBeEnabled());
+    fireEvent.click(add);
+    expect(onAdd).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Sandeep sir is in this squad (has batted in this innings). If the names were mixed up, use Fix a mistake",
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: /Add .Sandip Sir. as a different person/ }),
+    );
+    await waitFor(() => expect(onAdd).toHaveBeenCalledWith("Sandip Sir"));
+  });
+
+  it("asks about a found player whose name sounds the same", async () => {
+    const onAdd = renderPicker(async () => ({
+      players: [{ id: "x", name: "Sandeep Patil", username: "sandeep", matches: 7 }],
+      more: false,
+    }));
+    type("Sandip Patil");
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Add .Sandip Patil. as a new player/ }),
+    );
+    expect(onAdd).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Sandeep Patil is already on CricScore (@sandeep · 7 matches). Is this them?",
+    );
+  });
+
+  it("asks about the same first name only among the people on the screen", async () => {
+    const onAdd = renderPicker(async () => none, {
+      rows: [{ id: "aj", name: "Amit Jaiswal" }],
+    });
+    type("Amit");
+    const add = await screen.findByRole("button", { name: /Add .Amit. to Lions/ });
+    await waitFor(() => expect(add).toBeEnabled());
+    fireEvent.click(add);
+    expect(onAdd).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent("Amit Jaiswal");
+  });
+
   it("adds a name nobody has with one tap", async () => {
     const onAdd = renderPicker(async () => ({
       players: [{ id: "x", name: "Rohit Sharma" }],

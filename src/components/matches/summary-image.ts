@@ -24,7 +24,17 @@ import {
 } from "~/lib/match-report";
 import type { Match } from "~/lib/match-types";
 
-const { W, H } = CANVAS.MATCH_SUMMARY;
+/** A canvas size the layout draws in. */
+type Frame = { W: number; H: number };
+/** The landscape image (1200x675): link previews, desktop shares. */
+const LANDSCAPE: Frame = CANVAS.MATCH_SUMMARY;
+/**
+ * The portrait image for phones: drawn in a 600x840 frame at the same type
+ * sizes and scaled 1.8x to 1080x1530, so every word is twice the size it
+ * is on the landscape image once a chat shows it at a phone's width.
+ */
+const PORTRAIT: Frame = { W: 600, H: 850 };
+const PORTRAIT_SCALE = 1.8;
 
 const C = COLORS;
 const SANS = FONT.sans;
@@ -149,12 +159,13 @@ function heroSide(
   y: number,
   t: ExportTeamStats,
   dim: boolean,
+  nameMax = 300,
 ) {
   crest(ctx, cx, y + 36, 34, t.shortName);
   ctx.textAlign = "center";
   ctx.fillStyle = dim ? C.dim : C.text;
   ctx.font = `600 20px ${SANS}`;
-  ctx.fillText(fit(ctx, t.name, 300), cx, y + 82);
+  ctx.fillText(fit(ctx, t.name, nameMax), cx, y + 82);
   const [score = t.scoreLine, overs] = t.scoreLine.split(" (");
   ctx.fillStyle = dim ? C.dim : C.text;
   ctx.font = `600 44px ${FIG}`;
@@ -178,6 +189,8 @@ function teamCard(
   w: number,
   h: number,
   t: ExportTeamStats,
+  /** The side that bowled at them: their bowlers are the right column. */
+  bowlingSide: string,
 ) {
   card(ctx, x, y, w, h, 20);
   crest(ctx, x + 34, y + 34, 16, t.shortName);
@@ -199,6 +212,13 @@ function teamCard(
   if (t.batters.length === 0 && t.bowlers.length === 0) return;
 
   const colW = (w - 60) / 2;
+  // What each column is: the side's batters, the other side's bowlers.
+  ctx.fillStyle = C.dim;
+  ctx.font = `500 12px ${SANS}`;
+  if (t.batters.length > 0) ctx.fillText("Batting", x + 20, y + 70);
+  if (t.bowlers.length > 0) {
+    ctx.fillText(fit(ctx, `Bowling: ${bowlingSide}`, colW), x + 40 + colW, y + 70);
+  }
   const cols = [
     {
       x: x + 20,
@@ -221,7 +241,7 @@ function teamCard(
   ];
   for (const col of cols) {
     col.rows.forEach((r, i) => {
-      const ry = y + 92 + i * 30;
+      const ry = y + 94 + i * 27;
       ctx.fillStyle = C.text;
       ctx.font = `500 15px ${SANS}`;
       ctx.fillText(fit(ctx, r.name, colW - 96), col.x, ry);
@@ -238,15 +258,17 @@ function teamCard(
   }
 }
 
-function drawBackground(ctx: CanvasRenderingContext2D) {
-  paintWash(ctx, W, H);
+function drawBackground(ctx: CanvasRenderingContext2D, f: Frame) {
+  paintWash(ctx, f.W, f.H);
 }
 
 function drawHeader(
   ctx: CanvasRenderingContext2D,
   s: MatchExportSummary,
   pad: number,
+  f: Frame = LANDSCAPE,
 ) {
+  const { W } = f;
   // Header: brand, title; format on the right.
   paintBrandMark(ctx, pad, 32, 30);
   ctx.fillStyle = C.text;
@@ -279,7 +301,9 @@ function drawHeroCard(
   pad: number,
   heroY: number,
   heroH: number,
+  f: Frame = LANDSCAPE,
 ) {
+  const { W } = f;
   // Header card: the two sides, the result (or, live, where the match
   // stands) and player of the match. The loser is dimmed once it is over.
   card(ctx, pad, heroY, W - pad * 2, heroH, 26);
@@ -330,14 +354,20 @@ function drawFooter(
   qrImage: HTMLImageElement | null,
   pad: number,
   footY: number,
+  f: Frame = LANDSCAPE,
+  /** The QR code's captions beside it (no room for them in portrait). */
+  captions = true,
 ) {
+  const { W, H } = f;
+  // The lines on the left stop short of the QR code.
+  const textMax = Math.min(640, W - pad * 2 - 120);
   // Footer: where and when, the link, and the QR code.
   let line = footY + 2;
   if (s.venue) {
     drawMapPinIcon(ctx, pad, line, 14, C.dim);
     ctx.fillStyle = C.text;
     ctx.font = `500 15px ${SANS}`;
-    ctx.fillText(fit(ctx, s.venue, 640), pad + 22, line - 1);
+    ctx.fillText(fit(ctx, s.venue, textMax), pad + 22, line - 1);
     line += 26;
   }
   if (s.playedAt) {
@@ -350,7 +380,7 @@ function drawFooter(
   drawLinkIcon(ctx, pad, line, 14, C.primary);
   ctx.fillStyle = C.primary;
   ctx.font = `600 14px ${SANS}`;
-  ctx.fillText(fit(ctx, s.matchUrl, 640), pad + 22, line - 1);
+  ctx.fillText(fit(ctx, s.matchUrl, textMax), pad + 22, line - 1);
 
   if (qrImage) {
     const box = 92;
@@ -358,6 +388,7 @@ function drawFooter(
     const qy = H - pad - box + 16;
     card(ctx, qx, qy, box, box, 14);
     ctx.drawImage(qrImage, qx + 6, qy + 6, box - 12, box - 12);
+    if (!captions) return;
     ctx.textAlign = "right";
     ctx.fillStyle = C.text;
     ctx.font = `600 14px ${SANS}`;
@@ -382,27 +413,113 @@ export function drawSummary(
   const pad = 48;
   const heroY = 122;
   const heroH = 200;
-  drawBackground(ctx);
+  drawBackground(ctx, LANDSCAPE);
   ctx.textBaseline = "top";
   drawHeader(ctx, s, pad);
   drawHeroCard(ctx, s, pad, heroY, heroH);
 
   // One card per innings, in batting order.
   const cardsY = heroY + heroH + 18;
-  const cardW = (W - pad * 2 - 20) / 2;
-  teamCard(ctx, pad, cardsY, cardW, 196, s.team1);
-  teamCard(ctx, pad + cardW + 20, cardsY, cardW, 196, s.team2);
+  const cardW = (LANDSCAPE.W - pad * 2 - 20) / 2;
+  teamCard(ctx, pad, cardsY, cardW, 196, s.team1, s.team2.name);
+  teamCard(ctx, pad + cardW + 20, cardsY, cardW, 196, s.team2, s.team1.name);
 
   drawFooter(ctx, s, qrImage, pad, cardsY + 214);
 }
 
-/** The summary image of `match` as a PNG file, named after the match. */
+/**
+ * The portrait summary (drawn in `PORTRAIT`, scaled by the caller): the
+ * brand and format, the title on its own line, the two sides with the
+ * result under them, the innings cards one above the other, and the link
+ * beside the QR code. The same pieces as the landscape one, larger in a
+ * chat.
+ */
+export function drawSummaryPortrait(
+  ctx: CanvasRenderingContext2D,
+  s: MatchExportSummary,
+  qrImage: HTMLImageElement | null,
+) {
+  const f = PORTRAIT;
+  const pad = 28;
+  drawBackground(ctx, f);
+  ctx.textBaseline = "top";
+
+  // Brand and format on one row, the title under them at full width.
+  paintBrandMark(ctx, pad, 26, 28);
+  ctx.fillStyle = C.text;
+  ctx.font = `700 19px ${SANS}`;
+  ctx.fillText("CricScore", pad + 38, 30);
+  ctx.textAlign = "right";
+  ctx.font = `500 14px ${SANS}`;
+  const fmtW = ctx.measureText(s.format).width + 32;
+  ctx.fillStyle = C.card;
+  roundRect(ctx, f.W - pad - fmtW, 26, fmtW, 28, 14);
+  ctx.fill();
+  ctx.strokeStyle = C.border;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.fillStyle = C.dim;
+  ctx.fillText(s.format, f.W - pad - 16, 33);
+  ctx.textAlign = "left";
+  ctx.fillStyle = C.text;
+  ctx.font = `600 24px ${SANS}`;
+  ctx.fillText(fit(ctx, s.title, f.W - pad * 2), pad, 66);
+
+  // The two sides, the status between their crests, the result under them.
+  const heroY = 108;
+  const heroH = 256;
+  card(ctx, pad, heroY, f.W - pad * 2, heroH, 24);
+  const winner = s.live ? "" : s.result.toLowerCase();
+  const dim1 = !winner.startsWith(s.team1.name.toLowerCase());
+  const dim2 = !winner.startsWith(s.team2.name.toLowerCase());
+  const bothDim = dim1 && dim2;
+  const quarter = (f.W - pad * 2) / 4;
+  heroSide(ctx, pad + quarter, heroY + 10, s.team1, dim1 && !bothDim, quarter * 2 - 16);
+  heroSide(ctx, f.W - pad - quarter, heroY + 10, s.team2, dim2 && !bothDim, quarter * 2 - 16);
+  ctx.textAlign = "center";
+  ctx.fillStyle = C.muted;
+  roundRect(ctx, f.W / 2 - 34, heroY + 34, 68, 26, 13);
+  ctx.fill();
+  ctx.font = `${s.live ? 600 : 500} 13px ${SANS}`;
+  ctx.fillStyle = s.live ? C.wicket : C.dim;
+  ctx.fillText(s.live ? "Live" : "Result", f.W / 2, heroY + 40);
+  ctx.fillStyle = s.live ? C.text : C.success;
+  ctx.font = `${s.live ? 600 : 700} 19px ${SANS}`;
+  ctx.fillText(fit(ctx, s.result, f.W - pad * 2 - 40), f.W / 2, heroY + 196);
+  if (s.playerOfTheMatch) {
+    ctx.fillStyle = C.dim;
+    ctx.font = `500 15px ${SANS}`;
+    ctx.fillText(
+      fit(ctx, `Player of the match: ${s.playerOfTheMatch}`, f.W - pad * 2 - 40),
+      f.W / 2,
+      heroY + 224,
+    );
+  }
+  ctx.textAlign = "left";
+
+  // One innings card per side, one above the other.
+  const cardH = 176;
+  const cardsY = heroY + heroH + 14;
+  teamCard(ctx, pad, cardsY, f.W - pad * 2, cardH, s.team1, s.team2.name);
+  teamCard(ctx, pad, cardsY + cardH + 12, f.W - pad * 2, cardH, s.team2, s.team1.name);
+
+  drawFooter(ctx, s, qrImage, pad, cardsY + cardH * 2 + 30, f, false);
+}
+
+/**
+ * The summary image of `match` as a PNG file, named after the match:
+ * landscape (1200x675), or `portrait` (1080x1530) for a phone's chat.
+ */
 export async function summaryImageFile(
   match: Match,
   matchUrl: string,
+  { portrait = false }: { portrait?: boolean } = {},
 ): Promise<File> {
   const summary = buildExportSummary(match, matchUrl);
-  const { canvas, ctx } = createCanvas(W, H);
+  const size = portrait
+    ? { W: PORTRAIT.W * PORTRAIT_SCALE, H: PORTRAIT.H * PORTRAIT_SCALE }
+    : LANDSCAPE;
+  const { canvas, ctx } = createCanvas(size.W, size.H);
   // The canvas draws in Urbanist / Outfit: make sure both are loaded.
   await Promise.all(
     ["600 20px Urbanist", "600 20px Outfit"].map((f) =>
@@ -410,7 +527,12 @@ export async function summaryImageFile(
     ),
   );
   const qrImage = await generateQRImage(summary.matchUrl, 184);
-  drawSummary(ctx, summary, qrImage);
+  if (portrait) {
+    ctx.scale(PORTRAIT_SCALE, PORTRAIT_SCALE);
+    drawSummaryPortrait(ctx, summary, qrImage);
+  } else {
+    drawSummary(ctx, summary, qrImage);
+  }
   const blob = await new Promise<Blob | null>((resolve) =>
     canvas.toBlob(resolve, "image/png"),
   );

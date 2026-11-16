@@ -36,7 +36,7 @@ describe("BatsmenDialog", () => {
       screen.getByRole("heading", { name: "Choose the opening batters" }),
     ).toBeInTheDocument();
     expect(screen.getByTestId("role-band-batting")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Confirm openers" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Choose both batters" })).toBeDisabled();
     expect(screen.getByText("Striker")).toBeInTheDocument();
     expect(screen.getByText("Non-striker")).toBeInTheDocument();
     expect(
@@ -92,7 +92,11 @@ describe("BatsmenDialog", () => {
       />,
     );
     fireEvent.click(screen.getByRole("radio", { name: /Rohit Sharma/ }));
-    fireEvent.click(screen.getByRole("button", { name: /^Confirm/ }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Start with KL Rahul on strike and Rohit Sharma",
+      }),
+    );
     expect(onConfirm).toHaveBeenCalledWith({
       strikerId: "user-new",
       nonStrikerId: "user-2",
@@ -113,13 +117,30 @@ describe("BatsmenDialog", () => {
       />,
     );
     fireEvent.click(screen.getByRole("radio", { name: /Virat Kohli/ }));
-    // Picking the non-striker now, the striker chosen stays marked (S13).
+    // Picking the non-striker now, the striker chosen stays in the list,
+    // marked with their end, and the hint says so (S13).
     expect(screen.getByRole("radio", { name: /Virat Kohli/ })).toHaveAccessibleName(
       /Striker/,
     );
+    expect(
+      screen.getByText(
+        "Now tap the non-striker. Virat Kohli stays marked as striker.",
+      ),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("radio", { name: /Rohit Sharma/ }));
+    // Both stay marked, each with their own end.
+    expect(screen.getByRole("radio", { name: /Rohit Sharma/ })).toHaveAccessibleName(
+      /Non-striker/,
+    );
+    expect(screen.getByRole("radio", { name: /Virat Kohli/ })).toHaveAccessibleName(
+      /Striker/,
+    );
     expect(onConfirm).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: /^Confirm/ }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Start with Virat Kohli on strike and Rohit Sharma",
+      }),
+    );
     expect(onConfirm).toHaveBeenCalledWith({
       strikerId: "user-1",
       nonStrikerId: "user-2",

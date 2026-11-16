@@ -78,6 +78,12 @@ interface PlayerPickerProps {
   showUsernames?: boolean;
   /** What the rows are, for the search box: "batter", "bowler", "fielder". */
   noun?: string;
+  /**
+   * People on the screen who are not rows (a squad's players who cannot be
+   * picked here, with why in `unavailable`): a new player whose name sounds
+   * like one of them, or the rows', takes a second tap.
+   */
+  alsoNamed?: readonly FoundPlayer[];
   className?: string;
 }
 
@@ -112,6 +118,7 @@ export function PlayerPicker({
   emptyMessage,
   showUsernames = false,
   noun = "player",
+  alsoNamed = [],
   className,
 }: PlayerPickerProps) {
   const [query, setQuery] = useState("");
@@ -150,7 +157,23 @@ export function PlayerPicker({
   );
   const suggestions = elsewhere.slice(0, SUGGESTIONS_SHOWN);
   const moreElsewhere = search.more || elsewhere.length > SUGGESTIONS_SHOWN;
-  const sameName = useSameNameCheck(q, elsewhere);
+  // The rows and the other people on the screen, to catch a new player
+  // whose name sounds like someone already here ("Sandip Sir" beside
+  // "Sandeep sir").
+  const onScreen = useMemo<FoundPlayer[]>(
+    () => [
+      ...rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        username: r.username ?? null,
+        teams: addPlayer ? [addPlayer.teamName] : undefined,
+        unavailable: r.disabledReason ?? null,
+      })),
+      ...alsoNamed.filter((p) => !rows.some((r) => r.id === p.id)),
+    ],
+    [rows, alsoNamed, addPlayer],
+  );
+  const sameName = useSameNameCheck(q, elsewhere, onScreen);
 
   // A new player waits for the search: nobody is added twice because the
   // answer was still on its way. A "@" text finds people, it names no one.
@@ -349,9 +372,14 @@ export function PlayerPicker({
                     listed={suggestions.length + visible.length}
                   />
                 )}
-                {sameName.asking && sameName.twin && (
-                  <SameNameNote twin={sameName.twin} />
-                )}
+                {sameName.asking &&
+                  sameName.twin &&
+                  sameName.twin.id !== exactMatch?.id && (
+                    <SameNameNote
+                      twin={sameName.twin}
+                      similar={!sameName.exact}
+                    />
+                  )}
                 {handle === null && (
                   <Button
                     type="button"
@@ -367,7 +395,11 @@ export function PlayerPicker({
                     )}
                     <span className="truncate">
                       {sameName.asking ? (
-                        `Yes, add a second “${query.trim()}”`
+                        sameName.exact ? (
+                          `Yes, add a second “${query.trim()}”`
+                        ) : (
+                          `Add “${query.trim()}” as a different person`
+                        )
                       ) : (
                         <>
                           {exactMatch ? "Add another" : "Add"} “{query.trim()}”{" "}
@@ -409,6 +441,7 @@ export function PlayerPicker({
               aria-label={[
                 row.role ? `${row.name} ${row.role}` : row.name,
                 usernameOf(row),
+                row.mark?.label,
                 row.tag,
                 row.note,
                 row.detail,
@@ -423,7 +456,7 @@ export function PlayerPicker({
               onKeyDown={(e) => onRowKeyDown(e, row.id)}
               className={cn(
                 "flex min-h-11 w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-colors [contain-intrinsic-size:auto_44px] [content-visibility:auto] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                selected
+                selected || row.mark
                   ? "border-primary bg-primary/10"
                   : "border-border/70 bg-background hover:bg-muted",
                 disabled && "cursor-not-allowed bg-muted/30 hover:bg-muted/30",
@@ -467,8 +500,22 @@ export function PlayerPicker({
                   {row.disabledReason}
                 </span>
               )}
-              {selected && (
-                <Check className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+              {row.mark ? (
+                <span
+                  className={cn(
+                    "inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold",
+                    row.mark.strong
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-card text-foreground ring-1 ring-inset ring-primary/40",
+                  )}
+                >
+                  <Check className="h-3 w-3" aria-hidden />
+                  {row.mark.label}
+                </span>
+              ) : (
+                selected && (
+                  <Check className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+                )
               )}
             </button>
           );

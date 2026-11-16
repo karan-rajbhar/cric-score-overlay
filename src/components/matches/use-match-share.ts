@@ -40,8 +40,13 @@ export function useMatchShare(
     // What the image shows: a new one only when that changes.
     const key = JSON.stringify(buildExportSummary(m, url));
     if (built.current?.key !== key) {
+      // A phone gets the portrait image: in a chat at its width, the
+      // landscape one's names and figures were a few pixels high.
+      const portrait =
+        typeof window !== "undefined" &&
+        Boolean(window.matchMedia?.("(pointer: coarse)").matches);
       const file = import("./summary-image").then((mod) =>
-        mod.summaryImageFile(m, url),
+        mod.summaryImageFile(m, url, { portrait }),
       );
       file.catch(() => {
         if (built.current?.key === key) built.current = null;

@@ -9,6 +9,7 @@
 import "server-only";
 import {
   awardTeamPenalty,
+  correctOverBowler,
   endInnings,
   reassignCurrentOverBowler,
   recordBall,
@@ -17,6 +18,7 @@ import {
   setCurrentBatsmen,
   setCurrentBowler,
   startSuperOver,
+  swapBatters,
   undoLastBall,
   updateBall,
 } from "~/app/matches/mutations";
@@ -120,6 +122,18 @@ async function run(
     case "updateBall":
       return withoutDelta(
         await updateBall({ matchId, ...action.payload, clientActionId: id }),
+      );
+    case "swapBatters":
+      return withoutDelta(
+        await swapBatters({ matchId, ...action.payload, clientActionId: id }),
+      );
+    case "correctOverBowler":
+      return withoutDelta(
+        await correctOverBowler({
+          matchId,
+          ...action.payload,
+          clientActionId: id,
+        }),
       );
   }
 }

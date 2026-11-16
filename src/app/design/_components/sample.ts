@@ -461,7 +461,7 @@ export const LIVE_2 = {
     innings: { runs: 96, wickets: 3, overs: "11.2" },
   },
   bowling: { team: TEAMS.northfield },
-  note: "Bay Strikers chose to bat · CRR 8.47",
+  note: "Bay Strikers chose to bat · Run rate 8.47",
 };
 
 /** Top performers under each side on the match page (like scorers). */

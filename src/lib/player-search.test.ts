@@ -112,3 +112,58 @@ describe("existing player suggestions", () => {
     ]);
   });
 });
+
+describe("names that sound the same", () => {
+  it("folds honorifics, spellings and doubled letters", async () => {
+    const { nameSoundKey } = await import("./player-search");
+    expect(nameSoundKey("Sandeep sir")).toBe("sandip");
+    expect(nameSoundKey("Sandip Sir")).toBe("sandip");
+    expect(nameSoundKey("Vinayak")).toBe("vinayak");
+    expect(nameSoundKey("Shubham Bhai")).toBe("subham");
+    expect(nameSoundKey("Pooja")).toBe(nameSoundKey("Puja"));
+    expect(nameSoundKey("Ashwin")).toBe(nameSoundKey("Asvin"));
+  });
+
+  it("finds an exact name, a spelling variant, and a first name only on the screen", async () => {
+    const { similarNamePlayer } = await import("./player-search");
+    const found = [{ id: "1", name: "Sandeep sir" }];
+    expect(similarNamePlayer("Sandip Sir", found)?.id).toBe("1");
+    expect(similarNamePlayer("Sandeep sir", found)?.id).toBe("1");
+    expect(similarNamePlayer("Vinayak", found)).toBeNull();
+    // A first name: only among the people on the screen.
+    const amit = [{ id: "aj", name: "Amit Jaiswal" }];
+    expect(similarNamePlayer("Amit", amit)).toBeNull();
+    expect(similarNamePlayer("Amit", [], amit)?.id).toBe("aj");
+    expect(similarNamePlayer("Amit Kumar", [], [{ id: "a", name: "Amit" }])?.id).toBe("a");
+    // Too short to say anything.
+    expect(similarNamePlayer("Al", [], [{ id: "x", name: "Al" }])?.id).toBe("x");
+    expect(similarNamePlayer("Jo", [], [{ id: "x", name: "Joe" }])).toBeNull();
+  });
+});
+
+describe("possibleDuplicates", () => {
+  const squad = [
+    { id: "a", name: "Sanket" },
+    { id: "b", name: "Sa" },
+    { id: "c", name: "Sandeep sir" },
+    { id: "d", name: "Sandip Sir" },
+    { id: "e", name: "Raj" },
+    { id: "f", name: "Rajesh Kumar" },
+  ];
+  const placeholders = new Set(["b", "d", "e", "f"]);
+
+  it("pairs a placeholder with the player it may be, keeping the account", async () => {
+    const { possibleDuplicates } = await import("./player-search");
+    const pairs = possibleDuplicates(squad, (id) => placeholders.has(id));
+    expect(pairs.map((p) => [p.duplicate.name, p.keeper.name])).toEqual([
+      ["Sa", "Sanket"],
+      ["Sandip Sir", "Sandeep sir"],
+      ["Raj", "Rajesh Kumar"],
+    ]);
+  });
+
+  it("never offers an account as the duplicate", async () => {
+    const { possibleDuplicates } = await import("./player-search");
+    expect(possibleDuplicates(squad, () => false)).toEqual([]);
+  });
+});

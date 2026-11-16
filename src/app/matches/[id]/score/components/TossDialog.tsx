@@ -147,7 +147,10 @@ export function TossDialog({
             aria-live="polite"
           >
             {winner && batting
-              ? `${winner.name} won the toss and chose to ${tossDecision}. ${batting.name} bat first.`
+              ? // Who bats first only when the sentence does not say it.
+                `${winner.name} won the toss and chose to ${tossDecision}.${
+                  batting.id === winner.id ? "" : ` ${batting.name} bat first.`
+                }`
               : `${missing}.`}
           </p>
           <Button

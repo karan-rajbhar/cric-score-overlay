@@ -1,5 +1,7 @@
 "use client";
 
+import { PlayerLink } from "~/components/ds/player-link";
+import { playerHrefOf } from "~/lib/player-href";
 import { useState, useMemo } from "react";
 import { Initials } from "~/components/ui/initials";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
@@ -60,9 +62,9 @@ const BATTING_CONFIGS: Record<BattingSortOption, MetricConfig<BattingLeaderboard
   runs: {
     label: "Most runs",
     description:
-      "Ranked by total runs scored. Displays overall tournament aggregate figures including innings, average, and strike rate.",
+      "Ranked by runs, with innings, average and strike rate.",
     heroLabel: "Total runs scored",
-    getHeroStat: (b) => ({ value: `${b.runs}`, label: "Tournament runs" }),
+    getHeroStat: (b) => ({ value: `${b.runs}`, label: "Runs" }),
     getContextStats: (b) => [
       { label: "Innings", value: `${b.innings}` },
       { label: "Batting avg", value: b.averageDisplay },
@@ -94,7 +96,7 @@ const BATTING_CONFIGS: Record<BattingSortOption, MetricConfig<BattingLeaderboard
         label: "Knock boundaries",
         value: `${b.highestScoreFours ?? 0}×4, ${b.highestScoreSixes ?? 0}×6`,
       },
-      { label: "Tournament runs", value: `${b.runs} (${b.innings} inn)` },
+      { label: "Runs", value: `${b.runs} (${b.innings} inn)` },
     ],
   },
   average: {
@@ -104,7 +106,7 @@ const BATTING_CONFIGS: Record<BattingSortOption, MetricConfig<BattingLeaderboard
     heroLabel: "Batting average",
     getHeroStat: (b) => ({ value: b.averageDisplay, label: "Runs per dismissal" }),
     getContextStats: (b) => [
-      { label: "Tournament runs", value: `${b.runs}` },
+      { label: "Runs", value: `${b.runs}` },
       {
         label: "Times dismissed",
         value: `${Math.max(0, b.innings - b.notOuts)}`,
@@ -209,7 +211,7 @@ const BOWLING_CONFIGS: Record<BowlingSortOption, MetricConfig<BowlingLeaderboard
   wickets: {
     label: "Most wickets",
     description:
-      "Ranked by total wickets taken. Displays overall tournament aggregate bowling figures.",
+      "Ranked by wickets, with overs, economy and best figures.",
     heroLabel: "Wickets taken",
     getHeroStat: (bw) => ({
       value: `${bw.wickets}`,
@@ -242,8 +244,8 @@ const BOWLING_CONFIGS: Record<BowlingSortOption, MetricConfig<BowlingLeaderboard
         label: "Spell economy",
         value: bw.bestBowling.economy ? `${bw.bestBowling.economy}` : "—",
       },
-      { label: "Tournament wkts", value: `${bw.wickets}` },
-      { label: "Tournament overs", value: bw.overs },
+      { label: "Wickets", value: `${bw.wickets}` },
+      { label: "Overs", value: bw.overs },
     ],
   },
   average: {
@@ -482,7 +484,7 @@ function LeaderSpotlightBanner({
 }: {
   title: string;
   description: string;
-  leader?: { name: string; avatar?: string | null } | null;
+  leader?: { name: string; userId?: string | null; avatar?: string | null } | null;
   heroValue?: string;
   heroLabel?: string;
   contextStats?: { label: string; value: string }[];
@@ -510,7 +512,7 @@ function LeaderSpotlightBanner({
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between gap-2">
                 <span className="truncate text-xs font-semibold text-foreground">
-                  {leader.name}
+                  <PlayerLink name={leader.name} href={playerHrefOf(leader.userId)} />
                 </span>
                 <span
                   className="text-sm font-semibold font-score tabular-nums text-foreground"
@@ -549,6 +551,7 @@ function LeaderSpotlightBanner({
 function RankCard({
   rank,
   name,
+  userId,
   fallback,
   subtitle,
   hero,
@@ -556,6 +559,8 @@ function RankCard({
 }: {
   rank: number;
   name: string;
+  /** The player's page: the name opens it. */
+  userId?: string | null;
   fallback: string;
   subtitle: string;
   hero: { value: string; label: string };
@@ -571,7 +576,7 @@ function RankCard({
           <Initials name={name} fallback={fallback} className="h-8 w-8" />
           <div className="min-w-0">
             <div className="font-semibold text-foreground text-sm truncate">
-              {name}
+              <PlayerLink name={name} href={playerHrefOf(userId)} />
             </div>
             <div className="text-xs text-muted-foreground truncate">
               {subtitle}
@@ -891,7 +896,7 @@ function OverviewTab({ view }: { view: LeaderboardState }) {
                       <Initials name={b.name} fallback="P" className="h-7 w-7" />
                       <div>
                         <div className="font-semibold text-foreground">
-                          {b.name}
+                          <PlayerLink name={b.name} href={playerHrefOf(b.userId)} />
                         </div>
                         <div className="text-xs text-muted-foreground">
                           {b.innings} inn • HS: {b.highestScoreDisplay} • SR:{" "}
@@ -947,7 +952,7 @@ function OverviewTab({ view }: { view: LeaderboardState }) {
                       <Initials name={bw.name} fallback="B" className="h-7 w-7" />
                       <div>
                         <div className="font-semibold text-foreground">
-                          {bw.name}
+                          <PlayerLink name={bw.name} href={playerHrefOf(bw.userId)} />
                         </div>
                         <div className="text-xs text-muted-foreground">
                           {bw.overs} ov • Econ: {bw.economyDisplay} • BBI:{" "}
@@ -1072,6 +1077,7 @@ function BattingTab({ view }: { view: LeaderboardState }) {
                 key={b.userId}
                 rank={idx + 1}
                 name={b.name}
+                userId={b.userId}
                 fallback="P"
                 subtitle={`${b.matches} matches • ${b.innings} innings`}
                 hero={hero}
@@ -1101,7 +1107,7 @@ function BattingTab({ view }: { view: LeaderboardState }) {
                     <th className="px-3 py-2.5 text-center">Knock 6s</th>
                     <th className="px-3 py-2.5 text-center">Innings</th>
                     <th className="px-3 py-2.5 text-right font-semibold text-foreground">
-                      Total tournament runs
+                      Total runs
                     </th>
                     <th className="px-3 py-2.5 text-right">Overall avg</th>
                   </tr>
@@ -1125,7 +1131,7 @@ function BattingTab({ view }: { view: LeaderboardState }) {
                         <div className="flex items-center gap-2">
                           <Initials name={b.name} fallback="P" className="h-6 w-6 text-xs" />
                           <span className="font-semibold text-foreground truncate max-w-[160px]">
-                            {b.name}
+                            <PlayerLink name={b.name} href={playerHrefOf(b.userId)} />
                           </span>
                         </div>
                       </td>
@@ -1285,7 +1291,7 @@ function BattingTab({ view }: { view: LeaderboardState }) {
                           <div className="flex items-center gap-2">
                             <Initials name={b.name} fallback="P" className="h-6 w-6 text-xs" />
                             <span className="font-semibold text-foreground truncate max-w-[160px]">
-                              {b.name}
+                              <PlayerLink name={b.name} href={playerHrefOf(b.userId)} />
                             </span>
                           </div>
                         </td>
@@ -1489,6 +1495,7 @@ function BowlingTab({ view }: { view: LeaderboardState }) {
                 key={bw.userId}
                 rank={idx + 1}
                 name={bw.name}
+                userId={bw.userId}
                 fallback="B"
                 subtitle={`${bw.matches} matches • ${bw.innings} innings`}
                 hero={hero}
@@ -1515,7 +1522,7 @@ function BowlingTab({ view }: { view: LeaderboardState }) {
                     <th className="px-3 py-2.5 text-center">Overs in spell</th>
                     <th className="px-3 py-2.5 text-right">Spell economy</th>
                     <th className="px-3 py-2.5 text-right font-semibold text-foreground">
-                      Total tournament wkts
+                      Total wickets
                     </th>
                     <th className="px-3 py-2.5 text-center">Total overs</th>
                     <th className="px-3 py-2.5 text-right">Overall econ</th>
@@ -1541,7 +1548,7 @@ function BowlingTab({ view }: { view: LeaderboardState }) {
                         <div className="flex items-center gap-2">
                           <Initials name={bw.name} fallback="B" className="h-6 w-6 text-xs" />
                           <span className="font-semibold text-foreground truncate max-w-[160px]">
-                            {bw.name}
+                            <PlayerLink name={bw.name} href={playerHrefOf(bw.userId)} />
                           </span>
                         </div>
                       </td>
@@ -1690,7 +1697,7 @@ function BowlingTab({ view }: { view: LeaderboardState }) {
                           <div className="flex items-center gap-2">
                             <Initials name={bw.name} fallback="B" className="h-6 w-6 text-xs" />
                             <span className="font-semibold text-foreground truncate max-w-[160px]">
-                              {bw.name}
+                              <PlayerLink name={bw.name} href={playerHrefOf(bw.userId)} />
                             </span>
                           </div>
                         </td>
@@ -1853,6 +1860,7 @@ function FieldingTab({ view }: { view: LeaderboardState }) {
                 key={f.userId}
                 rank={idx + 1}
                 name={f.name}
+                userId={f.userId}
                 fallback="F"
                 subtitle={`${f.matches} matches`}
                 hero={hero}
@@ -1940,7 +1948,7 @@ function FieldingTab({ view }: { view: LeaderboardState }) {
                         <div className="flex items-center gap-2">
                           <Initials name={f.name} fallback="F" className="h-6 w-6 text-xs" />
                           <span className="font-semibold text-foreground truncate max-w-[180px]">
-                            {f.name}
+                            <PlayerLink name={f.name} href={playerHrefOf(f.userId)} />
                           </span>
                         </div>
                       </td>
@@ -2057,6 +2065,7 @@ function MvpTab({ view }: { view: LeaderboardState }) {
                 key={m.userId}
                 rank={idx + 1}
                 name={m.name}
+                userId={m.userId}
                 fallback="P"
                 subtitle={m.summary}
                 hero={hero}
@@ -2145,7 +2154,7 @@ function MvpTab({ view }: { view: LeaderboardState }) {
                         <div className="flex items-center gap-2">
                           <Initials name={m.name} fallback="P" className="h-6 w-6 text-xs" />
                           <span className="font-semibold text-foreground truncate max-w-[160px]">
-                            {m.name}
+                            <PlayerLink name={m.name} href={playerHrefOf(m.userId)} />
                           </span>
                         </div>
                       </td>

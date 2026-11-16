@@ -40,17 +40,22 @@ export function MergePlayerDialog({
   onOpenChange,
   teamId,
   player,
+  suggestion,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   teamId: string;
   /** The duplicate, removed by the merge. */
   player: { id: string; name: string };
+  /** Whom they may be ("Possible duplicates"): searched for first. */
+  suggestion?: string;
 }) {
   const router = useRouter();
   const inputId = useId();
   const confirmId = useId();
-  const [query, setQuery] = useState("");
+  // Starts on the duplicate's own name: the real player usually shares it
+  // ("Sa" finds "Sanket"), so the likely ones are listed at once.
+  const [query, setQuery] = useState(suggestion ?? player.name);
   const [keeper, setKeeper] = useState<FoundPlayer | null>(null);
   const [preview, setPreview] = useState<{
     matches: number;
@@ -190,11 +195,25 @@ export function MergePlayerDialog({
 
         {keeper && preview && preview.together === 0 && (
           <div className="space-y-3">
+            {/* With no matches there are no figures to add up: only the
+                squad places move (removing them from the squad does as much
+                for this team). */}
             <p className="rounded-lg bg-primary-soft px-3.5 py-3 text-sm text-primary-soft-foreground">
-              {plural(preview.matches)} and {player.name}&apos;s squad places
-              move to {keeper.name} ({foundPlayerHint(keeper)}). Their figures
-              add up, and {player.name}&apos;s profile is removed. This
-              can&apos;t be undone.
+              {preview.matches === 0 ? (
+                <>
+                  {player.name} has played no matches, so only their squad
+                  places move to {keeper.name} ({foundPlayerHint(keeper)}), and{" "}
+                  {player.name}&apos;s profile is removed. Removing them from
+                  the squad would do as much here. This can&apos;t be undone.
+                </>
+              ) : (
+                <>
+                  {plural(preview.matches)} and {player.name}&apos;s squad
+                  places move to {keeper.name} ({foundPlayerHint(keeper)}).
+                  Their figures add up, and {player.name}&apos;s profile is
+                  removed. This can&apos;t be undone.
+                </>
+              )}
             </p>
             <div className="space-y-1.5">
               <Label htmlFor={confirmId} className="text-sm font-medium">

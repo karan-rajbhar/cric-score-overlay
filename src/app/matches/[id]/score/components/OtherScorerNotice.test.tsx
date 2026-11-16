@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LiveLastChange } from "~/lib/hooks/useLiveState";
 import {
+  CORRECTION_WINDOW_MS,
   OTHER_SCORER_WINDOW_MS,
   OtherScorerNotice,
   otherScorerChange,
@@ -67,6 +68,52 @@ describe("OtherScorerNotice", () => {
 
     lastChange = { uid: "u2", name: null, at: ago(5 * 60_000) };
     rerender(<OtherScorerNotice matchId="m1" userId="u1" />);
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("says what another scorer's correction changed, in words", () => {
+    lastChange = {
+      uid: "u2",
+      name: "Amit Jaiswal",
+      at: ago(30_000),
+      correction: {
+        kind: "swap_batters",
+        over: 4,
+        ball: 4,
+        to_over: null,
+        to_ball: null,
+        from_id: "p1",
+        to_id: "p2",
+      },
+    };
+    const names: Record<string, string> = { p1: "Sandeep sir", p2: "Vinayak" };
+    render(
+      <OtherScorerNotice matchId="m1" userId="u1" nameOf={(id) => names[id]} />,
+    );
+    fireEvent.click(
+      screen.getByRole("status", { name: "Amit Jaiswal made a correction. Show it" }),
+    );
+    expect(
+      screen.getByText(
+        /Amit Jaiswal swapped Sandeep sir and Vinayak from 4\.4 to the end of the innings/,
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "OK" }));
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("keeps a correction up longer than a ball", () => {
+    lastChange = {
+      uid: "u2",
+      name: "Karan",
+      at: ago(5 * 60_000),
+      correction: { kind: "over_bowler", over: 3, to_id: "k" },
+    };
+    render(<OtherScorerNotice matchId="m1" userId="u1" />);
+    expect(screen.getByRole("status")).toHaveTextContent("Karan made a correction");
+    act(() => {
+      vi.advanceTimersByTime(CORRECTION_WINDOW_MS);
+    });
     expect(screen.queryByRole("status")).toBeNull();
   });
 

@@ -11,7 +11,6 @@ import {
   Share2,
   TriangleAlert,
   UserPlus,
-  Users,
 } from "lucide-react";
 import { Avatar, TeamCrest } from "~/components/ds/avatar";
 import { BallChip, KeypadButton } from "~/components/ds/ball";
@@ -22,6 +21,8 @@ import { ChoiceGroup, Field, Input, SearchField } from "~/components/ds/field";
 import { ListCard, ListRow } from "~/components/ds/list";
 import { MatchCard } from "~/components/ds/match-card";
 import { MatchNote } from "~/components/ds/score";
+import { Tabs } from "~/components/ui/tabs";
+import { ScoringViewSwitch } from "~/app/matches/[id]/score/components/ScoringViews";
 import { cn } from "~/lib/utils";
 import { Caption, DocSection, Specimen } from "../_components/doc";
 import { RESULT, TEAMS } from "../_components/sample";
@@ -536,31 +537,43 @@ function KeypadSlot({ slot }: { slot: Slot }) {
   );
 }
 
-/** Top bar, scoreboard, the two batters and the bowler: one line each. */
+/**
+ * The top bar (back, the real Score / Scorecard / Balls switch, Match
+ * tools), the score card in the board's colours with the save status beside
+ * the score, then the two batters and the bowler: one line each. The card
+ * is drawn: the real one lays out by the window's width, not this frame's.
+ */
 function SmallScoreboard() {
   return (
     <>
-      <div className="flex h-11 shrink-0 items-center gap-2">
-        <ChevronLeft className="h-5 w-5 shrink-0" aria-hidden="true" />
-        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
-          Strikers v Thunder
+      <Tabs value="score" swipeable={false} className="flex shrink-0 items-center gap-1.5">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-card shadow-soft">
+          <ChevronLeft className="h-5 w-5" aria-hidden="true" />
         </span>
-        <span className="flex items-center gap-1 text-xs text-muted-foreground">
-          <Check className="h-3.5 w-3.5" aria-hidden="true" />
-          Saved
+        <ScoringViewSwitch className="min-w-0 flex-1" />
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-card shadow-soft">
+          <MoreHorizontal className="h-5 w-5" aria-hidden="true" />
         </span>
-        <Users className="h-5 w-5 shrink-0" aria-hidden="true" />
-        <MoreHorizontal className="h-5 w-5 shrink-0" aria-hidden="true" />
-      </div>
-      <div className="shrink-0 rounded-xl bg-hero px-3 py-2 text-hero-foreground">
-        <div className="flex items-baseline justify-between gap-2">
-          <span className="font-score text-2xl font-bold tabular-nums">
-            5/0{" "}
-            <span className="text-sm font-medium opacity-80">(0.2 of 20)</span>
+      </Tabs>
+      <div className="shrink-0 rounded-xl border border-board-line bg-board px-3 py-2 text-board-foreground">
+        <div className="flex items-start justify-between gap-2">
+          <p className="flex items-baseline gap-2">
+            <span className="font-score text-3xl font-bold leading-none tabular-nums">
+              5/0
+            </span>
+            <span className="font-score text-sm font-semibold tabular-nums text-board-muted">
+              0.2 of 20 ov
+            </span>
+          </p>
+          <span className="flex items-center gap-1 text-xs font-medium text-board-muted">
+            <Check className="h-3 w-3" aria-hidden="true" />
+            Saved
           </span>
-          <span className="text-xs font-medium opacity-90">Run rate 15.00</span>
         </div>
-        <p className="text-xs opacity-80">Strikers · 1st innings · T20</p>
+        <p className="text-xs font-semibold tabular-nums text-board-muted">
+          STR · Run rate <span className="text-board-good">15.00</span> ·
+          Projected 300
+        </p>
       </div>
       <div className="shrink-0 divide-y divide-border rounded-xl bg-card text-sm ring-1 ring-border/60">
         {[
@@ -685,7 +698,7 @@ function ScoringSmall() {
     <Specimen
       id="spec-scoring-small"
       title="The scoring screen at 360 by 640"
-      usage="The whole column fits with Wicket and Undo on screen. One fixed row above the keys holds whatever changes: an armed extra and its choice, the note after Undo, the offline state. The keys below it never move or shrink. No text under 12 px; the scoreboard is one block and says each thing once. (S2, S3, S4, S11)"
+      usage="The whole column fits with Wicket and Undo on screen, in a chase too and with an extra armed. The top bar holds back, Score / Scorecard / Balls and Match tools; the score card, in the board's colours, says each thing once (the save status beside the score, the batting side on the line under it). One fixed row above the keys holds whatever changes: an armed extra and its choice, the note after Undo, the offline state. The keys below it never move or shrink. No text under 12 px. (S2, S3, S4, S11)"
     >
       {/* relative: the ball chips' screen-reader text is absolutely
           positioned, and would otherwise widen the page from inside the

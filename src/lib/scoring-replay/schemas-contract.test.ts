@@ -147,6 +147,13 @@ describe("payloads older queues hold", () => {
     });
   });
 
+  it("takes the corrections of who batted and who bowled", () => {
+    accepted("swapBatters", { inningsId: "i", fromBallId: "b1", toBallId: "b9" });
+    // No end ball: to the end of the innings.
+    accepted("swapBatters", { inningsId: "i", fromBallId: "b1", toBallId: null });
+    accepted("correctOverBowler", { inningsId: "i", overNumber: 0, bowlerId: "b" });
+  });
+
   it("takes an edit from a client older than its optional fields", () => {
     const edit = {
       ballId: "b1",
@@ -178,6 +185,9 @@ describe("what stays refused", () => {
     refused("updateBall", { ballId: "b1" });
     refused("endInnings", { inningsNumber: 0 });
     refused("endInnings", { inningsNumber: "1" });
+    refused("swapBatters", { inningsId: "i", fromBallId: "b1" });
+    refused("correctOverBowler", { inningsId: "i", overNumber: -1, bowlerId: "b" });
+    refused("correctOverBowler", { inningsId: "i", overNumber: 1.5, bowlerId: "b" });
   });
 
   it("runs that are not a small whole number", () => {

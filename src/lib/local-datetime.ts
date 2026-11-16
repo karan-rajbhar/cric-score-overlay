@@ -29,3 +29,13 @@ export function localDateTimeToIso(date: string, time: string): string | null {
   const d = new Date(`${date}T${time}`);
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
+
+/** "Sunday" for a date field's value ("2026-11-22"); "" when it is not a date. */
+export function weekdayOf(date: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (!m) return "";
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return Number.isNaN(d.getTime())
+    ? ""
+    : d.toLocaleDateString("en-GB", { weekday: "long" });
+}

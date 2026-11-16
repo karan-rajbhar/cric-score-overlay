@@ -81,18 +81,29 @@ export function QualificationCalculator({
         const cutoff =
           [...data].sort((a, b) => b.points - a.points)[qualSpots - 1]
             ?.points ?? 0;
+        // In the top N only when every team on its points fits there: three
+        // sides on 0 points are not all "in the top 2".
+        const others = data.filter((o) => o.teamId !== t.teamId);
+        const above = others.filter((o) => o.points > t.points).length;
+        const level = others.filter((o) => o.points === t.points).length;
+        const clearlyIn = above + level < qualSpots;
+        const levelAtCut = !clearlyIn && above < qualSpots;
         const winsNeeded = Math.ceil(Math.max(0, cutoff - t.points) / 2);
         const left = t.remainingMatches;
         conditionText =
           left === 0
-            ? t.points >= cutoff
-              ? "No games left and level on points with the cut: goes through on net run rate only."
-              : "No games left: needs others to drop points."
-            : winsNeeded === 0
+            ? clearlyIn
+              ? `No games left: in the top ${qualSpots} now, unless others catch up.`
+              : levelAtCut
+                ? "No games left and level on points with the cut: net run rate decides, unless others drop points."
+                : "No games left: needs others to drop points."
+            : clearlyIn
               ? `In the top ${qualSpots} now, with ${games(left)} left to stay there; net run rate may decide.`
-              : winsNeeded > left
-                ? `Cannot get there on wins alone: needs others to drop points too.`
-                : `Needs ${wins(winsNeeded)} from ${games(left)}; net run rate may decide.`;
+              : levelAtCut
+                ? `Level on points with others for the top ${qualSpots}, with ${games(left)} left; net run rate may decide.`
+                : winsNeeded > left
+                  ? `Cannot get there on wins alone: needs others to drop points too.`
+                  : `Needs ${wins(winsNeeded)} from ${games(left)}; net run rate may decide.`;
       }
 
       return {

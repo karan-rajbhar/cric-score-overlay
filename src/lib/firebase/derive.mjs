@@ -49,10 +49,85 @@ export function normalizeText(text) {
     .trim();
 }
 
+/** Words of respect that are not part of a name ("Sandeep sir"). */
+export const NAME_EXTRAS = new Set([
+  "sir",
+  "bhai",
+  "ji",
+  "da",
+  "dada",
+  "bhau",
+  "saheb",
+  "sahab",
+  "anna",
+  "mr",
+  "dr",
+]);
+
+/**
+ * How a word sounds: common spellings folded (ee/i, oo/u, aa/a, w/v, sh/s,
+ * ph/f) and doubled letters single, so "sandeep" and "sandip" are both
+ * "sandip" and "aakash" and "akash" "akas". One rule for the search's
+ * sound tokens and for `nameSoundKey` on screen.
+ * @param {string} word a normalized word ({@link normalizeText})
+ * @returns {string}
+ */
+export function soundKey(word) {
+  return word
+    .replace(/ee|ii/g, "i")
+    .replace(/oo/g, "u")
+    .replace(/aa/g, "a")
+    .replace(/w/g, "v")
+    .replace(/sh/g, "s")
+    .replace(/ph/g, "f")
+    .replace(/(.)\1+/g, "$1");
+}
+
+/** Shortest word that gets a sound token (shorter ones match too much). */
+export const MIN_SOUND_WORD = 3;
+
+/**
+ * The sound keys of the words of `text` that are part of a name (no
+ * honorifics, at least {@link MIN_SOUND_WORD} letters).
+ * @param {unknown} text
+ * @returns {string[]}
+ */
+export function soundKeysOf(text) {
+  return normalizeText(text)
+    .split(" ")
+    .filter((w) => w.length >= MIN_SOUND_WORD && !NAME_EXTRAS.has(w))
+    .map(soundKey);
+}
+
+/**
+ * The stored token of a sound key: `~` + the key. Typed queries never hold
+ * a `~` ({@link normalizeText} drops it), so only a sound lookup finds it.
+ * @param {string} key
+ */
+export function soundToken(key) {
+  return `~${key}`;
+}
+
+/**
+ * Whether every name word typed sounds like a word of one of `texts`
+ * ("Sandip sir" and "Sandeep sir"): the check after a sound lookup.
+ * @param {unknown} query
+ * @param {unknown[]} texts
+ */
+export function soundsLike(query, texts) {
+  const typed = soundKeysOf(query);
+  if (typed.length === 0) return false;
+  return texts.some((t) => {
+    const keys = new Set(soundKeysOf(t));
+    return typed.every((k) => keys.has(k));
+  });
+}
+
 /**
  * Word prefixes (2..24 chars) of `text`, the trigrams inside each word (so
  * "ohn" finds "John"), plus prefixes of the whole text longer than its
- * first word (so "john sm" finds "John Smith").
+ * first word (so "john sm" finds "John Smith"), and a sound token per name
+ * word ("~sandip" for "Sandeep") for spelling variants.
  * @param {unknown} text
  * @param {Set<string>} out
  */
@@ -68,6 +143,7 @@ function addPrefixes(text, out) {
       out.add(word.slice(i, i + INFIX_LEN));
     }
   }
+  for (const key of soundKeysOf(norm)) out.add(soundToken(key));
   if (words.length > 1) {
     const max = Math.min(norm.length, MAX_PHRASE_PREFIX);
     for (let n = (words[0] ?? "").length + 2; n <= max; n += 1) {

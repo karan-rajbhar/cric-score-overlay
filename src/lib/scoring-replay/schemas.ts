@@ -101,6 +101,19 @@ export const replayPayloadSchemasV1 = {
     noBallRuns: noBallRuns.nullish(),
     batsmanId: id.nullish(),
     bowlerId: id.nullish(),
+    // Optional (v1 still): a wicket added after the batter batted on.
+    laterBatterId: id.nullish(),
+  }),
+  // New action types (v1 still: an older queue never holds them).
+  swapBatters: z.object({
+    inningsId: id,
+    fromBallId: id,
+    toBallId: id.nullable(),
+  }),
+  correctOverBowler: z.object({
+    inningsId: id,
+    overNumber: z.number().int().min(0).max(999),
+    bowlerId: id,
   }),
   // Exactly the queue's types: adding one to the queue fails to compile here.
 } as const satisfies Record<QueuedActionType, z.ZodTypeAny>;

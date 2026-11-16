@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { ScoringPanel, readBallLabel } from "./scoring-panel";
 
-/** A run key by its figure, armed extra or not ("4, Four", "1, 2 Wd", "2 runs"); not an over chip ("4, ball 3: ..."). */
+/** A run key by its figure, armed extra or not ("4, Four", "1, wd+1", "2 runs"); not an over chip ("4, ball 3: ..."). */
 const runKey = (n: number) =>
   screen.getByRole("button", { name: new RegExp(`^${n}(?: runs?$|, (?!ball))`) });
 
@@ -515,7 +515,7 @@ describe("ScoringPanel: byes off a no-ball and other prompts", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "Saving the last ball. The next innings opens after it.",
     );
-    fireEvent.click(screen.getByRole("button", { name: "Correct a ball" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fix a mistake" }));
     expect(onEditBalls).toHaveBeenCalled();
   });
 
@@ -578,7 +578,8 @@ describe("ScoringPanel: one status row above the keys", () => {
 
   it("holds the hint, an armed extra with its no-ball choice, and a free hit", () => {
     const { rerender } = render(<ScoringPanel {...defaultProps} />);
-    expect(row()).toHaveClass("h-11");
+    // A fixed height (40 px on phones, 44 from sm), whatever it holds.
+    expect(row()).toHaveClass("h-10", "sm:h-11");
     expect(row()).toHaveTextContent(/tap a ball in the over/i);
 
     fireEvent.click(screen.getByRole("button", { name: "No ball" }));

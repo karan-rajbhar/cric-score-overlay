@@ -62,12 +62,33 @@ export function PlayerSearchNote({
   );
 }
 
-/** Shown when adding a second person of a name someone already has. */
-export function SameNameNote({ twin }: { twin: FoundPlayer }) {
+/**
+ * Shown when adding a second person of a name someone already has, or of
+ * one that sounds like it (`similar`). A similar player who cannot be
+ * picked here (`twin.unavailable`) is named with why, and where the fix
+ * for a mix-up is, instead of a new player.
+ */
+export function SameNameNote({
+  twin,
+  similar = false,
+}: {
+  twin: FoundPlayer;
+  similar?: boolean;
+}) {
+  if (twin.unavailable) {
+    return (
+      <p role="alert" className="px-1 text-xs text-warning">
+        {twin.name} is in this squad ({twin.unavailable.toLowerCase()}). If the
+        names were mixed up, use Fix a mistake on the ball where it started.
+        Add a new player only if this is a different person.
+      </p>
+    );
+  }
   return (
     <p role="alert" className="px-1 text-xs text-warning">
-      {twin.name} is already on CricScore ({foundPlayerHint(twin)}). Add a
-      second one only if this is a different person.
+      {similar
+        ? `${twin.name} is already on CricScore (${foundPlayerHint(twin)}). Is this them? Pick them instead, or add a new player only if this is a different person.`
+        : `${twin.name} is already on CricScore (${foundPlayerHint(twin)}). Add a second one only if this is a different person.`}
     </p>
   );
 }

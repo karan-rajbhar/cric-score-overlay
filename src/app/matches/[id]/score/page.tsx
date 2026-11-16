@@ -17,7 +17,34 @@ import {
 import type {
   BallCorrection,
   DeliveryToEdit,
+  LoggedBall,
 } from "./components/EditBallDialog";
+import type { FixStart } from "./components/FixMistakeDialog";
+import { useQueryClient } from "@tanstack/react-query";
+import { useLiveState } from "~/lib/hooks/useLiveState";
+import { Tabs, TabsContent } from "~/components/ui/tabs";
+import {
+  Button as DsButton,
+  buttonVariants as dsButtonVariants,
+} from "~/components/ds/button";
+import { ScreenWash } from "~/components/ds/screen";
+import type { FixInnings } from "./components/FixMistakeDialog";
+import { isAtInningsBreak } from "./innings-break";
+import {
+  ScoringBalls,
+  ScoringScoreLine,
+  ScoringScorecard,
+  ScoringViewSwitch,
+} from "./components/ScoringViews";
+import { setUrlParam } from "~/lib/url-state";
+import {
+  DEFAULT_SCORING_VIEW,
+  ballLogStampOf,
+  scorecardMatchOf,
+  scoringViewFrom,
+  type ScoringSide,
+  type ScoringView,
+} from "./scoring-views";
 import { ConfirmDialog } from "~/components/ui/confirm-dialog";
 import { ActionMenu } from "~/components/ds/action-menu";
 import { freeHitsOn, nextIsFreeHit } from "~/lib/free-hit";
@@ -109,9 +136,9 @@ const InviteDialog = dynamic(
   () => import("~/components/invite-dialog").then((m) => m.InviteDialog),
   { ssr: false },
 );
-const EarlierBallsDialog = dynamic(
+const FixMistakeDialog = dynamic(
   () =>
-    import("./components/EarlierBallsDialog").then((m) => m.EarlierBallsDialog),
+    import("./components/FixMistakeDialog").then((m) => m.FixMistakeDialog),
   { ssr: false },
 );
 const UnsavedActionsDialog = dynamic(
@@ -140,7 +167,7 @@ function preloadScoringDialogs(): Promise<unknown> {
     import("~/components/matches/dls-calculator-modal"),
     import("~/components/matches/match-scorers-dialog"),
     import("~/components/invite-dialog"),
-    import("./components/EarlierBallsDialog"),
+    import("./components/FixMistakeDialog"),
     import("./components/UnsavedActionsDialog"),
   ]);
 }
@@ -210,13 +237,15 @@ import {
   MessageCircle,
   Trash2,
   Flag,
+  Pencil,
+  Wrench,
 } from "lucide-react";
 import {
   deliveryKind,
   deliveryLabel,
   economyRate,
   inningsOvers,
-  matchFormatName,
+  oversFromBalls,
 } from "~/lib/cricket";
 import { useMatchShare } from "~/components/matches/use-match-share";
 import { matchParts, sideRuleOf } from "~/lib/match-players";
@@ -252,6 +281,15 @@ async function callServer<T extends { error?: string | null }>(
  * The scoring screen's state, handlers and derived values (everything the
  * page renders reads them from here).
  */
+/** "1st innings", "2nd innings", "Super over 1" (as the overlays name them). */
+function inningsName(n: number): string {
+  return n === 1
+    ? "1st innings"
+    : n === 2
+      ? "2nd innings"
+      : `Super over ${Math.ceil((n - 2) / 2)}`;
+}
+
 function useScoringScreen() {
   const params = useParams();
   const matchId = params.id as string;
@@ -326,7 +364,10 @@ function useScoringScreen() {
       setShowSelectBowler(true);
   }, [setShowSelectBowler]);
 
-  const handleNeedsBatsman = useCallback(() => {
+  // At an innings break the openers wait for "Start the chase" on the break
+  // card: the scorer checks the total (and undoes a wrong last ball) first.
+  const handleNeedsBatsman = useCallback((at?: { inningsBreak: boolean }) => {
+    if (at?.inningsBreak) return;
     if (!remoteSyncRef.current || isScorerRef.current) {
       setShowSelectBatsmen(true);
     }
@@ -376,6 +417,8 @@ function useScoringScreen() {
     handleAwardPenalty,
     handleReassignOverBowler,
     handleReplaceBatter,
+    handleSwapBatters,
+    handleCorrectOverBowler,
     handleStartSuperOver,
     handleConfirmBatsmen,
     handleConfirmBowler,
@@ -492,8 +535,20 @@ function useScoringScreen() {
     null,
   );
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
-  /** The list of this innings' balls, to correct one in any over. */
-  const [showEarlierBalls, setShowEarlierBalls] = useState(false);
+  /** Fix a mistake: every ball of each innings, during or after the match. */
+  const [showFixMistake, setShowFixMistake] = useState(false);
+  /** Where Fix a mistake opens (a wicket given to the wrong batter). */
+  const [fixStart, setFixStart] = useState<FixStart | null>(null);
+  /**
+   * The side that batted in the innings of the ball being edited (null: the
+   * innings in play), so Edit ball lists the right players for an earlier
+   * innings.
+   */
+  const [editingBattingTeamId, setEditingBattingTeamId] = useState<
+    string | null
+  >(null);
+  /** The match's ball log Fix a mistake read, for Edit ball's preview. */
+  const [editingLog, setEditingLog] = useState<LoggedBall[] | null>(null);
   /** "Add to club": puts the match into a club, or changes it. */
   const [showClubDialog, setShowClubDialog] = useState(false);
   /** The actions kept after the server refused them, under review. */
@@ -517,6 +572,21 @@ function useScoringScreen() {
   // on through a wide or another no-ball.
   const isFreeHit = nextIsFreeHit(rawDeliveries, freeHitsOn(match));
   const isChase = isChaseInnings(match?.current_innings);
+  /** The innings the scorer started from the break card (its openers). */
+  const [startedInningsId, setStartedInningsId] = useState<string | null>(null);
+  // Between innings: the next one is open with no ball and no batters, and
+  // its openers have not been asked for yet.
+  const atInningsBreak = isAtInningsBreak({
+    status: match?.status,
+    innings: currentInnings,
+    strikerId,
+    nonStrikerId,
+    startedInningsId,
+  });
+  const startNextInnings = () => {
+    setStartedInningsId(currentInnings?.id ?? null);
+    setShowSelectBatsmen(true);
+  };
   const battingTeam = currentInnings
     ? currentInnings.team_id === match?.team1_id
       ? match?.team1
@@ -557,7 +627,7 @@ function useScoringScreen() {
     Boolean(retireTarget) ||
     showShortcuts ||
     showInviteDialog ||
-    showEarlierBalls ||
+    showFixMistake ||
     showUnsaved ||
     confirmSkip ||
     confirmSuperOver ||
@@ -936,6 +1006,9 @@ function useScoringScreen() {
         : {}),
     });
     if (res?.data) {
+      // The innings just ended: the break card comes first (its button
+      // opens the next innings' openers).
+      if ((res.data as { innings_completed?: boolean }).innings_completed) return;
       if (res.data.over_completed || res.data.needs_bowler) {
         setShowSelectBowler(true);
       } else if (res.data.needs_batsman) {
@@ -1165,11 +1238,42 @@ function useScoringScreen() {
     return { error: res?.error ?? null };
   };
 
-  const loadBallLog = useCallback(async () => {
+  // The match's ball log: one read per change of it (`ballLogStampOf`),
+  // shared by the Balls view, Fix a mistake and Edit ball's preview.
+  const queryClient = useQueryClient();
+  // The same live_state entry useLiveResync follows: no extra listener.
+  const liveVersion = useLiveState(matchId).version;
+  const ballLogStamp = match ? ballLogStampOf(match, liveVersion) : "";
+  const ballLogKey = useMemo(
+    () => ["scoringBallLog", matchId, ballLogStamp] as const,
+    [matchId, ballLogStamp],
+  );
+  const fetchBallLog = useCallback(async () => {
     const res = await getMatchBallLog(matchId);
     if (res.error) throw new Error(res.error);
     return (res.data ?? []) as unknown as DeliveryToEdit[];
   }, [matchId]);
+  const loadBallLog = useCallback(
+    () =>
+      queryClient.fetchQuery({
+        queryKey: ballLogKey,
+        queryFn: fetchBallLog,
+        staleTime: Infinity,
+      }),
+    [queryClient, ballLogKey, fetchBallLog],
+  );
+
+  // Score / Scorecard / Balls, in `?tab=` (a reload keeps it; no history
+  // entry, no server read).
+  const [view, setViewState] = useState<ScoringView>(() =>
+    typeof window === "undefined"
+      ? DEFAULT_SCORING_VIEW
+      : scoringViewFrom(new URLSearchParams(window.location.search).get("tab")),
+  );
+  const setView = useCallback((next: ScoringView) => {
+    setViewState(next);
+    setUrlParam("tab", next, DEFAULT_SCORING_VIEW);
+  }, []);
 
   /** The queue's actions in the scorer's words (names from both squads). */
   const nameOfPlayer = (id: string | null | undefined) =>
@@ -1201,17 +1305,29 @@ function useScoringScreen() {
     handleDiscardDeadLetter,
     handleResendDeadLetters,
     isChase,
+    atInningsBreak,
+    startNextInnings,
     loadBallLog,
+    fetchBallLog,
+    ballLogKey,
+    view,
+    setView,
     refusedHead,
     refusedHeadText,
     setConfirmSkip,
     setConfirmSuperOver,
     setShowClubDialog,
-    setShowEarlierBalls,
+    setShowFixMistake,
+    fixStart,
+    setFixStart,
+    editingBattingTeamId,
+    setEditingBattingTeamId,
+    editingLog,
+    setEditingLog,
     setShowUnsaved,
     setWicketRunsKind,
     showClubDialog,
-    showEarlierBalls,
+    showFixMistake,
     showUnsaved,
     unsavedItems,
     wicketRunsKind,
@@ -1254,6 +1370,8 @@ function useScoringScreen() {
     handleReassignOverBowler,
     handleRedo,
     handleReplaceBatter,
+    handleSwapBatters,
+    handleCorrectOverBowler,
     handleRetirePlayerConfirm,
     handleReviseTargetConfirm,
     handleSkipHeadAction,
@@ -1358,8 +1476,18 @@ type LoadedScreen = ScoringScreen & {
   match: NonNullable<ScoringScreen["match"]>;
 };
 
-/** Save, offline, sunlight and awake status, and the toss button. */
-function HeaderIndicators({ s }: { s: LoadedScreen }) {
+/**
+ * Save, offline, sunlight and awake status, and the other scorer's notice:
+ * on the score card's top line (`onBoard`), or above the Score view when
+ * there is no score card (before the start, after the end).
+ */
+function ScoringStatus({
+  s,
+  onBoard = false,
+}: {
+  s: LoadedScreen;
+  onBoard?: boolean;
+}) {
   const {
     matchId,
     user,
@@ -1373,12 +1501,26 @@ function HeaderIndicators({ s }: { s: LoadedScreen }) {
     isProcessing,
     sunlightMode,
     isScreenAwake,
-    setTossDialogDismissed,
+    battingTeamPlayers,
+    bowlingTeamPlayers,
   } = s;
+  // Quiet text on the dark score card, or on the page.
+  const quiet = onBoard
+    ? sunlightMode
+      ? "text-black/70"
+      : "text-board-muted"
+    : "text-muted-foreground";
+  const playerName = (id: string) =>
+    [...battingTeamPlayers, ...bowlingTeamPlayers].find((p) => p.user_id === id)
+      ?.user?.full_name ?? null;
   return (
     <>
       {/* Someone else scored this match in the last ~2 minutes */}
-      <OtherScorerNotice matchId={matchId} userId={user?.id} />
+      <OtherScorerNotice
+        matchId={matchId}
+        userId={user?.id}
+        nameOf={playerName}
+      />
       {/* Save status (instant scoring saves in the background) */}
       {!isOffline &&
         match.status === "live" &&
@@ -1396,7 +1538,7 @@ function HeaderIndicators({ s }: { s: LoadedScreen }) {
           </button>
         ) : (
           <span
-            className="flex items-center gap-1 px-1 text-xs font-medium text-muted-foreground"
+            className={cn("flex items-center gap-1 px-1 text-xs font-medium", quiet)}
             title={
               pendingCount > 0 || isSaving || isProcessing
                 ? "Saving to the server"
@@ -1411,7 +1553,7 @@ function HeaderIndicators({ s }: { s: LoadedScreen }) {
             ) : (
               <Check className="h-3 w-3 shrink-0" aria-hidden="true" />
             )}
-            <span className="max-sm:sr-only">
+            <span>
               {pendingCount > 0 || isSaving || isProcessing
                 ? "Saving…"
                 : "Saved"}
@@ -1451,17 +1593,6 @@ function HeaderIndicators({ s }: { s: LoadedScreen }) {
         </Chip>
       )}
 
-      {/* Start Match / Toss if scheduled */}
-      {match.status === "scheduled" && isScorer && (
-        <Button
-          size="sm"
-          onClick={() => setTossDialogDismissed(false)}
-          className="gap-1"
-        >
-          <Play className="h-3.5 w-3.5" />
-          <span>Toss</span>
-        </Button>
-      )}
     </>
   );
 }
@@ -1496,6 +1627,9 @@ function MatchToolsMenu({ s }: { s: LoadedScreen }) {
     actionsMenuOpen,
     showClubDialog,
     setShowClubDialog,
+    setShowAddPlayerDialog,
+    setShowFixMistake,
+    matchShare,
   } = s;
   const club = useMatchClubChoices(
     match,
@@ -1506,8 +1640,8 @@ function MatchToolsMenu({ s }: { s: LoadedScreen }) {
   const [showDls, setShowDls] = useState(false);
   const [showScorers, setShowScorers] = useState(false);
   const live = match.status === "live";
-  // Things the screen already has a button for (Squads, Share, Correct a
-  // ball) are not repeated here (S5).
+  // The top bar has only back, the views and this: Squads and Share live
+  // here too. Fix a mistake has the keypad's pencil (S5).
   return (
     <>
       <ActionMenu
@@ -1515,22 +1649,21 @@ function MatchToolsMenu({ s }: { s: LoadedScreen }) {
         onOpenChange={setActionsMenuOpen}
         contentClassName="w-64"
         trigger={
-          <Button
-            variant="outline"
-            size="sm"
+          <DsButton
+            variant="surface"
+            size="icon"
             className={cn(
-              "h-10 w-10 gap-1.5 p-0 sm:h-9 sm:w-auto sm:px-3",
-              sunlightMode && "border-2 border-black font-bold",
+              "shrink-0 sm:w-auto sm:px-4",
+              sunlightMode && "border-2 border-black bg-white font-bold text-black",
             )}
             // Named as it reads from sm up (X4); phones show ⋯ alone.
             aria-label="Match tools"
             title="Match tools & scoring options"
           >
-            <SlidersHorizontal className="hidden h-4 w-4 shrink-0 sm:inline" />
             <span className="hidden sm:inline">Match tools</span>
-            <ChevronDown className="hidden h-3 w-3 opacity-60 sm:inline" />
-            <MoreHorizontal className="h-4 w-4 sm:hidden" />
-          </Button>
+            <MoreHorizontal className="sm:hidden" />
+            <ChevronDown className="hidden opacity-60 sm:inline" />
+          </DsButton>
         }
         groups={[
           // First: the screen is scored outdoors, and this is what helps
@@ -1548,6 +1681,20 @@ function MatchToolsMenu({ s }: { s: LoadedScreen }) {
           {
             label: "This match",
             items: [
+              // First: any ball, any over (the keypad has it as a word too).
+              // Replace below moves a whole match, for a wrong player only.
+              isScorer && {
+                key: "fix",
+                label: "Fix a mistake",
+                icon: Wrench,
+                onSelect: () => setShowFixMistake(true),
+              },
+              {
+                key: "squads",
+                label: "Squads",
+                icon: Users,
+                onSelect: () => setShowAddPlayerDialog(true),
+              },
               isScorer && {
                 key: "settings",
                 label: "Match settings",
@@ -1654,14 +1801,19 @@ function MatchToolsMenu({ s }: { s: LoadedScreen }) {
           {
             label: "Share",
             items: [
-              // The header has the overlay's button from sm up.
+              {
+                key: "share",
+                label: live ? "Share the live score" : "Share the result",
+                icon: Share2,
+                onPointerDown: matchShare.prepare,
+                onSelect: () => void matchShare.share(),
+              },
               {
                 key: "overlay",
                 label: "Open the broadcast overlay",
                 icon: Tv,
                 href: `/overlay/${match.id}`,
                 external: true,
-                phoneOnly: true,
               },
               {
                 key: "whatsapp",
@@ -1722,6 +1874,7 @@ function MatchToolsMenu({ s }: { s: LoadedScreen }) {
       {isScorer && showScorers && (
         <MatchScorersDialog
           matchId={match.id}
+          match={match}
           isCreator={match.created_by === user?.id}
           open
           onOpenChange={setShowScorers}
@@ -1731,135 +1884,49 @@ function MatchToolsMenu({ s }: { s: LoadedScreen }) {
   );
 }
 
-/** The console's header: back, title, status and tools. */
-function ScoringHeader({ s }: { s: LoadedScreen }) {
-  const { sunlightMode, match, setShowAddPlayerDialog, matchShare } = s;
-  // Under the title, what the scoreboard no longer spends a phone row on:
-  // who is batting, which innings and the format (not the title again).
-  const inningsNumber = s.currentInnings?.innings_number ?? 0;
-  const battingName = s.battingTeam?.short_name || s.battingTeam?.name;
-  const subtitle =
-    match.status === "live" && inningsNumber > 0 && battingName
-      ? [
-          `${battingName} batting`,
-          isSuperOverInnings(inningsNumber)
-            ? "Super over"
-            : inningsNumber === 2
-              ? "2nd innings"
-              : "1st innings",
-          matchFormatName(match),
-        ].join(" · ")
-      : `${match.title} · ${matchFormatName(match)}`;
-  return (
-    <>
-      {/* Dedicated Scorer Console Header (Distraction-Free) */}
-      <header
+/**
+ * The top bar, as on the other detail screens (`ScreenBar`): the round back
+ * button, Score / Scorecard / Balls where the title was, and Match tools.
+ * Who bats, the innings and the save status are on the score card's top
+ * line (docs/scoring-screen-ux.md). The screen's one h1 is for screen
+ * readers; Match tools is titled with the match.
+ */
+function ScoringBar({ s }: { s: LoadedScreen }) {
+  const { sunlightMode, match } = s;
+  const title = `${match.team1.short_name || match.team1.name} vs ${
+    match.team2.short_name || match.team2.name
+  }`;
+  const bar = (
+    <div className="mx-auto flex w-full max-w-6xl items-center gap-2 px-2.5 pb-1 pt-[max(0.25rem,env(safe-area-inset-top))] sm:px-4 sm:pb-1.5 sm:pt-2">
+      <h1 className="sr-only">Scoring {title}</h1>
+      <Link
+        href={`/matches/${match.id}`}
+        aria-label="Exit scoring and return to match details"
+        title="Exit scoring"
         className={cn(
-          "sticky top-0 z-30 border-b bg-card/95 backdrop-blur-md",
-          sunlightMode
-            ? "border-b-2 border-black bg-white"
-            : "border-border/80 dark:border-border dark:bg-background/95",
+          dsButtonVariants({ variant: "surface", size: "icon" }),
+          "shrink-0",
+          sunlightMode && "border-2 border-black bg-white text-black",
         )}
       >
-        <div className="container mx-auto flex h-11 w-full max-w-full items-center justify-between px-2.5 sm:h-12 sm:px-4">
-          {/* Left: Back Arrow + Match Title & Format */}
-          <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="shrink-0 text-muted-foreground hover:text-foreground sm:h-9 sm:w-9"
-              asChild
-            >
-              <Link
-                href={`/matches/${match.id}`}
-                aria-label="Exit scoring and return to match details"
-                title="Exit scoring"
-              >
-                <ChevronLeft className="h-5 w-5" />
-              </Link>
-            </Button>
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <h1 className="truncate text-sm font-semibold">
-                  {match.team1.short_name || match.team1.name} vs{" "}
-                  {match.team2.short_name || match.team2.name}
-                </h1>
-                {match.status === "live" ? (
-                  <LiveIndicator className="hidden sm:inline-flex" />
-                ) : (
-                  <Badge
-                    variant="secondary"
-                    size="sm"
-                    className="hidden capitalize sm:inline-flex"
-                  >
-                    {match.status}
-                  </Badge>
-                )}
-              </div>
-              <p className="truncate text-xs text-muted-foreground">
-                {subtitle}
-              </p>
-            </div>
-          </div>
-
-          {/* Right: Quick Tools & Consolidated Actions Menu */}
-          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-            <HeaderIndicators s={s} />
-
-            {/* Squads (phones; the sidebar shows them on larger screens) */}
-            <Button
-              variant="outline"
-              size="icon"
-              className="sm:h-9 sm:w-9 lg:hidden"
-              onClick={() => setShowAddPlayerDialog(true)}
-              aria-label="Open squads"
-              title="Squads"
-            >
-              <Users className="h-4 w-4" />
-            </Button>
-
-            {/* Share the live score: the summary image and a message */}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={matchShare.busy}
-              onPointerDown={matchShare.prepare}
-              onClick={() => void matchShare.share()}
-              aria-label="Share live score"
-              className="h-10 w-10 p-0 sm:h-9 sm:w-auto sm:px-3"
-            >
-              {matchShare.busy ? (
-                <Loader2 className="animate-spin" />
-              ) : (
-                <Share2 />
-              )}
-              <span className="hidden sm:inline">Share</span>
-            </Button>
-
-            {/* OBS Broadcast Overlay Shortcut */}
-            <Button
-              variant="outline"
-              size="icon"
-              className="hidden h-9 w-9 sm:inline-flex"
-              asChild
-              title="Open broadcast overlay in new tab"
-            >
-              <Link
-                href={`/overlay/${match.id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Open broadcast overlay in new tab"
-              >
-                <Tv className="h-4 w-4" />
-              </Link>
-            </Button>
-
-            <MatchToolsMenu s={s} />
-          </div>
-        </div>
-      </header>
-    </>
+        <ChevronLeft />
+      </Link>
+      <ScoringViewSwitch
+        sunlight={sunlightMode}
+        className="min-w-0 flex-1 sm:mx-auto sm:max-w-md"
+      />
+      <MatchToolsMenu s={s} />
+    </div>
+  );
+  return (
+    <header
+      className={cn(
+        "shrink-0",
+        sunlightMode && "border-b-2 border-black bg-white",
+      )}
+    >
+      {sunlightMode ? bar : <ScreenWash>{bar}</ScreenWash>}
+    </header>
   );
 }
 
@@ -1995,11 +2062,29 @@ function MatchNotices({ s }: { s: LoadedScreen }) {
     match,
     setTossDialogDismissed,
     setShowPotmDialog,
+    setShowFixMistake,
     isScorer,
     user,
     matchId,
     syncFromDb,
+    matchShare,
+    battingTeamPlayers,
+    bowlingTeamPlayers,
   } = s;
+  // The finished card's line: each side's total, then who was named best.
+  const bpo = match.balls_per_over ?? 6;
+  const totals = [...(match.innings ?? [])]
+    .sort((a, b) => a.innings_number - b.innings_number)
+    .map((inn) => {
+      const team = inn.team_id === match.team2_id ? match.team2 : match.team1;
+      return `${team.short_name || team.name} ${inn.total_runs ?? 0}/${inn.total_wickets ?? 0} (${oversFromBalls(inn.total_balls ?? 0, bpo)})`;
+    })
+    .join(" · ");
+  const potmName = match.player_of_the_match_id
+    ? [...battingTeamPlayers, ...bowlingTeamPlayers].find(
+        (p) => p.user_id === match.player_of_the_match_id,
+      )?.user?.full_name ?? null
+    : null;
   return (
     <>
       {match.status === "scheduled" && (
@@ -2024,25 +2109,62 @@ function MatchNotices({ s }: { s: LoadedScreen }) {
       )}
 
       {match.status === "completed" && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-4">
-          <div>
-            <p className="flex items-center gap-1.5 text-sm font-semibold">
-              Match completed
+        // The result, the totals and the player of the match, then what a
+        // scorer does next: share it (to WhatsApp, the moment it ends).
+        <div className="space-y-3 rounded-xl border border-border bg-card p-4">
+          <div className="min-w-0">
+            <p className="text-balance text-sm font-semibold">
+              {match.result_description || "Match completed"}
             </p>
-            <p className="text-xs text-muted-foreground">
-              {match.result_description || "Results official"}
-            </p>
+            {totals && (
+              <p className="font-score text-xs tabular-nums text-muted-foreground">
+                {totals}
+              </p>
+            )}
+            {potmName && (
+              <p className="text-xs text-muted-foreground">
+                Player of the match: {potmName}
+              </p>
+            )}
           </div>
-          <Button
-            size="sm"
-            onClick={() => setShowPotmDialog(true)}
-            className="font-medium"
-          >
-            <Award className="mr-1.5 h-4 w-4" aria-hidden="true" />
-            {match.player_of_the_match_id
-              ? "Change POTM"
-              : "Choose player of the match"}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              onPointerDown={matchShare.prepare}
+              onClick={() => void matchShare.share()}
+              disabled={matchShare.busy}
+              className="font-medium max-sm:min-h-11"
+            >
+              {matchShare.busy ? (
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <Share2 className="mr-1.5 h-4 w-4" aria-hidden="true" />
+              )}
+              Share result
+            </Button>
+            {isScorer && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowFixMistake(true)}
+                className="font-medium max-sm:min-h-11"
+              >
+                <Pencil className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                Fix a mistake
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowPotmDialog(true)}
+              className="font-medium max-sm:min-h-11"
+            >
+              <Award className="mr-1.5 h-4 w-4" aria-hidden="true" />
+              {match.player_of_the_match_id
+                ? "Change player of the match"
+                : "Choose player of the match"}
+            </Button>
+          </div>
         </div>
       )}
       {/* A finished match whose players play for the scorer's club. */}
@@ -2133,6 +2255,11 @@ function Scoreboard({ s }: { s: LoadedScreen }) {
         match={match}
         currentInnings={currentInnings}
         battingTeamName={battingTeam?.name}
+        sideOnPhones
+        // Between innings the break card follows the score: no empty
+        // "Select striker" / "No bowler yet" rows above it.
+        scoreOnly={s.atInningsBreak}
+        status={<ScoringStatus s={s} onBoard />}
         onEndInnings={
           // Once the innings is over, its banner says what happens next.
           isScorer && !s.isInningsComplete
@@ -2217,8 +2344,20 @@ function ConsoleBanners({ s }: { s: LoadedScreen }) {
     isChase,
     isOffline,
     awaitingServer,
+    atInningsBreak,
+    startNextInnings,
+    setView,
   } = s;
   const notice = inningsOverNotice({ isChase, isOffline, awaitingServer });
+  // The innings just closed, for the break card: its side and total.
+  const closed = atInningsBreak
+    ? (match.innings ?? []).find(
+        (i) => i.innings_number === (currentInnings?.innings_number ?? 1) - 1,
+      )
+    : undefined;
+  const nameOfSide = (teamId: string | null | undefined) =>
+    (teamId === match.team2_id ? match.team2 : match.team1)?.name ?? "";
+  const superOver = (currentInnings?.innings_number ?? 1) >= 3;
   // Nothing bowled yet: the openers and the opening bowler come first.
   const inningsStart = (currentInnings?.total_balls ?? 0) === 0;
   const oneEmpty = Boolean(strikerId) !== Boolean(nonStrikerId);
@@ -2251,8 +2390,59 @@ function ConsoleBanners({ s }: { s: LoadedScreen }) {
         </div>
       )}
 
+      {/* Innings break: the total to agree with the umpire, the scorecard to
+          check (a wrong last ball: the keypad's Undo, right below), then the
+          next innings' openers. */}
+      {atInningsBreak && closed && (
+        <div
+          role="status"
+          className="space-y-3 rounded-xl border border-border bg-card p-4"
+        >
+          <div className="min-w-0">
+            <p className="text-sm font-semibold">Innings break</p>
+            <p className="font-score text-base font-semibold tabular-nums">
+              {nameOfSide(closed.team_id)} {closed.total_runs ?? 0}/
+              {closed.total_wickets ?? 0}{" "}
+              <span className="text-sm text-muted-foreground">
+                ({oversFromBalls(closed.total_balls ?? 0, match.balls_per_over ?? 6)} ov)
+              </span>
+            </p>
+            {isChase && currentInnings?.target_runs ? (
+              <p className="text-xs text-muted-foreground">
+                {nameOfSide(currentInnings.team_id)} need{" "}
+                {currentInnings.target_runs} to win.
+              </p>
+            ) : null}
+          </div>
+          {isScorer && (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                onClick={startNextInnings}
+                disabled={isProcessing}
+                className="font-medium max-sm:min-h-11"
+              >
+                {isChase
+                  ? "Start the chase"
+                  : superOver
+                    ? "Start the super over"
+                    : "Start the next innings"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setView("scorecard")}
+                className="font-medium max-sm:min-h-11"
+              >
+                Scorecard
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Choose the bowler: the opening one, or after an over */}
-      {isOverComplete && (
+      {isOverComplete && !atInningsBreak && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/40 bg-primary/10 p-3 text-primary dark:bg-primary/20 sm:p-4">
           <div className="space-y-0.5">
             <p className="flex items-center gap-1.5 text-xs font-bold sm:text-sm">
@@ -2282,7 +2472,8 @@ function ConsoleBanners({ s }: { s: LoadedScreen }) {
       {/* Choose the batters: the openers, or after a wicket */}
       {match.status === "live" &&
         (!strikerId || !nonStrikerId) &&
-        !isInningsComplete && (
+        !isInningsComplete &&
+        !atInningsBreak && (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-warning/40 bg-warning/10 p-3 text-warning dark:bg-warning/20 sm:p-4">
             <div className="space-y-0.5">
               <p className="flex items-center gap-1.5 text-xs font-bold sm:text-sm">
@@ -2324,7 +2515,6 @@ function Console({ s }: { s: LoadedScreen }) {
     bowlerDisplay,
     battingTeamPlayers,
     strikerDisplay,
-    matchId,
     onScore,
     openWicketDialog,
     handleUndo,
@@ -2349,7 +2539,7 @@ function Console({ s }: { s: LoadedScreen }) {
     awaitingServer,
     isInningsComplete,
     isChase,
-    setShowEarlierBalls,
+    setShowFixMistake,
   } = s;
   // Waiting for the server's answer (a ball that ends the innings, a
   // correction): say why the keypad does not respond.
@@ -2490,12 +2680,14 @@ function Console({ s }: { s: LoadedScreen }) {
                 Scoring keypad locked · Live feed updates automatically
               </span>
             </div>
-            <Link
-              href={`/matches/${matchId}`}
+            {/* The Scorecard view, in place: nothing to leave the screen for. */}
+            <button
+              type="button"
+              onClick={() => s.setView("scorecard")}
               className="shrink-0 text-sm font-medium text-muted-foreground hover:text-foreground"
             >
-              Full scorecard
-            </Link>
+              Scorecard
+            </button>
           </div>
         </div>
       ) : (
@@ -2523,7 +2715,7 @@ function Console({ s }: { s: LoadedScreen }) {
             }
           }}
           onEditBalls={
-            match.status === "live" ? () => setShowEarlierBalls(true) : undefined
+            match.status === "live" ? () => setShowFixMistake(true) : undefined
           }
           waitingNote={waitingNote}
           freeHitsOn={freeHitsOn(match)}
@@ -2539,7 +2731,7 @@ function Console({ s }: { s: LoadedScreen }) {
           }
           undoNotice={undoNotice}
           onRedo={() => void handleRedo()}
-          keyboardSuppressed={scoringKeyboardSuppressed}
+          keyboardSuppressed={scoringKeyboardSuppressed || s.view !== "score"}
           sunlightMode={sunlightMode}
           wagonWheelPrompt={wagonWheelPrompt}
           shortcutsOpen={showShortcuts}
@@ -2781,6 +2973,117 @@ function ScoringClubDialog({
 }
 
 /** Every dialog of the scoring screen. */
+/**
+ * Both sides with their squads, and the match's innings in order (named
+ * "1st innings · Omkar 11"): for Fix a mistake and the Scorecard and Balls
+ * views.
+ */
+function matchSidesOf(s: LoadedScreen): {
+  sides: ScoringSide[];
+  innings: FixInnings[];
+} {
+  const { battingTeam, bowlingTeam, battingTeamPlayers, bowlingTeamPlayers, match } = s;
+  const sides = [
+    battingTeam && {
+      id: battingTeam.id,
+      name: battingTeam.name,
+      players: battingTeamPlayers,
+    },
+    bowlingTeam && {
+      id: bowlingTeam.id,
+      name: bowlingTeam.name,
+      players: bowlingTeamPlayers,
+    },
+  ].filter((t): t is NonNullable<typeof t> => Boolean(t));
+  const teamName = (id: string | null | undefined) =>
+    sides.find((t) => t.id === id)?.name ?? "";
+  const innings = [...(match.innings ?? [])]
+    .sort((a, b) => a.innings_number - b.innings_number)
+    .map((i) => ({
+      id: i.id,
+      number: i.innings_number,
+      teamId: i.team_id,
+      label: `${inningsName(i.innings_number)} · ${teamName(i.team_id)}`,
+    }));
+  return { sides, innings };
+}
+
+/** Scorecard and Balls: the match while scoring, without leaving it. */
+function MatchViews({ s }: { s: LoadedScreen }) {
+  const {
+    match,
+    currentInnings,
+    battingTeam,
+    view,
+    isScorer,
+    isOffline,
+    pendingCount,
+    ballLogKey,
+    fetchBallLog,
+    setFixStart,
+    setShowFixMistake,
+  } = s;
+  const { sides, innings } = matchSidesOf(s);
+  const shown =
+    currentInnings ??
+    [...(match.innings ?? [])].sort((a, b) => b.innings_number - a.innings_number)[0];
+  const side =
+    shown?.team_id === match.team2_id ? match.team2 : match.team1;
+  const scoreLine = (
+    <ScoringScoreLine
+      match={match}
+      innings={shown}
+      battingName={
+        (shown?.team_id === battingTeam?.id ? battingTeam?.short_name : null) ||
+        side?.short_name ||
+        side?.name ||
+        "Batting"
+      }
+    />
+  );
+  const fix = (start: FixStart) => {
+    setFixStart(start);
+    setShowFixMistake(true);
+  };
+  const page =
+    "container mx-auto w-full max-w-3xl space-y-3 px-2 pb-[max(1rem,env(safe-area-inset-bottom))] pt-1.5 sm:px-4 sm:py-6";
+  return (
+    <>
+      <TabsContent value="scorecard" className="mt-0">
+        <div className={page}>
+          {scoreLine}
+          {view === "scorecard" && <ScoringScorecard match={match} sides={sides} />}
+        </div>
+      </TabsContent>
+      <TabsContent value="balls" className="mt-0">
+        <div className={page}>
+          {scoreLine}
+          <ScoringBalls
+            active={view === "balls"}
+            ballLogKey={ballLogKey}
+            fetchBallLog={fetchBallLog}
+            offline={isOffline}
+            innings={innings}
+            defaultInningsId={currentInnings?.id ?? innings.at(-1)?.id ?? null}
+            sides={sides}
+            unsaved={pendingCount}
+            onBall={
+              isScorer
+                ? (inningsId, ballId) => fix({ inningsId, ballId, mode: "ball" })
+                : undefined
+            }
+            onBowler={
+              isScorer
+                ? (inningsId, over) => fix({ inningsId, over, mode: "bowler" })
+                : undefined
+            }
+          />
+        </div>
+      </TabsContent>
+    </>
+  );
+}
+
 function ScoringDialogs({ s }: { s: LoadedScreen }) {
   const {
     showTossDialog,
@@ -2871,8 +3174,16 @@ function ScoringDialogs({ s }: { s: LoadedScreen }) {
     wicketRunsKind,
     setWicketRunsKind,
     handleCorrectBall,
-    showEarlierBalls,
-    setShowEarlierBalls,
+    showFixMistake,
+    setShowFixMistake,
+    fixStart,
+    setFixStart,
+    editingBattingTeamId,
+    setEditingBattingTeamId,
+    editingLog,
+    setEditingLog,
+    handleSwapBatters,
+    handleCorrectOverBowler,
     loadBallLog,
     pendingCount,
     showUnsaved,
@@ -2891,6 +3202,12 @@ function ScoringDialogs({ s }: { s: LoadedScreen }) {
     showClubDialog,
     setShowClubDialog,
   } = s;
+  const { sides: fixTeams, innings: fixInnings } = matchSidesOf(s);
+  // Edit ball on a ball of the other side's innings: its sides swap.
+  const editingInOtherInnings =
+    editingBattingTeamId !== null &&
+    Boolean(battingTeam) &&
+    editingBattingTeamId !== battingTeam?.id;
   return (
     <>
       <ScoringClubDialog
@@ -3100,25 +3417,98 @@ function ScoringDialogs({ s }: { s: LoadedScreen }) {
 
       <EditBallDialog
         open={showEditBallDialog}
-        onOpenChange={setShowEditBallDialog}
+        onOpenChange={(next) => {
+          setShowEditBallDialog(next);
+          if (!next) {
+            setEditingBattingTeamId(null);
+            setEditingLog(null);
+          }
+        }}
         delivery={editingDelivery}
-        battingTeamPlayers={battingTeamPlayers}
-        bowlingTeamPlayers={bowlingTeamPlayers}
+        battingTeamPlayers={
+          editingInOtherInnings ? bowlingTeamPlayers : battingTeamPlayers
+        }
+        bowlingTeamPlayers={
+          editingInOtherInnings ? battingTeamPlayers : bowlingTeamPlayers
+        }
         onSave={handleCorrectBall}
+        preview={{
+          log: editingLog,
+          load: editingLog ? undefined : loadBallLog,
+          rules: match,
+          teamId: editingBattingTeamId ?? battingTeam?.id ?? null,
+          finished: match.status === "completed",
+          nameOf: (id) =>
+            fixTeams
+              .flatMap((t) => t.players)
+              .find((p) => p.user_id === id)?.user?.full_name ??
+            "Unknown player",
+        }}
+        onWrongBatterOut={
+          isScorer && editingDelivery
+            ? () => {
+                const ball = editingDelivery as DeliveryToEdit & {
+                  innings_id?: string | null;
+                };
+                const inningsId = ball.innings_id ?? currentInnings?.id;
+                if (!inningsId) return;
+                setShowEditBallDialog(false);
+                setEditingBattingTeamId(null);
+                setFixStart({
+                  inningsId,
+                  ballId: ball.id,
+                  mode: "wrong_batter_out",
+                });
+                setShowFixMistake(true);
+              }
+            : undefined
+        }
+        onEndsWrongFrom={
+          isScorer && editingDelivery
+            ? (nextBallId) => {
+                const ball = editingDelivery as DeliveryToEdit & {
+                  innings_id?: string | null;
+                };
+                const inningsId = ball.innings_id ?? currentInnings?.id;
+                if (!inningsId) return;
+                setEditingBattingTeamId(null);
+                setFixStart({ inningsId, ballId: nextBallId, mode: "ends" });
+                setShowFixMistake(true);
+              }
+            : undefined
+        }
         isProcessing={isProcessing}
       />
 
-      <EarlierBallsDialog
-        open={showEarlierBalls}
-        onOpenChange={setShowEarlierBalls}
-        inningsId={currentInnings?.id ?? null}
+      <FixMistakeDialog
+        open={showFixMistake}
+        onOpenChange={(next) => {
+          setShowFixMistake(next);
+          if (!next) setFixStart(null);
+        }}
+        innings={fixInnings}
+        defaultInningsId={currentInnings?.id ?? fixInnings.at(-1)?.id ?? null}
+        teams={fixTeams}
+        rules={match}
         loadBalls={loadBallLog}
+        start={fixStart}
         offline={isOffline}
         unsaved={pendingCount}
-        onPick={(ball) => {
-          setShowEarlierBalls(false);
+        onEditBall={(ball, battingTeamId, log) => {
+          setShowFixMistake(false);
+          setFixStart(null);
+          setEditingBattingTeamId(battingTeamId);
+          setEditingLog(log);
           setEditingDelivery(ball);
           setShowEditBallDialog(true);
+        }}
+        onSwapBatters={async (payload) => {
+          const res = await handleSwapBatters(payload);
+          return { error: res.error };
+        }}
+        onCorrectOverBowler={async (payload) => {
+          const res = await handleCorrectOverBowler(payload);
+          return { error: res.error };
         }}
       />
 
@@ -3160,7 +3550,9 @@ function ScoringDialogs({ s }: { s: LoadedScreen }) {
         onOpenChange={setShowPotmDialog}
         matchId={matchId}
         currentPotmId={match?.player_of_the_match_id}
-        match={match}
+        // Named as the Scorecard view has it: a catch credits its fielder
+        // by name, as the match page's ranking does.
+        match={scorecardMatchOf(match, fixTeams)}
         players={[
           ...(battingTeamPlayers || []).map((p) => ({
             id: p.user_id,
@@ -3286,12 +3678,17 @@ export default function ScoringPage() {
   const screen: LoadedScreen = { ...s, match };
 
   return (
-    <div
+    <Tabs
+      // Swiping never switches: the keypad is tapped all match.
+      swipeable={false}
+      value={s.view}
+      onValueChange={(v) => s.setView(scoringViewFrom(v))}
       data-sunlight={sunlightMode ? "true" : "false"}
       className={cn(
-        // Phones: exactly the visible height (browser bars included), so
-        // the keypad takes what is left and Wicket / Undo stay on screen.
-        "min-h-screen w-full max-w-full overflow-x-hidden bg-background max-sm:flex max-sm:h-dvh max-sm:min-h-0 max-sm:flex-col",
+        // Exactly the visible height (browser bars included): the top bar
+        // stays and the view scrolls under it; on phones the keypad takes
+        // what is left, so Wicket / Undo stay on screen.
+        "flex h-dvh w-full max-w-full flex-col overflow-x-hidden bg-background",
         sunlightMode && "sunlight-mode",
       )}
     >
@@ -3302,35 +3699,58 @@ export default function ScoringPage() {
         Skip to scoring console
       </a>
 
-      <ScoringHeader s={screen} />
+      <ScoringBar s={screen} />
 
-      <SyncBanner s={screen} />
+      {/* Positioned, like the views below: drawn over the wash that fades
+          out under the top bar. */}
+      <div className="relative shrink-0">
+        <SyncBanner s={screen} />
+      </div>
 
+      {/* Positioned, so the views draw over the wash under the top bar. */}
       <main
         id="main-scoring-content"
         tabIndex={-1}
-        className="container mx-auto grid w-full min-w-0 max-w-6xl gap-2 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-1.5 focus:outline-none max-sm:flex max-sm:min-h-0 max-sm:flex-1 max-sm:flex-col max-sm:overflow-y-auto sm:gap-6 sm:px-4 sm:py-6 lg:grid-cols-3"
+        className="relative flex min-h-0 flex-1 flex-col overflow-y-auto focus:outline-none"
       >
-        {/* Phones: fills the height left under the header; it scrolls only
-            when a banner (choose the bowler, the innings is over) needs
-            the room, never between balls. */}
-        <div className="flex w-full min-w-0 flex-col gap-1.5 max-sm:flex-1 sm:gap-4 lg:col-span-2">
-          <MatchNotices s={screen} />
+        {/* Kept mounted on the other views, so the keypad comes back as it
+            was (an armed extra stays armed); hidden, and its keys off. */}
+        <TabsContent
+          value="score"
+          forceMount
+          className="mt-0 flex-1 data-[state=inactive]:!hidden max-sm:flex max-sm:flex-col"
+        >
+          {/* Phones: fills the height left under the top bar; it scrolls
+              only when a banner (choose the bowler, the innings is over)
+              needs the room, never between balls. */}
+          <div className="container mx-auto grid w-full min-w-0 max-w-6xl content-start gap-2 px-2 pb-[max(0.25rem,env(safe-area-inset-bottom))] pt-1 max-sm:flex max-sm:flex-1 max-sm:flex-col sm:gap-6 sm:px-4 sm:py-6 lg:grid-cols-3">
+            <div className="flex w-full min-w-0 flex-col gap-1 max-sm:flex-1 sm:gap-4 lg:col-span-2">
+              {match.status !== "live" && (
+                <div className="flex flex-wrap items-center justify-end gap-1.5 empty:hidden">
+                  <ScoringStatus s={screen} />
+                </div>
+              )}
 
-          <Scoreboard s={screen} />
+              <MatchNotices s={screen} />
 
-          <ConsoleBanners s={screen} />
+              <Scoreboard s={screen} />
 
-          <Console s={screen} />
+              <ConsoleBanners s={screen} />
 
-          <TieActions s={screen} />
-        </div>
+              <Console s={screen} />
 
-        <div className="hidden space-y-4 lg:block">
-          <BenchCard s={screen} />
+              <TieActions s={screen} />
+            </div>
 
-          <BowlingAttackCard s={screen} />
-        </div>
+            <div className="hidden space-y-4 lg:block">
+              <BenchCard s={screen} />
+
+              <BowlingAttackCard s={screen} />
+            </div>
+          </div>
+        </TabsContent>
+
+        <MatchViews s={screen} />
       </main>
 
       <PlayerSearchContext.Provider value={s.findPlayers}>
@@ -3338,6 +3758,6 @@ export default function ScoringPage() {
           <ScoringDialogs s={screen} />
         </PlayerDescribeContext.Provider>
       </PlayerSearchContext.Provider>
-    </div>
+    </Tabs>
   );
 }

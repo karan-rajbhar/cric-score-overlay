@@ -18,6 +18,8 @@ import { cache } from "react";
 import type { Metadata } from "next";
 import { createServerClient } from "~/lib/firebase/server";
 import { cachedBriefly, cachedForMetadata } from "~/lib/metadata-cache";
+import { requestOrigin } from "~/lib/match-share-server";
+import { linkPreview } from "~/lib/link-preview";
 import type { PlayerMatchesRow } from "~/lib/firebase/types";
 import {
   attachMatchTeams,
@@ -94,11 +96,20 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
-  const name = await cachedForMetadata(
-    `player:${id}`,
-    async () => (await loadPlayer(id))?.user.full_name,
-  );
-  return { title: name ?? "Player" };
+  const meta = await cachedForMetadata(`player-meta:${id}`, async () => {
+    const user = (await loadPlayer(id))?.user;
+    return user
+      ? { name: user.full_name as string, username: user.username ?? null }
+      : null;
+  });
+  if (!meta) return { title: "Player" };
+  // A shared link previews as a card (`./og`, its figures), read only by
+  // the app that shows the preview.
+  const url = `${await requestOrigin()}/players/${id}`;
+  const description = `${meta.name}${
+    meta.username ? ` (@${meta.username})` : ""
+  } on CricScore: batting, bowling and fielding figures, and every match they played.`;
+  return linkPreview({ title: meta.name, description, url });
 }
 
 export default async function PlayerPage({
@@ -455,20 +466,8 @@ export default async function PlayerPage({
                 runs: totalRuns,
                 wickets: totalWickets,
                 catches: stats?.total_catches ?? 0,
-                // Matches are in the tiles above (P4).
-                batting: [
-                  ["Runs", totalRuns],
-                  ["Average", stats?.batting_average ?? "–"],
-                  ["Strike rate", stats?.strike_rate ?? "–"],
-                  ["50s", stats?.half_centuries ?? 0],
-                  ["100s", stats?.centuries ?? 0],
-                ],
-                bowling: [
-                  ["Wickets", totalWickets],
-                  ["Average", stats?.bowling_average ?? "–"],
-                  ["Economy", stats?.economy_rate ?? "–"],
-                  ["5 wickets", stats?.five_wicket_hauls ?? 0],
-                ],
+                // Batting and bowling come from the records (the same as a
+                // season's); fielding from the career stats.
                 fielding: [
                   ["Catches", stats?.total_catches ?? 0],
                   ["Stumpings", stats?.total_stumpings ?? 0],

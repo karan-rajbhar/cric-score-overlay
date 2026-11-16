@@ -185,6 +185,13 @@ export function calculatePoints(
 }
 
 /**
+ * The rule above and the order below in words, shown under the points
+ * table: keep it in step with `calculatePoints` and `sortStandings`.
+ */
+export const POINTS_RULE_NOTE =
+  "A win is worth 2 points, a tie or no result 1. Teams level on points are split by net run rate.";
+
+/**
  * Sorts tournament standings according to standard league rules:
  * 1. Points (Descending)
  * 2. Net Run Rate (Descending)

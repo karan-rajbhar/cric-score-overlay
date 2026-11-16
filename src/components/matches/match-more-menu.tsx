@@ -7,8 +7,10 @@ import {
   CalendarClock,
   CloudRain,
   FileJson,
+  MessageCircle,
   MoreHorizontal,
   Trash2,
+  Wrench,
   Shield,
   Tv,
   UserCog,
@@ -27,6 +29,7 @@ import type { Match } from "~/lib/match-types";
 import { DeleteMatchDialog } from "./delete-match-dialog";
 import { MatchClubDialog } from "./match-club-dialog";
 import { RescheduleMatchDialog } from "./reschedule-match-dialog";
+import { ReportMistakeDialog } from "./report-mistake-dialog";
 
 const DlsCalculatorModal = dynamic(
   () => import("./dls-calculator-modal").then((m) => m.DlsCalculatorModal),
@@ -113,6 +116,7 @@ export function MatchMoreMenu({
   const canReschedule = canDelete === true && match.status === "scheduled";
   const [showDls, setShowDls] = useState(false);
   const [showScorers, setShowScorers] = useState(false);
+  const [showReport, setShowReport] = useState(false);
   const dls =
     dlsMatch &&
     dlsMatch.status === "live" &&
@@ -126,8 +130,12 @@ export function MatchMoreMenu({
   );
   const canStream = !ended || isAdmin === true || canProduce === true;
   const canDownload = dlsMatch?.status === "completed";
+  // A finished scorecard can be wrong: its scorers fix it (Balls → a
+  // ball), anyone else is told whom to ask.
+  const finished = match.status === "completed";
   // Scorers can always stream, so they always have something here.
-  const hasItems = canStream || canSetClub || canDownload || canDelete;
+  const hasItems =
+    canStream || canSetClub || canDownload || canDelete || finished;
   if (!hasItems) return null;
 
   return (
@@ -161,6 +169,22 @@ export function MatchMoreMenu({
                   label: "Invite scorers",
                   icon: UserPlus,
                   onSelect: () => setShowScorers(true),
+                },
+              isAdmin === true &&
+                finished && {
+                  key: "fix",
+                  label: "Fix a mistake",
+                  icon: Wrench,
+                  // The scoring screen's Balls: a tap on a ball opens Fix
+                  // a mistake there.
+                  href: `/matches/${match.id}/score?tab=balls`,
+                },
+              isAdmin !== true &&
+                finished && {
+                  key: "report",
+                  label: "Something wrong?",
+                  icon: MessageCircle,
+                  onSelect: () => setShowReport(true),
                 },
               // The team sheet, where any player can be replaced.
               isAdmin === true && {
@@ -210,9 +234,17 @@ export function MatchMoreMenu({
           },
         ]}
       />
+      {showReport && (
+        <ReportMistakeDialog
+          open
+          onOpenChange={setShowReport}
+          match={{ id: match.id, title: match.title }}
+        />
+      )}
       {showScorers && (
         <MatchScorersDialog
           matchId={match.id}
+          match={match}
           isCreator={isCreator}
           open
           onOpenChange={setShowScorers}
