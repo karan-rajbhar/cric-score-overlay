@@ -3,7 +3,8 @@
  * Prevents loss of scoring data during intermittent cellular/hotspot drops at match venues.
  *
  * Supports all scoring actions (recordBall, setBatsmen, setBowler, endInnings, undoLastBall,
- * startSuperOver, retireBatter, awardPenalty, reassignOverBowler, updateBall) and ensures
+ * startSuperOver, retireBatter, awardPenalty, reassignOverBowler, updateBall, swapBatters,
+ * correctOverBowler) and ensures
  * strict sequential replay on reconnect to preserve cricket delivery order.
  *
  * The queue replays through `POST /api/scoring/replay` (a stable, versioned route; see
@@ -60,7 +61,9 @@ export type QueuedActionType =
   | "awardPenalty"
   | "reassignOverBowler"
   | "replaceBatter"
-  | "updateBall";
+  | "updateBall"
+  | "swapBatters"
+  | "correctOverBowler";
 
 export interface QueuedActionBase {
   queueId: string;
@@ -173,11 +176,40 @@ export interface UpdateBallPayload {
   noBallRuns?: BallEvent["noBallRuns"];
   batsmanId?: string | null;
   bowlerId?: string | null;
+  /** A wicket added after the batter batted on: who came in. */
+  laterBatterId?: string | null;
 }
 
 export interface QueuedUpdateBall extends QueuedActionBase {
   type: "updateBall";
   payload: UpdateBallPayload;
+}
+
+/**
+ * The batters were at the wrong ends from one ball to another (null: the
+ * end of the innings): they change places on every ball between.
+ */
+export interface SwapBattersPayload {
+  inningsId: string;
+  fromBallId: string;
+  toBallId: string | null;
+}
+
+export interface QueuedSwapBatters extends QueuedActionBase {
+  type: "swapBatters";
+  payload: SwapBattersPayload;
+}
+
+/** Someone else bowled a whole over (0-based `overNumber`). */
+export interface CorrectOverBowlerPayload {
+  inningsId: string;
+  overNumber: number;
+  bowlerId: string;
+}
+
+export interface QueuedCorrectOverBowler extends QueuedActionBase {
+  type: "correctOverBowler";
+  payload: CorrectOverBowlerPayload;
 }
 
 export type QueuedAction =
@@ -191,7 +223,9 @@ export type QueuedAction =
   | QueuedAwardPenalty
   | QueuedReassignOverBowler
   | QueuedReplaceBatter
-  | QueuedUpdateBall;
+  | QueuedUpdateBall
+  | QueuedSwapBatters
+  | QueuedCorrectOverBowler;
 
 // ---------------------------------------------------------------------------
 // Storage helpers

@@ -50,9 +50,11 @@ export function BallChip({
     >
       <span aria-hidden="true">{label}</span>
       <span className="sr-only">
-        {kind === "run" || kind === "extra" || (kind === "wicket" && label !== "W")
-          ? `${label} ${SPOKEN[kind]}`
-          : SPOKEN[kind]}
+        {kind === "run" && label === "1"
+          ? "1 run"
+          : kind === "run" || kind === "extra" || (kind === "wicket" && label !== "W")
+            ? `${label} ${SPOKEN[kind]}`
+            : SPOKEN[kind]}
       </span>
     </span>
   );

@@ -22,6 +22,7 @@ import {
   displayStatusOf,
   formatBowlerOvers,
   formatDecimalOvers,
+  formatFowOvers,
   inningsBalls,
   isWicketFall,
   oversFromBalls,
@@ -36,6 +37,7 @@ import {
   namedFormat,
   rankPlayersByImpact,
   type PlayerImpactScore,
+  tossSentence,
 } from "./cricket";
 
 // ---------------------------------------------------------------------------
@@ -752,7 +754,7 @@ const teamRef = (t: Match["team1"]): ReportTeam => ({
 const tagOf = (t: Match["team1"]) =>
   t.short_name ?? t.name.slice(0, 3).toUpperCase();
 
-function reportBatters(inn: InningsRow): ReportBatter[] {
+function reportBatters(inn: InningsRow, ballsPerOver = 6): ReportBatter[] {
   // The order they came in, as on a scorecard.
   return (inn.batting_performances ?? [])
     .filter(hasBatted)
@@ -768,6 +770,7 @@ function reportBatters(inn: InningsRow): ReportBatter[] {
               (f) => f.batsman_out_id === b.user_id,
             ),
             b.dismissal_type,
+            ballsPerOver,
           )
         : null,
       notOut: !b.is_out && b.dismissal_type !== "retired_hurt",
@@ -823,13 +826,16 @@ function didNotBatOf(
     .filter((n): n is string => Boolean(n));
 }
 
-function fallOfWicketsOf(inn: InningsRow): ReportInnings["fallOfWickets"] {
+function fallOfWicketsOf(
+  inn: InningsRow,
+  ballsPerOver = 6,
+): ReportInnings["fallOfWickets"] {
   return [...(inn.fall_of_wickets ?? [])]
     .sort((a, b) => a.wicket_number - b.wicket_number)
     .map((f) => ({
       score: `${f.wicket_number}-${f.runs_at_fall}`,
       name: f.batsman?.full_name ?? "Batter",
-      over: formatDecimalOvers(f.overs_at_fall),
+      over: formatFowOvers(f.overs_at_fall, ballsPerOver),
     }));
 }
 
@@ -868,7 +874,7 @@ function reportInnings(
   inn: InningsRow,
   heading: string,
   team: Match["team1"] | Match["team2"],
-  rules: FacedRules = {},
+  rules: FacedRules & { balls_per_over?: number | null } = {},
 ): ReportInnings {
   const balls = inningsBalls(inn);
   return {
@@ -882,11 +888,11 @@ function reportInnings(
     target:
       inn.target_runs && inn.innings_number % 2 === 0 ? inn.target_runs : null,
     inProgress: !inn.is_completed,
-    batters: reportBatters(inn),
+    batters: reportBatters(inn, rules.balls_per_over ?? 6),
     extras: extrasOf(inn),
     boundaries: boundariesOf(inn),
     didNotBat: didNotBatOf(inn, team),
-    fallOfWickets: fallOfWicketsOf(inn),
+    fallOfWickets: fallOfWicketsOf(inn, rules.balls_per_over ?? 6),
     partnerships: getInningsPartnerships(inn, rules),
     bowlers: reportBowlers(inn),
   };
@@ -1000,7 +1006,10 @@ function oversOf(match: Match): MatchReportModel["overs"] {
 
 function infoOf(match: Match, date: string | null): MatchReportModel["info"] {
   const toss = match.toss_winner_team_id
-    ? `${match.toss_winner_team_id === match.team2.id ? match.team2.name : match.team1.name} won the toss and chose to ${match.toss_decision === "bowl" ? "bowl" : "bat"}`
+    ? tossSentence(
+        match.toss_winner_team_id === match.team2.id ? match.team2.name : match.team1.name,
+        match.toss_decision,
+      )
     : null;
   const umpires = [
     match.umpire1_name,

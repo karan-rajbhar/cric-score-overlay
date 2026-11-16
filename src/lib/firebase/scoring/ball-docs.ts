@@ -57,6 +57,51 @@ export function fielderOf(
   return fieldingCreditOf(dismissalType) ? (fielderId ?? null) : null;
 }
 
+/** What Edit ball sets on a ball (`update_ball`'s arguments). */
+export interface BallEdit {
+  runsScored?: number | null;
+  extras?: number | null;
+  extraType?: string | null;
+  isWicket?: boolean | null;
+  dismissalType?: string | null;
+  fielderId?: string | null;
+  dismissedPlayerId?: string | null;
+  /** Another striker / bowler (absent: as recorded). */
+  batsmanId?: string | null;
+  bowlerId?: string | null;
+  /** On a no-ball: byes / leg byes (checked by `noBallRunsOf`). */
+  noBallRuns?: string | null;
+}
+
+/**
+ * The entry Edit ball stores: `found` with `edit` applied, exactly as
+ * `update_ball` writes it. The screen's preview of an edit uses it too, so
+ * the figures it shows are the ones stored.
+ */
+export function editedBall<T extends BallByBallRow>(found: T, edit: BallEdit): T {
+  const ball: T = {
+    ...found,
+    ...(edit.batsmanId ? { batsman_id: edit.batsmanId } : {}),
+    ...(edit.bowlerId ? { bowler_id: edit.bowlerId } : {}),
+  };
+  const isWicket = Boolean(edit.isWicket);
+  const edited: T = {
+    ...ball,
+    runs_scored: edit.runsScored ?? 0,
+    extras: edit.extras ?? 0,
+    extra_type: edit.extraType ?? null,
+    is_wicket: isWicket,
+    dismissal_type: isWicket ? (edit.dismissalType ?? null) : null,
+    fielder_id: isWicket ? fielderOf(edit.dismissalType, edit.fielderId) : null,
+    dismissed_player_id: isWicket
+      ? (edit.dismissedPlayerId ?? ball.batsman_id ?? null)
+      : null,
+  };
+  if (edit.noBallRuns) edited.no_ball_runs = edit.noBallRuns as T["no_ball_runs"];
+  else delete edited.no_ball_runs;
+  return edited;
+}
+
 export const EXTRA_TYPES = new Set([
   "wide",
   "no_ball",

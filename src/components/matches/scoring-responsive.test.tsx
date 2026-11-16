@@ -4,7 +4,7 @@ import { ScoringPanel } from "./scoring-panel";
 import { LiveMatchHUD } from "./live-match-hud";
 import type { Match, Innings } from "~/lib/match-types";
 
-/** A run key by its figure, armed extra or not ("4, Four", "1, 2 Wd", "2 runs"); not an over chip ("4, ball 3: ..."). */
+/** A run key by its figure, armed extra or not ("4, Four", "1, wd+1", "2 runs"); not an over chip ("4, ball 3: ..."). */
 const runKey = (n: number) =>
   screen.getByRole("button", { name: new RegExp(`^${n}(?: runs?$|, (?!ball))`) });
 
@@ -119,7 +119,7 @@ describe("Scoring Page UI & Responsive Inspection (Mobile & Desktop)", () => {
 
       // Scoreboard strip shows score & overs
       expect(screen.getByText("148/4")).toBeInTheDocument();
-      expect(screen.getByText(/15.4 ov/i)).toBeInTheDocument();
+      expect(screen.getByText("15.4 of 20 ov")).toBeInTheDocument();
 
       // Chase equation title
       expect(screen.getByTestId("chase-equation-title")).toHaveTextContent(
@@ -256,7 +256,7 @@ describe("Scoring Page UI & Responsive Inspection (Mobile & Desktop)", () => {
   });
 
   describe("Desktop Screen Inspection (1024px - 1440px)", () => {
-    it("renders full match situation grid with CRR, RRR, Target, and Balls remaining", () => {
+    it("renders the chase in words, each figure once: target, wickets left, rates, balls left", () => {
       window.innerWidth = 1280;
 
       render(
@@ -272,11 +272,12 @@ describe("Scoring Page UI & Responsive Inspection (Mobile & Desktop)", () => {
         </div>,
       );
 
-      expect(screen.getByText("Target")).toBeInTheDocument();
-      expect(screen.getByText("Req RR")).toBeInTheDocument();
-      expect(screen.getByText("Curr RR")).toBeInTheDocument();
-      expect(screen.getByText("Remain")).toBeInTheDocument();
-      expect(screen.getByText("26b")).toBeInTheDocument();
+      expect(screen.getByText(/^Target/)).toHaveTextContent(
+        /Target \d+ · \d+ wickets? left · needs [\d.]+ an over · run rate [\d.]+/,
+      );
+      expect(screen.getByText("26 balls left")).toBeInTheDocument();
+      expect(screen.getByText(/an over (ahead|behind)$/)).toBeInTheDocument();
+      expect(screen.queryByText(/Req RR|Curr RR|Remain|RPO/)).toBeNull();
     });
 
     it("supports keyboard-driven fast scoring", () => {

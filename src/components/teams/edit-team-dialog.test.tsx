@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { updateTeam } from "~/app/teams/actions";
+import { setTeamClub } from "~/app/clubs/club-teams";
 import { EditTeamDialog } from "./edit-team-dialog";
 
 const refresh = vi.fn();
@@ -11,6 +12,7 @@ vi.mock("~/app/teams/actions", () => ({
   removeTeamLogo: vi.fn(),
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("~/app/clubs/club-teams", () => ({ setTeamClub: vi.fn() }));
 
 const team = {
   id: "t1",
@@ -114,5 +116,22 @@ describe("EditTeamDialog", () => {
         { timeout: 3000 },
       ),
     ).toBeInTheDocument();
+  });
+});
+
+describe("EditTeamDialog and the club", () => {
+  it("takes the team out of its club after asking", async () => {
+    vi.mocked(setTeamClub).mockResolvedValue({ error: null });
+    render(<EditTeamDialog team={{ ...team, club: { id: "c1", name: "Unity CC" } }} />);
+    fireEvent.click(screen.getByRole("button", { name: "Edit team" }));
+    expect(screen.getByText(/Plays for/)).toHaveTextContent("Plays for Unity CC");
+    fireEvent.click(screen.getByRole("button", { name: "Take out of the club" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Take out" }));
+    await waitFor(() => expect(setTeamClub).toHaveBeenCalledWith("t1", null));
+  });
+
+  it("offers nothing for a team in no club", () => {
+    const dialog = open();
+    expect(within(dialog).queryByRole("button", { name: "Take out of the club" })).toBeNull();
   });
 });

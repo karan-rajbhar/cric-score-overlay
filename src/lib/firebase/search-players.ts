@@ -66,7 +66,9 @@ export async function searchPlayers(
     query,
     PLAYER_FIELDS,
     PLAYER_SEARCH_LIMIT,
-    { everyMatch: true },
+    // A spelling variant of someone already there is listed too: adding
+    // them again would split their records.
+    { everyMatch: true, soundAlikes: true },
   );
   if (error) return { data: null, error };
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Card, CardContent } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -71,6 +71,45 @@ export interface LiveMatchHUDProps {
   onChangeNonStriker?: () => void;
   onChangeBowler?: () => void;
   sunlightMode?: boolean;
+  /**
+   * Phones name the batting side (and a super over) on the line under the
+   * score, for a screen whose top bar no longer says it. No line of its
+   * own: the scoring column must fit a 360 by 640 phone.
+   */
+  sideOnPhones?: boolean;
+  /**
+   * The score card alone, without the crease and bowler cards: between
+   * innings, when nobody is in yet (the break card says what comes next).
+   */
+  scoreOnly?: boolean;
+  /** Save status and the like, at the top right of the card. */
+  status?: ReactNode;
+}
+
+/**
+ * The current stand of the innings for the pair at the crease (either
+ * order), from the engine's partnerships; 0 off 0 when that pair has no
+ * stand yet.
+ */
+export function currentStandOf(
+  innings: Pick<Innings, "partnerships"> | null | undefined,
+  strikerId: string | null | undefined,
+  nonStrikerId: string | null | undefined,
+): { runs: number; balls: number } {
+  const stand = [...(innings?.partnerships ?? [])]
+    .reverse()
+    .find((p) => p.is_current);
+  const pair = new Set([strikerId, nonStrikerId]);
+  if (
+    !stand ||
+    !strikerId ||
+    !nonStrikerId ||
+    !pair.has(stand.batsman1_id) ||
+    !pair.has(stand.batsman2_id)
+  ) {
+    return { runs: 0, balls: 0 };
+  }
+  return { runs: stand.runs ?? 0, balls: stand.balls ?? 0 };
 }
 
 /**
@@ -96,6 +135,9 @@ export function LiveMatchHUD({
   onChangeNonStriker,
   onChangeBowler,
   sunlightMode = false,
+  sideOnPhones = false,
+  scoreOnly = false,
+  status,
 }: LiveMatchHUDProps) {
   const inningsNumber = match.current_innings ?? 1;
   // Super overs (innings 3 on) are one over and two wickets a side.
@@ -156,21 +198,14 @@ export function LiveMatchHUD({
     ? null
     : Math.round(currentRuns + (ballsRem / bpo) * 10);
 
-  const partnership = useMemo(() => {
-    if (!currentInnings) return { runs: 0, balls: 0 };
-    const fows = [...(currentInnings.fall_of_wickets ?? [])].sort(
-      (a, b) => (a.wicket_number ?? 0) - (b.wicket_number ?? 0),
-    );
-    const lastFow = fows.length > 0 ? fows[fows.length - 1] : null;
-    return {
-      runs: Math.max(0, currentRuns - (lastFow?.runs_at_fall ?? 0)),
-      balls: Math.max(
-        0,
-        ballsBowled -
-          (lastFow ? ballsFromOvers(lastFow.overs_at_fall ?? 0, bpo) : 0),
-      ),
-    };
-  }, [currentInnings, currentRuns, ballsBowled, bpo]);
+  // The stand at the crease, as the engine keeps it (the innings' current
+  // partnership, worked out from the ball log): a retirement starts a new
+  // stand too, and its balls are the balls the pair faced. A pair yet to
+  // face a ball together has 0 off 0.
+  const partnership = useMemo(
+    () => currentStandOf(currentInnings, striker?.id, nonStriker?.id),
+    [currentInnings, striker?.id, nonStriker?.id],
+  );
 
   // The same quota the bowler picker shows (none under five overs).
   const maxBowlerOvers = superOver ? 1 : bowlerQuota(match.overs_per_innings);
@@ -192,8 +227,10 @@ export function LiveMatchHUD({
     [rawDeliveries, match.current_over],
   );
 
+  // Ahead or behind the rate needed: only once the chase has a rate (before
+  // its first ball, a run rate of 0 read as behind).
   const rateDiff = useMemo(() => {
-    if (rrr == null) return null;
+    if (rrr == null || ballsBowled === 0) return null;
     const crrNum = parseFloat(crr);
     const rrrNum = parseFloat(rrr);
     if (isNaN(crrNum) || isNaN(rrrNum)) return null;
@@ -201,7 +238,7 @@ export function LiveMatchHUD({
       ahead: crrNum >= rrrNum,
       diff: Math.abs(crrNum - rrrNum).toFixed(2),
     };
-  }, [crr, rrr]);
+  }, [crr, rrr, ballsBowled]);
   const isAheadOfRate = rateDiff?.ahead ?? false;
 
   // Ending an innings early can't be undone from the keypad, so it goes
@@ -247,11 +284,34 @@ export function LiveMatchHUD({
       )}
     </>
   );
-  const dim = sunlightMode ? "text-black/70" : "text-white/70";
-  const bright = sunlightMode ? "text-black" : "text-white";
+  // Quiet text on the board (its own token, not a white at some opacity).
+  const muted = sunlightMode ? "text-black/70" : "text-board-muted";
+  const inningsLabel = superOver
+    ? `Super over · ${isSecondInnings ? "2nd" : "1st"} innings`
+    : `${inningsNumber === 1 ? "1st" : "2nd"} innings · ${matchFormatName(match)}`;
+  // "of 5 ov", "of 12.3 ov" (a revised quota): no ".0".
+  const oversQuota = oversFromBalls(totalInningsBalls, bpo).replace(/\.0$/, "");
+  const aheadText = rateDiff
+    ? `${rateDiff.diff} an over ${rateDiff.ahead ? "ahead" : "behind"}`
+    : "";
+  // Phones (sideOnPhones): the batting side's short name on the line under
+  // the score, and "Super over" in one.
+  const battingSide =
+    currentInnings?.team_id && currentInnings.team_id === match.team2_id
+      ? match.team2
+      : currentInnings?.team_id && currentInnings.team_id === match.team1_id
+        ? match.team1
+        : null;
+  const sideShort =
+    battingSide?.short_name || battingSide?.name || battingTeamName || null;
+  const phoneSide = sideOnPhones
+    ? [superOver ? "Super over" : null, sideShort].filter(Boolean).join(" · ") ||
+      null
+    : null;
+  const bright = sunlightMode ? "text-black" : "text-board-foreground";
 
   return (
-    <div className="space-y-1.5 sm:space-y-3">
+    <div className="space-y-1 sm:space-y-3">
       {/* 1. Match situation */}
       {match.status === "live" && (
         <Card
@@ -260,27 +320,22 @@ export function LiveMatchHUD({
             "overflow-hidden shadow-sm",
             sunlightMode
               ? "border-2 border-black bg-white text-black shadow-none"
-              : isSecondInnings
+              : isSecondInnings && rateDiff
                 ? isAheadOfRate
                   ? "scoreboard border border-board-good/40 bg-board text-board-foreground"
                   : "scoreboard border border-board-warn/40 bg-board text-board-foreground"
                 : "scoreboard border border-board-line bg-board text-board-foreground",
           )}
         >
-          <CardContent className="space-y-1.5 p-2 sm:space-y-3 sm:p-4">
-            <div className="flex items-center justify-between gap-2">
-              <div className="min-w-0">
-                {/* Phones: the scoring header says who bats and which
-                    innings, so the score starts the card. */}
-                <div className="flex items-center gap-2 max-sm:hidden">
-                  <span
-                    className={cn(
-                      "truncate text-xs font-semibold sm:text-sm",
-                      sunlightMode
-                        ? "text-black"
-                        : "text-board-muted",
-                    )}
-                  >
+          <CardContent className="space-y-1 p-2 sm:space-y-2.5 sm:p-4">
+            {/* One wording on every size, each figure once, the board's own
+                colours (docs/scoring-screen-ux.md, the score card). */}
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                {/* Phones: the score starts the card; who bats is on the
+                    line under it (sideOnPhones) or in the screen's header. */}
+                <div className="flex min-w-0 items-center gap-2 max-sm:hidden">
+                  <span className={cn("truncate text-sm font-semibold", muted)}>
                     {battingTeamName ??
                       (match.current_innings === 1
                         ? match.team1?.name
@@ -294,18 +349,16 @@ export function LiveMatchHUD({
                       "sm:h-6 sm:px-2.5 sm:text-xs",
                       sunlightMode
                         ? "border-black text-black"
-                        : "border-white/20 bg-white/5 text-white/80",
+                        : "border-board-line bg-transparent text-board-muted",
                     )}
                   >
-                    {superOver
-                      ? `Super over · ${isSecondInnings ? "2nd" : "1st"} innings`
-                      : `Inns ${inningsNumber} · ${matchFormatName(match)}`}
+                    {inningsLabel}
                   </Badge>
                 </div>
-                <div className="flex items-baseline gap-2 sm:mt-0.5">
+                <p className="flex items-baseline gap-2 sm:mt-0.5">
                   <span
                     className={cn(
-                      "font-score text-3xl font-bold tabular-nums tracking-tight sm:text-5xl",
+                      "font-score text-3xl font-bold leading-none tabular-nums tracking-tight sm:text-5xl",
                       bright,
                     )}
                   >
@@ -313,46 +366,24 @@ export function LiveMatchHUD({
                   </span>
                   <span
                     className={cn(
-                      "text-sm font-bold tabular-nums sm:text-lg",
-                      sunlightMode ? "text-black/70" : "text-white/60",
+                      "font-score text-sm font-semibold tabular-nums sm:text-lg",
+                      muted,
                     )}
                   >
-                    ({oversFromBalls(ballsBowled, bpo)} ov)
+                    {oversFromBalls(ballsBowled, bpo)} of {oversQuota} ov
                   </span>
-                  <span className={cn("text-xs font-semibold sm:hidden", dim)}>
-                    of {oversFromBalls(totalInningsBalls, bpo)}
-                  </span>
-                </div>
-                {/* Phones, first innings: the rate on the score's line
-                    (the block below is for larger screens). */}
-                {!(isSecondInnings && targetRuns != null) && (
-                  <p
-                    className={cn(
-                      "mt-0.5 text-xs font-semibold tabular-nums sm:hidden",
-                      dim,
-                    )}
-                  >
-                    Run rate{" "}
-                    <span
-                      className={
-                        sunlightMode ? "text-black" : "text-board-good"
-                      }
-                    >
-                      {crr}
-                    </span>
-                    {projectedScore != null && (
-                      <> · Projected {projectedScore}</>
-                    )}
-                  </p>
-                )}
+                </p>
               </div>
 
-              {onEndInnings && (
-                <div className="flex shrink-0 items-center gap-1.5">
+              {(status != null || onEndInnings) && (
+                <div className="flex shrink-0 flex-col items-end gap-1.5">
+                  {status != null && (
+                    <div className="flex items-center gap-1.5">{status}</div>
+                  )}
                   {/* Beside the score only near the innings' end (last
                       over, one wicket left); Match tools has it always
                       (S13). */}
-                  {endInningsDue && (
+                  {onEndInnings && endInningsDue && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -362,12 +393,13 @@ export function LiveMatchHUD({
                       "h-8 px-2.5 text-xs font-semibold",
                       sunlightMode
                         ? "border-2 border-black bg-white font-bold text-black hover:bg-neutral-100"
-                        : "border-white/20 bg-white/10 text-white hover:bg-white/20 hover:text-white",
+                        : "border-board-line bg-transparent text-board-foreground hover:bg-board-line hover:text-board-foreground",
                     )}
                   >
                     End innings
                   </Button>
                   )}
+                  {onEndInnings && (
                   <Dialog
                     open={confirmEndOpen}
                     onOpenChange={setConfirmEndOpen}
@@ -410,16 +442,17 @@ export function LiveMatchHUD({
                       </DialogFooter>
                     </DialogContent>
                   </Dialog>
+                  )}
                 </div>
               )}
             </div>
 
-            {/* Overs progress (larger screens) */}
+            {/* Larger screens: the overs as a bar, and the balls left. */}
             <div className="hidden items-center gap-2.5 sm:flex">
               <div
                 className={cn(
                   "h-2 flex-1 overflow-hidden rounded-full",
-                  sunlightMode ? "bg-black/15" : "bg-white/10",
+                  sunlightMode ? "bg-black/15" : "bg-board-line",
                 )}
               >
                 <div
@@ -427,7 +460,7 @@ export function LiveMatchHUD({
                     "h-full rounded-full transition-all duration-300",
                     sunlightMode
                       ? "bg-black"
-                      : isSecondInnings
+                      : isSecondInnings && rateDiff
                         ? isAheadOfRate
                           ? "bg-board-good"
                           : "bg-board-warn"
@@ -439,223 +472,135 @@ export function LiveMatchHUD({
                 />
               </div>
               <span
-                className={cn("shrink-0 text-xs font-bold tabular-nums", dim)}
+                className={cn("shrink-0 text-xs font-semibold tabular-nums", muted)}
               >
-                {oversFromBalls(ballsBowled, bpo)} /{" "}
-                {oversFromBalls(totalInningsBalls, bpo)} ov
+                {ballsRem} {ballsRem === 1 ? "ball" : "balls"} left
               </span>
             </div>
 
             {isSecondInnings && targetRuns != null ? (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex min-w-0 flex-1 items-center gap-2">
-                    <div className="min-w-0">
-                      {/* h2: the screen's h1 is above, nothing between (S12). */}
-                      <h2
-                        data-testid="chase-equation-title"
-                        className={cn(
-                          "text-xs font-semibold sm:text-base",
-                          sunlightMode
-                            ? "text-black"
-                            : isAheadOfRate
-                              ? "text-board-good"
-                              : "text-board-warn",
-                        )}
-                      >
-                        {runsNeeded === 0 ? (
-                          "Scores level · 1 run to win"
-                        ) : runsNeeded && runsNeeded > 0 ? (
-                          <>
-                            Need{" "}
-                            <span className="font-bold tabular-nums">
-                              {runsNeeded}
-                            </span>{" "}
-                            runs from{" "}
-                            <span className="font-bold tabular-nums">
-                              {ballsRem}
-                            </span>{" "}
-                            balls
-                          </>
-                        ) : (
-                          "Target achieved"
-                        )}
-                      </h2>
-                      <p className={cn("text-xs font-medium", dim)}>
-                        Target:{" "}
-                        <strong
-                          className={cn("font-bold tabular-nums", bright)}
-                        >
-                          {targetRuns}
-                        </strong>{" "}
-                        · {wicketsInHand}{" "}
-                        <span className="hidden sm:inline">
-                          wickets in hand
-                        </span>
-                        <span className="sm:hidden">
-                          wkts · RRR {rrr ?? "—"} · CRR {crr}
-                        </span>
-                      </p>
-                    </div>
-                  </div>
-
-                  {rateDiff && (
-                    <Badge
-                      variant="outline"
-                      size="sm"
-                      className={cn(
-                        "font-score tabular-nums sm:h-6 sm:px-2.5 sm:text-xs",
-                        sunlightMode
-                          ? "border-2 border-black font-bold text-black"
-                          : isAheadOfRate
-                            ? "border-board-good/40 bg-board-good/15 text-board-good"
-                            : "border-board-warn/40 bg-board-warn/15 text-board-warn",
-                      )}
-                    >
-                      {isAheadOfRate ? (
-                        <TrendingUp className="h-3 w-3" />
-                      ) : (
-                        <TrendingDown className="h-3 w-3" />
-                      )}
-                      <span>
-                        {isAheadOfRate ? "Ahead" : "Req"} +{rateDiff.diff} RPO
-                      </span>
-                    </Badge>
-                  )}
-                </div>
-
-                {/* Chase metrics (larger screens) */}
-                <div
-                  className={cn(
-                    "hidden grid-cols-4 gap-2 rounded-xl p-2 text-center text-xs sm:grid",
-                    sunlightMode
-                      ? "border border-black bg-neutral-100"
-                      : "border border-white/10 bg-black/25",
-                  )}
-                >
-                  {[
-                    ["Target", String(targetRuns), bright],
-                    [
-                      "Req RR",
-                      rrr ?? "—",
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  {/* h2: the screen's h1 is above, nothing between (S12). */}
+                  <h2
+                    data-testid="chase-equation-title"
+                    className={cn(
+                      "text-xs font-semibold sm:text-base",
                       sunlightMode
                         ? "text-black"
-                        : isAheadOfRate
-                          ? "text-board-good"
-                          : "text-board-warn",
-                    ],
-                    ["Curr RR", crr, bright],
-                    ["Remain", `${ballsRem}b`, bright],
-                  ].map(([label, value, color], i) => (
-                    <div
-                      key={label}
-                      className={cn(
-                        "px-1",
-                        i < 3 &&
-                          (sunlightMode
-                            ? "border-r border-black/20"
-                            : "border-r border-white/10"),
-                      )}
-                    >
-                      <p
-                        className={cn(
-                          "text-[0.625rem] font-medium",
-                          sunlightMode ? "text-muted-foreground" : "text-board-muted",
-                        )}
-                      >
-                        {label}
-                      </p>
-                      <p
-                        className={cn(
-                          "font-score text-base font-bold tabular-nums",
-                          color,
-                        )}
-                      >
-                        {value}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-2 max-sm:hidden">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex min-w-0 flex-1 items-center gap-2">
-                    <div>
-                      <h2
-                        className={cn(
-                          "text-xs font-semibold sm:text-base",
-                          bright,
-                        )}
-                      >
-                        {superOver ? "Super over" : "1st innings"} ·{" "}
-                        <span
-                          className={cn(
-                            "font-bold tabular-nums",
-                            sunlightMode ? "text-black" : "text-board-good",
-                          )}
-                        >
-                          CRR: {crr}
-                        </span>
-                      </h2>
-                      <p className={cn("text-xs font-medium", dim)}>
-                        {ballsRem} balls remaining (
-                        {oversFromBalls(ballsRem, bpo)} ov)
-                      </p>
-                    </div>
-                  </div>
-
-                  {projectedScore != null && (
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        "font-score tabular-nums",
-                        sunlightMode
-                          ? "border-2 border-black font-bold text-black"
-                          : "border-white/20 bg-white/5 text-white/80",
-                      )}
-                    >
-                      Proj: {projectedScore}
-                    </Badge>
-                  )}
-                </div>
-
-                {ballsBowled > 6 && (
-                  <div
-                    className={cn(
-                      "hidden flex-wrap items-center justify-between gap-2 rounded-xl px-3 py-1.5 text-xs sm:flex",
-                      sunlightMode
-                        ? "border border-black bg-neutral-100 text-black"
-                        : "border border-white/10 bg-black/25 text-white/80",
+                        : !rateDiff
+                          ? "text-board-foreground"
+                          : isAheadOfRate
+                            ? "text-board-good"
+                            : "text-board-warn",
                     )}
                   >
-                    <span className="text-xs font-semibold">
-                      Projected score:
+                    {runsNeeded === 0 ? (
+                      "Scores level · 1 run to win"
+                    ) : runsNeeded && runsNeeded > 0 ? (
+                      <>
+                        {phoneSide ? (
+                          <>
+                            <span className="sm:hidden">{phoneSide} need</span>
+                            <span className="max-sm:hidden">Need</span>
+                          </>
+                        ) : (
+                          "Need"
+                        )}{" "}
+                        <span className="font-bold tabular-nums">{runsNeeded}</span>{" "}
+                        {runsNeeded === 1 ? "run" : "runs"} from{" "}
+                        <span className="font-bold tabular-nums">{ballsRem}</span>{" "}
+                        {ballsRem === 1 ? "ball" : "balls"}
+                      </>
+                    ) : (
+                      "Target reached"
+                    )}
+                    {/* Phones show ahead or behind by colour: say it too. */}
+                    {rateDiff && (
+                      <span className="sr-only sm:hidden">
+                        {" "}
+                        ({aheadText})
+                      </span>
+                    )}
+                  </h2>
+                  {/* Phones shorter than 700 px keep the headline only: the
+                      keypad must fit 360 by 640, and the target and wickets
+                      left follow from the score (the Scorecard has them). */}
+                  <p
+                    className={cn(
+                      "text-xs font-medium tabular-nums sm:text-sm max-sm:[@media(max-height:700px)]:hidden",
+                      muted,
+                    )}
+                  >
+                    Target <strong className={cn("font-bold", bright)}>{targetRuns}</strong>{" "}
+                    · {wicketsInHand} {wicketsInHand === 1 ? "wicket" : "wickets"} left
+                    {rrr != null && runsNeeded != null && runsNeeded > 0 && (
+                      <>
+                        {" "}
+                        · needs <strong className={cn("font-bold", bright)}>{rrr}</strong> an over
+                      </>
+                    )}
+                    <span className="max-sm:hidden">
+                      {" "}
+                      · run rate {crr}
                     </span>
-                    <div className="flex items-center gap-3">
-                      <span>
-                        At 8 RPO:{" "}
-                        <strong className={cn("tabular-nums", bright)}>
-                          {proj8}
-                        </strong>
-                      </span>
-                      <span className="opacity-40">|</span>
-                      <span>
-                        At 10 RPO:{" "}
-                        <strong className={cn("tabular-nums", bright)}>
-                          {proj10}
-                        </strong>
-                      </span>
-                    </div>
-                  </div>
+                  </p>
+                </div>
+
+                {rateDiff && (
+                  <Badge
+                    variant="outline"
+                    size="sm"
+                    className={cn(
+                      "font-score tabular-nums max-sm:hidden sm:h-6 sm:px-2.5 sm:text-xs",
+                      sunlightMode
+                        ? "border-2 border-black font-bold text-black"
+                        : isAheadOfRate
+                          ? "border-board-good/40 bg-board-good/15 text-board-good"
+                          : "border-board-warn/40 bg-board-warn/15 text-board-warn",
+                    )}
+                  >
+                    {isAheadOfRate ? (
+                      <TrendingUp className="h-3 w-3" aria-hidden="true" />
+                    ) : (
+                      <TrendingDown className="h-3 w-3" aria-hidden="true" />
+                    )}
+                    <span>{aheadText}</span>
+                  </Badge>
                 )}
               </div>
+            ) : (
+              <p
+                className={cn(
+                  "text-xs font-semibold tabular-nums sm:text-sm",
+                  muted,
+                )}
+              >
+                {phoneSide && <span className="sm:hidden">{phoneSide} · </span>}
+                Run rate{" "}
+                <span className={sunlightMode ? "text-black" : "text-board-good"}>
+                  {crr}
+                </span>
+                {projectedScore != null && (
+                  <>
+                    {" "}
+                    · Projected {projectedScore}
+                    {ballsBowled > bpo && (
+                      <span className="max-sm:hidden">
+                        {" "}
+                        ({proj8} at 8 an over, {proj10} at 10)
+                      </span>
+                    )}
+                  </>
+                )}
+              </p>
             )}
           </CardContent>
         </Card>
       )}
 
       {/* 2. Batters at the crease + current bowler */}
+      {!scoreOnly && (
       <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 sm:gap-3">
         <Card
           data-testid="hud-batters-card"
@@ -713,7 +658,9 @@ export function LiveMatchHUD({
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-8 px-2 text-xs"
+                          // 32 px in the row, 44 px to tap (into the row's
+                          // own padding).
+                          className="relative h-8 px-2 text-xs before:absolute before:-inset-y-1.5 before:inset-x-0 before:content-['']"
                           onClick={change}
                         >
                           Assign
@@ -913,6 +860,7 @@ export function LiveMatchHUD({
           </CardContent>
         </Card>
       </div>
+      )}
     </div>
   );
 }

@@ -256,3 +256,44 @@ export function takeUndo<S extends StateLike>(
   }
   return { entry: top, stack: kept.slice(0, -1) };
 }
+
+/**
+ * "Restore ball" kept on the device across a reload: the balls undone since
+ * the last scoring action, and the scorecard right after the undo (so a
+ * reload offers them again only while nothing has changed since).
+ */
+export interface SavedRedo {
+  inningsId: string;
+  afterFp: string;
+  balls: UndoneBall[];
+}
+
+/** What to save of `balls` while `current` is on screen (null: nothing). */
+export function redoToSave(
+  balls: readonly UndoneBall[],
+  current: StateLike | null,
+): SavedRedo | null {
+  if (balls.length === 0 || !current?.base) return null;
+  const inningsId = current.base.innings.id;
+  const afterFp = scorecardFingerprint(current.snapshot, inningsId);
+  return afterFp ? { inningsId, afterFp, balls: [...balls] } : null;
+}
+
+/**
+ * The saved balls to offer again on the reloaded screen: only in the same
+ * innings with the same scorecard (a ball scored, an edit or a co-scorer's
+ * change since makes restoring them wrong), and deliveries only.
+ */
+export function restoredRedo(
+  saved: unknown,
+  current: StateLike | null,
+): UndoneBall[] {
+  const s = saved as Partial<SavedRedo> | null;
+  if (!s || typeof s.inningsId !== "string" || !Array.isArray(s.balls)) return [];
+  if (!current?.base || current.base.innings.id !== s.inningsId) return [];
+  if (scorecardFingerprint(current.snapshot, s.inningsId) !== s.afterFp) return [];
+  return s.balls.filter(
+    (b): b is UndoneBall =>
+      Boolean(b) && typeof b === "object" && !b.isEvent && typeof b.seq === "number",
+  );
+}

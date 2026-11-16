@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -26,6 +26,16 @@ import {
 } from "./WicketDialog";
 import type { ExtraType, NoBallRuns } from "~/app/matches/types";
 import type { TeamPlayer } from "~/lib/match-types";
+import { editedBall } from "~/lib/firebase/scoring/ball-docs";
+import { crossingRunsOf } from "~/lib/firebase/scoring/recompute";
+import {
+  battedOnAfter,
+  battingAfterOut,
+  laterBallsTo,
+} from "~/lib/scoring-correction";
+import type { BallByBallRow } from "~/lib/firebase/types";
+import { previewOf, type PreviewRules } from "../correction-preview";
+import { CorrectionChanges } from "./CorrectionChanges";
 
 export interface DeliveryToEdit {
   id: string;
@@ -46,6 +56,27 @@ export interface DeliveryToEdit {
   shot_zone?: string | null;
 }
 
+/** A ball-log row as `getMatchBallLog` returns it. */
+export type LoggedBall = DeliveryToEdit & {
+  innings_id?: string | null;
+  seq?: number | null;
+  penalty_team_id?: string | null;
+};
+
+/** What Edit ball needs to show the figures an edit changes. */
+export interface EditPreview {
+  /** The match's ball log, when already read (Fix a mistake has it). */
+  log?: readonly LoggedBall[] | null;
+  /** Reads the match's ball log otherwise (when the dialog opens). */
+  load?: () => Promise<LoggedBall[]>;
+  rules: PreviewRules;
+  /** The side batting in the ball's innings. */
+  teamId: string | null;
+  /** The match is over: a new total gives a new result. */
+  finished: boolean;
+  nameOf: (id: string | null | undefined) => string;
+}
+
 /** What the dialog saves (`handleUpdateBall`). */
 export interface BallCorrection {
   ballId: string;
@@ -59,6 +90,8 @@ export interface BallCorrection {
   noBallRuns: NoBallRuns | null;
   batsmanId?: string | null;
   bowlerId?: string | null;
+  /** A wicket added after the batter batted on: who came in. */
+  laterBatterId?: string | null;
 }
 
 type Kind = "none" | "wide" | "no_ball" | "bye" | "leg_bye";
@@ -214,6 +247,19 @@ interface EditBallDialogProps {
   isProcessing: boolean;
   battingTeamPlayers?: TeamPlayer[];
   bowlingTeamPlayers?: TeamPlayer[];
+  /**
+   * The stored ball is a wicket only the striker can suffer, given to the
+   * wrong batter: opens Fix a mistake on it (the batters change places from
+   * this ball to the end of the innings). Absent: not offered.
+   */
+  onWrongBatterOut?: () => void;
+  /**
+   * After a save that changed whether the batters crossed: opens Fix a
+   * mistake's "wrong ends from here" at that later ball. Absent: not offered.
+   */
+  onEndsWrongFrom?: (ballId: string) => void;
+  /** Shows what the edit changes before Save (absent: not shown). */
+  preview?: EditPreview | null;
 }
 
 const nameOf = (players: TeamPlayer[], id: string | null | undefined) =>
@@ -372,12 +418,14 @@ function WicketFields({
   nonStriker,
   battingTeamPlayers,
   bowlingTeamPlayers,
+  onWrongBatterOut,
 }: {
   form: Form;
   set: SetForm;
   nonStriker: string | null;
   battingTeamPlayers: TeamPlayer[];
   bowlingTeamPlayers: TeamPlayer[];
+  onWrongBatterOut?: () => void;
 }) {
   const dismissals = dismissalsFor(form.kind, form.dismissalType);
   const either = form.isWicket && dismissesEitherBatter(form.dismissalType);
@@ -436,6 +484,25 @@ function WicketFields({
               ))}
             </div>
           </div>
+
+          {!either && onWrongBatterOut && nonStriker && striker && (
+            <div className="rounded-lg border border-border bg-muted/50 p-3 text-sm">
+              <p>
+                Only the striker can be out this way. If{" "}
+                {nameOf(battingTeamPlayers, nonStriker) ?? "the other batter"}{" "}
+                was out, the batters were at the wrong ends.
+              </p>
+              <button
+                type="button"
+                onClick={onWrongBatterOut}
+                className="mt-1.5 min-h-11 font-semibold text-primary underline-offset-4 hover:underline"
+              >
+                {nameOf(battingTeamPlayers, nonStriker) ?? "The other batter"}{" "}
+                was out, not{" "}
+                {nameOf(battingTeamPlayers, striker) ?? "the striker"}
+              </button>
+            </div>
+          )}
 
           {either && nonStriker && striker && (
             <div>
@@ -569,10 +636,16 @@ export function EditBallDialog({
   isProcessing,
   battingTeamPlayers = [],
   bowlingTeamPlayers = [],
+  onWrongBatterOut,
+  onEndsWrongFrom,
+  preview = null,
 }: EditBallDialogProps) {
   const [form, setForm] = useState<Form | null>(
     delivery ? formOfDelivery(delivery) : null,
   );
+  const loaded = useBallLog(open, preview);
+  /** A wicket added after the batter batted on: who came in. */
+  const [laterBatterId, setLaterBatterId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   // A fresh form for each ball, and each time the dialog opens.
   const key = `${open}:${delivery?.id ?? ""}`;
@@ -581,6 +654,7 @@ export function EditBallDialog({
     setSeen(key);
     setForm(delivery ? formOfDelivery(delivery) : null);
     setError(null);
+    setLaterBatterId(null);
   }
 
   if (!delivery || !form) return null;
@@ -592,15 +666,29 @@ export function EditBallDialog({
     delivery.extra_type === "bonus" ||
     !delivery.bowler_id;
   const position = `${delivery.over_number ?? 0}.${delivery.ball_number ?? 1}`;
-  const missing = correctionMissing(form);
+  const correction = correctionOf(delivery, form);
+  const checked = preview
+    ? editPreviewOf(preview, preview.log ?? loaded, delivery, correction, laterBatterId)
+    : null;
+  const missing =
+    correctionMissing(form) ??
+    (checked?.conflict && !laterBatterId ? "Choose who came in" : null) ??
+    (checked?.blocked ? "Check the later balls first" : null);
 
-  const save = async () => {
+  const endsFrom = onEndsWrongFrom ? (checked?.endsFrom ?? null) : null;
+  const save = async (thenFixEnds = false) => {
     if (missing) return;
     setError(null);
-    const res = await onSave(correctionOf(delivery, form));
+    const res = await onSave({
+      ...correction,
+      laterBatterId: checked?.conflict ? laterBatterId : null,
+    });
     const err = res && "error" in res ? res.error : null;
     if (err) setError(err);
-    else onOpenChange(false);
+    else {
+      onOpenChange(false);
+      if (thenFixEnds && endsFrom) onEndsWrongFrom?.(endsFrom.id);
+    }
   };
 
   return (
@@ -630,6 +718,15 @@ export function EditBallDialog({
               nonStriker={delivery.non_striker_id ?? null}
               battingTeamPlayers={battingTeamPlayers}
               bowlingTeamPlayers={bowlingTeamPlayers}
+              onWrongBatterOut={
+                onWrongBatterOut &&
+                delivery.is_wicket &&
+                delivery.dismissal_type &&
+                !dismissesEitherBatter(delivery.dismissal_type) &&
+                delivery.non_striker_id
+                  ? onWrongBatterOut
+                  : undefined
+              }
             />
             <PlayerFields
               form={form}
@@ -637,6 +734,42 @@ export function EditBallDialog({
               battingTeamPlayers={battingTeamPlayers}
               bowlingTeamPlayers={bowlingTeamPlayers}
             />
+            {checked?.conflict && (
+              <LaterBatterFields
+                conflict={checked.conflict}
+                nameOf={preview!.nameOf}
+                players={battingTeamPlayers}
+                value={laterBatterId}
+                onChange={setLaterBatterId}
+              />
+            )}
+            {checked?.blocked && (
+              <p role="alert" className="text-sm font-medium text-destructive">
+                That would put a batter at the crease after they were out.
+                Check the later balls in Fix a mistake first.
+              </p>
+            )}
+            {preview && !checked?.blocked && !(checked?.conflict && !laterBatterId) && (
+              <EditChanges
+                preview={preview}
+                checked={checked}
+                waiting={!(preview.log ?? loaded)}
+                ready={!correctionMissing(form)}
+              />
+            )}
+            {/* Runs made odd or even: the next ball was stored with the
+                batters where they were before. Only a hint: the scorer may
+                have set the strike right by hand then, so nothing is fixed
+                unless they say so. */}
+            {endsFrom && !missing && (
+              <p className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
+                {endsFrom.crossesNow
+                  ? "The batters now cross on this ball"
+                  : "The batters no longer cross on this ball"}
+                : from ball {endsFrom.position} they may be at the wrong ends.
+                If they are, save and fix the ends.
+              </p>
+            )}
             {error && (
               <p role="alert" className="text-sm text-destructive">
                 {error}
@@ -652,6 +785,16 @@ export function EditBallDialog({
               >
                 {isProcessing ? "Saving…" : `Save ball ${position}`}
               </Button>
+              {endsFrom && !missing && (
+                <Button
+                  variant="outline"
+                  className="mt-2 h-11 w-full text-sm font-medium"
+                  onClick={() => void save(true)}
+                  disabled={isProcessing}
+                >
+                  Save, then fix the ends from {endsFrom.position}
+                </Button>
+              )}
               {missing && (
                 <p
                   id="edit-missing"
@@ -665,5 +808,198 @@ export function EditBallDialog({
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * The match's ball log for the preview: `preview.log` when given, else read
+ * once each time the dialog opens (null until it arrives or if it fails).
+ */
+function useBallLog(open: boolean, preview: EditPreview | null) {
+  const [loaded, setLoaded] = useState<LoggedBall[] | null>(null);
+  const load = !preview?.log ? preview?.load : undefined;
+  // Read afresh each time it opens: drop the last read as it does (during
+  // render, as FixMistakeDialog does, not in the effect).
+  const [wasOpen, setWasOpen] = useState(open);
+  if (wasOpen !== open) {
+    setWasOpen(open);
+    if (open) setLoaded(null);
+  }
+  useEffect(() => {
+    if (!open || !load) return;
+    let live = true;
+    load()
+      .then((balls) => {
+        if (live) setLoaded(balls);
+      })
+      .catch(() => {
+        if (live) setLoaded(null);
+      });
+    return () => {
+      live = false;
+    };
+  }, [open, load]);
+  return loaded;
+}
+
+/** What an edit does to its innings, worked out on the phone. */
+interface EditCheck {
+  result: ReturnType<typeof previewOf>;
+  /**
+   * The edit makes this ball a wicket of a batter the later balls still
+   * have batting: who came in must be said (`laterBallsTo`).
+   */
+  conflict: { outId: string; positions: string[] } | null;
+  /** The log would still have a batter at the crease after they were out. */
+  blocked: boolean;
+  /**
+   * The edit changes whether the batters crossed on this ball, and a later
+   * ball still has them at the old ends: that ball's id, where Fix a
+   * mistake's "wrong ends from here" starts. Null: nothing to fix.
+   */
+  endsFrom: { id: string; position: string; crossesNow: boolean } | null;
+}
+
+/**
+ * The innings' log with the edit applied (and the later balls given to
+ * whoever came in, when a wicket is added after the batter batted on), as
+ * `update_ball` would store it; null until the log is read.
+ */
+export function editPreviewOf(
+  preview: EditPreview,
+  log: readonly LoggedBall[] | null | undefined,
+  delivery: DeliveryToEdit,
+  correction: BallCorrection,
+  laterBatterId: string | null,
+): EditCheck | null {
+  if (!log) return null;
+  const stored = log.find((b) => b.id === delivery.id);
+  if (!stored) return null;
+  const innings = log
+    .filter((b) => b.innings_id === stored.innings_id)
+    .sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0));
+  const edited = editedBall(stored as unknown as BallByBallRow, correction) as unknown as LoggedBall;
+  let after: LoggedBall[] = innings.map((b) => (b.id === stored.id ? edited : b));
+  const on = battedOnAfter(after, edited);
+  const conflict = on
+    ? {
+        outId: on.outId,
+        positions: on.later.map(
+          (b) => `${b.over_number ?? 0}.${b.ball_number ?? 1}`,
+        ),
+      }
+    : null;
+  if (on && laterBatterId) {
+    after = laterBallsTo(after, edited.id, on.outId, laterBatterId);
+  }
+  const already = battingAfterOut(innings);
+  const blocked =
+    (!on || Boolean(laterBatterId)) &&
+    [...battingAfterOut(after)].some((k) => !already.has(k));
+  const result = previewOf(
+    preview.rules,
+    { id: stored.innings_id ?? "", team_id: preview.teamId },
+    innings,
+    after,
+    null,
+  );
+  // Odd runs made even (or the other way) on a plain ball: the later balls
+  // keep the striker they were stored with, now at the wrong end. (A
+  // wicket's ends depend on who came in: Edit ball asks that itself.)
+  const crossedBefore = crossingRunsOf(stored) % 2 === 1;
+  const crossedNow = crossingRunsOf(edited) % 2 === 1;
+  // The next delivery: not an event between balls (penalty or bonus runs,
+  // a retirement), which no batter faced.
+  const next = innings.find(
+    (b) =>
+      (b.seq ?? 0) > (stored.seq ?? 0) &&
+      Boolean(b.bowler_id) &&
+      b.extra_type !== "penalty" &&
+      b.extra_type !== "bonus" &&
+      !(
+        b.is_wicket &&
+        RETIREMENT_TYPES.some((r) => r.value === b.dismissal_type)
+      ),
+  );
+  const endsFrom =
+    crossedBefore !== crossedNow && !stored.is_wicket && !edited.is_wicket && next
+      ? {
+          id: next.id,
+          position: `${next.over_number ?? 0}.${next.ball_number ?? 1}`,
+          crossesNow: crossedNow,
+        }
+      : null;
+  return { result, conflict, blocked, endsFrom };
+}
+
+/** "Nitin batted on after this ball (0.4, 0.5). Who came in?" */
+function LaterBatterFields({
+  conflict,
+  nameOf,
+  players,
+  value,
+  onChange,
+}: {
+  conflict: NonNullable<EditCheck["conflict"]>;
+  nameOf: (id: string | null | undefined) => string;
+  players: TeamPlayer[];
+  value: string | null;
+  onChange: (id: string) => void;
+}) {
+  const out = nameOf(conflict.outId);
+  return (
+    <div className="space-y-2 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
+      <p>
+        {out} batted on after this ball ({conflict.positions.join(", ")}). If{" "}
+        {out} was out here, those balls were the next batter&apos;s. Who came
+        in?
+      </p>
+      <Select value={value ?? ""} onValueChange={(v) => onChange(v)}>
+        <SelectTrigger id="edit-later-batter" className="h-11" aria-label="Who came in">
+          <SelectValue placeholder="Choose who came in" />
+        </SelectTrigger>
+        <SelectContent>
+          {players
+            .filter((p) => p.user_id !== conflict.outId)
+            .map((p) => (
+              <SelectItem key={p.user_id} value={p.user_id}>
+                {p.user?.full_name ?? "Unknown"}
+              </SelectItem>
+            ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
+/** The figures the edit changes, from the innings' log with it applied. */
+function EditChanges({
+  preview,
+  checked,
+  waiting,
+  ready,
+}: {
+  preview: EditPreview;
+  checked: EditCheck | null;
+  /** The log is still being read. */
+  waiting: boolean;
+  /** The form says what happened (else there is nothing to work out). */
+  ready: boolean;
+}) {
+  if (waiting) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        Working out what this changes…
+      </p>
+    );
+  }
+  if (!checked || !ready || (checked.conflict && !checked.result)) return null;
+  return (
+    <CorrectionChanges
+      changes={checked.result?.changes ?? null}
+      total={checked.result?.total ?? null}
+      finished={preview.finished}
+      nameOf={preview.nameOf}
+    />
   );
 }

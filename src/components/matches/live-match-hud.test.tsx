@@ -1,7 +1,7 @@
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { LiveMatchHUD } from "./live-match-hud";
+import { LiveMatchHUD, currentStandOf } from "./live-match-hud";
 import type { Match, Innings } from "~/lib/match-types";
 
 vi.mock("~/lib/hooks/useMediaQuery", () => ({ useMediaQuery: () => false }));
@@ -105,9 +105,11 @@ describe("LiveMatchHUD Component", () => {
     expect(screen.getByTestId("chase-equation-title")).toHaveTextContent(
       /Need 34 runs from 22 balls/i,
     );
-    expect(screen.getByText(/Target:/i)).toBeInTheDocument();
-    expect(screen.getAllByText("168").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText(/wickets in hand/i)).toBeInTheDocument();
+    // One plain line on every size: the target, wickets left and the rate
+    // needed, with no "RRR" / "wkts" shorthand (the run rate from sm up).
+    const line = screen.getByText(/^Target/);
+    expect(line).toHaveTextContent(/Target 168 · \d+ wickets left · needs [\d.]+ an over/);
+    expect(screen.queryByText(/RRR|CRR|wkts|RPO|Req RR|Curr RR/)).toBeNull();
   });
 
   it("marks only the striker, and puts the other batter on strike when tapped", () => {
@@ -205,9 +207,14 @@ describe("LiveMatchHUD Component", () => {
       />,
     );
 
-    expect(screen.getByText(/1st Innings/i)).toBeInTheDocument();
-    expect(screen.getByText(/CRR: 8.00/i)).toBeInTheDocument();
-    expect(screen.getByText(/Proj: 160/i)).toBeInTheDocument();
+    expect(screen.getByText("1st innings · T20")).toBeInTheDocument();
+    // The rate and the projection once, in words; 60 balls of 120 left.
+    expect(screen.getByText(/^Run rate/)).toHaveTextContent(
+      /Run rate 8\.00 · Projected 160 \(\d+ at 8 an over, \d+ at 10\)/,
+    );
+    expect(screen.getByText("60 balls left")).toBeInTheDocument();
+    expect(screen.getByText("10.0 of 20 ov")).toBeInTheDocument();
+    expect(screen.queryByText(/Proj:|CRR|Projected score/)).toBeNull();
   });
 
   it("filters out previous over deliveries so new bowler starts with 0 runs this over", () => {
@@ -392,7 +399,8 @@ describe("LiveMatchHUD super over", () => {
       />,
     );
     expect(screen.getByText(/Super over · 1st innings/)).toBeInTheDocument();
-    expect(screen.getByText(/4 balls remaining/)).toBeInTheDocument();
+    expect(screen.getByText("4 balls left")).toBeInTheDocument();
+    expect(screen.getByText("0.2 of 1 ov")).toBeInTheDocument();
     expect(screen.queryByText(/1st innings ·/i)).not.toBeInTheDocument();
   });
 
@@ -421,5 +429,51 @@ describe("LiveMatchHUD super over", () => {
       "Need 7 runs from 3 balls",
     );
     expect(screen.getByText(/Super over · 2nd innings/)).toBeInTheDocument();
+  });
+});
+
+describe("currentStandOf", () => {
+  const stands = [
+    { batsman1_id: "a", batsman2_id: "b", wicket_number: 1, runs: 30, balls: 20, is_current: false },
+    // Ended by a retirement: no wicket, a new stand after it.
+    { batsman1_id: "c", batsman2_id: "b", wicket_number: null, runs: 12, balls: 9, is_current: false },
+    // Its balls are the balls the pair faced (a no-ball counts).
+    { batsman1_id: "d", batsman2_id: "b", wicket_number: null, runs: 7, balls: 5, is_current: true },
+  ];
+
+  it("is the engine's current stand, not the runs since the last wicket", () => {
+    expect(currentStandOf({ partnerships: stands }, "b", "d")).toEqual({
+      runs: 7,
+      balls: 5,
+    });
+  });
+
+  it("is 0 off 0 for a pair yet to face a ball together", () => {
+    expect(currentStandOf({ partnerships: stands }, "b", "e")).toEqual({
+      runs: 0,
+      balls: 0,
+    });
+    expect(currentStandOf({ partnerships: [] }, "b", "d")).toEqual({
+      runs: 0,
+      balls: 0,
+    });
+    expect(currentStandOf(null, null, null)).toEqual({ runs: 0, balls: 0 });
+  });
+});
+
+describe("LiveMatchHUD before the chase's first ball", () => {
+  it("says nothing of ahead or behind with no rate yet", async () => {
+    const { render: r, screen: sc } = await import("@testing-library/react");
+    const match = {
+      id: "m", status: "live", current_innings: 2, overs_per_innings: 5, balls_per_over: 6,
+      team1_id: "a", team2_id: "b", team1: { id: "a", name: "A" }, team2: { id: "b", name: "B" },
+      innings: [{ id: "i1", innings_number: 1, team_id: "a", total_runs: 51, total_wickets: 2, total_balls: 30, is_completed: true }],
+    } as unknown as Match;
+    const chase = { id: "i2", innings_number: 2, team_id: "b", total_runs: 0, total_wickets: 0, total_balls: 0, target_runs: 52, is_completed: false } as unknown as Innings;
+    r(
+      <LiveMatchHUD match={match} currentInnings={chase} striker={null} nonStriker={null} bowler={null} lastBalls={[]} />,
+    );
+    expect(sc.getByTestId("chase-equation-title")).toHaveTextContent(/Need 52 runs from 30 balls/);
+    expect(sc.queryByText(/an over (ahead|behind)/)).toBeNull();
   });
 });

@@ -1,7 +1,19 @@
 import { Skeleton, LoadingScreen } from "~/components/ui/skeleton";
 
-/** The match page before its data: the same shape, so nothing jumps. */
-export default function MatchDetailLoading() {
+/** What the server already knows of the match, for the first paint. */
+export interface MatchPreview {
+  sides: { name: string; score: string | null; overs: string | null }[];
+  /** The result, the chase or the format. */
+  footer: string;
+}
+
+/**
+ * The match page before its data: the same shape, so nothing jumps. With
+ * `preview` (the page's server read) the header shows the real score.
+ */
+export default function MatchDetailLoading({
+  preview,
+}: { preview?: MatchPreview | null } = {}) {
   return (
     <LoadingScreen>
       <div className="-mx-4 -mt-5 min-h-screen sm:-mx-6 sm:-mt-8 lg:-mx-8">
@@ -20,17 +32,47 @@ export default function MatchDetailLoading() {
               <Skeleton className="h-5 w-40" />
               <Skeleton className="h-4 w-20" />
             </div>
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              {Array.from({ length: 2 }).map((_, i) => (
-                <div key={i} className="flex flex-col items-center gap-1.5">
-                  <Skeleton className="h-10 w-10 rounded-full" />
-                  <Skeleton className="h-4 w-24" />
-                  <Skeleton className="h-6 w-20" />
-                  <Skeleton className="h-3 w-20" />
+            {preview ? (
+              // The server's own read of the match (the link preview's), in
+              // the first HTML: the score before any script has run.
+              <>
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  {preview.sides.map((side, i) => (
+                    <div key={i} className="flex flex-col items-center gap-1.5 text-center">
+                      <Skeleton className="h-10 w-10 rounded-full" />
+                      <p className="line-clamp-2 text-sm font-semibold">{side.name}</p>
+                      <p className="font-score text-xl font-bold tabular-nums">
+                        {side.score ?? "–"}
+                        {side.overs && (
+                          <span className="ml-1 text-sm font-semibold text-muted-foreground">
+                            ({side.overs})
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-            <Skeleton className="mx-auto mt-3 h-5 w-52" />
+                {preview.footer && (
+                  <p className="mx-auto mt-3 max-w-md text-balance text-center text-sm font-medium">
+                    {preview.footer}
+                  </p>
+                )}
+              </>
+            ) : (
+              <>
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                {Array.from({ length: 2 }).map((_, i) => (
+                  <div key={i} className="flex flex-col items-center gap-1.5">
+                    <Skeleton className="h-10 w-10 rounded-full" />
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-6 w-20" />
+                    <Skeleton className="h-3 w-20" />
+                  </div>
+                ))}
+              </div>
+              <Skeleton className="mx-auto mt-3 h-5 w-52" />
+              </>
+            )}
           </div>
         </div>
 

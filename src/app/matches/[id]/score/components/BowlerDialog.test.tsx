@@ -53,7 +53,7 @@ describe("BowlerDialog", () => {
       />,
     );
 
-    const confirmBtn = screen.getByRole("button", { name: "Confirm bowler" });
+    const confirmBtn = screen.getByRole("button", { name: /^Confirm/ });
     expect(confirmBtn).toBeDisabled();
   });
 
@@ -76,7 +76,7 @@ describe("BowlerDialog", () => {
       ),
     ).toBeInTheDocument();
 
-    const confirmBtn = screen.getByRole("button", { name: "Confirm bowler" });
+    const confirmBtn = screen.getByRole("button", { name: /^Confirm/ });
     expect(confirmBtn).toBeDisabled();
   });
 
@@ -94,7 +94,7 @@ describe("BowlerDialog", () => {
       />,
     );
 
-    const confirmBtn = screen.getByRole("button", { name: "Confirm bowler" });
+    const confirmBtn = screen.getByRole("button", { name: /^Confirm/ });
     expect(confirmBtn).toBeEnabled();
 
     fireEvent.click(confirmBtn);
@@ -129,7 +129,7 @@ describe("BowlerDialog", () => {
       expect(onCreatePlayer).toHaveBeenCalledWith("Jasprit Bumrah"),
     );
     // The new player is picked; confirming bowls them.
-    fireEvent.click(screen.getByRole("button", { name: "Confirm bowler" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Confirm/ }));
     await waitFor(() => expect(onConfirm).toHaveBeenCalledWith("user-new"));
   });
 
@@ -152,11 +152,11 @@ describe("BowlerDialog", () => {
     expect(kishor).toHaveTextContent("Bowled last over");
     const rahul = screen.getByRole("radio", { name: /Rahul/ });
     expect(rahul).toHaveAttribute("aria-checked", "false");
-    expect(screen.getByRole("button", { name: "Confirm bowler" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^Confirm/ })).toBeDisabled();
     // Picking does not bowl them yet: only Confirm does.
     fireEvent.click(rahul);
     expect(onConfirm).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Confirm bowler" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Confirm/ }));
     expect(onConfirm).toHaveBeenCalledWith("user-rahul");
   });
 
@@ -334,7 +334,7 @@ describe("BowlerDialog", () => {
       renderMidOver({ overBowling: null });
       expect(screen.queryByText("What happened?")).toBeNull();
       expect(
-        screen.getByRole("button", { name: "Confirm bowler" }),
+        screen.getByRole("button", { name: /^Confirm/ }),
       ).toBeInTheDocument();
     });
 
@@ -361,7 +361,7 @@ describe("BowlerDialog", () => {
       />,
     );
 
-    const confirmBtn = screen.getByRole("button", { name: "Confirm bowler" });
+    const confirmBtn = screen.getByRole("button", { name: /^Confirm/ });
     expect(confirmBtn).toBeDisabled();
     expect(
       screen.getByText(
@@ -384,7 +384,7 @@ describe("BowlerDialog", () => {
     );
 
     expect(
-      screen.getByRole("button", { name: "Confirm bowler" }),
+      screen.getByRole("button", { name: /^Confirm/ }),
     ).toBeDisabled();
   });
 

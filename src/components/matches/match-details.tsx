@@ -3,7 +3,7 @@
 import { Disclosure } from "~/components/ds/disclosure";
 import { Facts, factsOf } from "~/components/ds/facts";
 import { fullDateTime, timeOfDay } from "~/lib/dates";
-import { namedFormat } from "~/lib/cricket";
+import { namedFormat, tossSentence } from "~/lib/cricket";
 import { clubStatsFact } from "~/lib/club-side-text";
 import type { Match } from "~/lib/match-types";
 
@@ -65,7 +65,7 @@ export function MatchDetails({ match }: { match: Match }) {
       ],
     tossWinner && [
       "Toss",
-      `${tossWinner} won the toss and elected to ${match.toss_decision === "bowl" ? "bowl" : "bat"}`,
+      tossSentence(tossWinner, match.toss_decision),
     ],
     match.weather_conditions && ["Weather", match.weather_conditions],
     match.pitch_conditions && ["Pitch", match.pitch_conditions],

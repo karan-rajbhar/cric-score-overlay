@@ -9,9 +9,10 @@ import {
   DialogDescription,
   DialogFooter,
 } from "~/components/ui/dialog";
+import { Avatar } from "~/components/ds/avatar";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
-import { Award, Check, User } from "lucide-react";
+import { Award, Check } from "lucide-react";
 import { toast } from "sonner";
 import { setPlayerOfTheMatch } from "~/app/matches/mutations";
 import { rankPlayersByImpact } from "~/lib/cricket";
@@ -179,18 +180,9 @@ export function PotmDialog({
                   }`}
                 >
                   <div className="flex min-w-0 items-center gap-3">
-                    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border border-border/50 bg-muted">
-                      {p.avatarUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={p.avatarUrl}
-                          alt={p.name}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <User className="h-4 w-4 text-muted-foreground" />
-                      )}
-                    </div>
+                    {/* The design system's avatar: a photo that does not load
+                        shows the initials, not a broken image and its alt. */}
+                    <Avatar name={p.name} src={p.avatarUrl} size="sm" />
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <p className="truncate text-sm font-medium">{p.name}</p>

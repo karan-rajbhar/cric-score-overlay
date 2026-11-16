@@ -7,6 +7,7 @@ import {
   LIVE_METADATA_TTL_MS,
   TITLE_TTL_MS,
 } from "~/lib/metadata-cache";
+import { linkPreview } from "~/lib/link-preview";
 import { MatchDetailsPage } from "./match-detail";
 
 /**
@@ -27,31 +28,13 @@ export async function generateMetadata({
   const summary = matchShareSummary(match);
   const origin = await requestOrigin();
   const url = `${origin}/matches/${id}`;
-  const image = {
-    url: `${url}/og?v=${encodeURIComponent(summary.version)}`,
-    width: 1200,
-    height: 630,
-    alt: summary.title,
-  };
-  return {
+  return linkPreview({
     title: summary.title,
     description: summary.description,
-    alternates: { canonical: url },
-    openGraph: {
-      type: "website",
-      siteName: "CricScore",
-      url,
-      title: summary.title,
-      description: summary.description,
-      images: [image],
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: summary.title,
-      description: summary.description,
-      images: [image.url],
-    },
-  };
+    url,
+    // A new image whenever the score changes.
+    imageUrl: `${url}/og?v=${encodeURIComponent(summary.version)}`,
+  });
 }
 
 /**
@@ -74,6 +57,21 @@ export default async function Page({
 }) {
   // A match that is not there gets the app's not-found screen (and a 404),
   // not a database error with a Try again that cannot help (N6).
-  if (!(await sharedMatch((await params).id))) notFound();
-  return <MatchDetailsPage />;
+  const match = await sharedMatch((await params).id);
+  if (!match) notFound();
+  // The same read: its score and result in the first HTML, before any
+  // script (a phone on slow data waited for the whole bundle to see it).
+  const summary = matchShareSummary(match);
+  return (
+    <MatchDetailsPage
+      preview={{
+        sides: summary.sides.map((s) => ({
+          name: s.name,
+          score: s.score,
+          overs: s.overs,
+        })),
+        footer: summary.footer,
+      }}
+    />
+  );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
 import {
@@ -18,12 +18,12 @@ import {
   AlertTriangle,
   Compass,
   Keyboard,
-  Pencil,
   Loader2,
 } from "lucide-react";
 import { Badge } from "~/components/ui/badge";
 import { cn } from "~/lib/utils";
 import { WagonWheelSelector } from "./wagon-wheel-selector";
+import { deliveryLabel } from "~/lib/cricket";
 import {
   hapticBall,
   hapticBoundary,
@@ -236,6 +236,13 @@ export function ScoringPanel({
     [onShortcutsOpenChange],
   );
 
+  // This over's strip scrolls sideways once extras make it long: keep the
+  // ball just scored in view (the scorer checks it after every tap).
+  const overStripRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const strip = overStripRef.current;
+    if (strip) strip.scrollLeft = strip.scrollWidth;
+  }, [lastBalls]);
   const [selectedExtra, setSelectedExtraState] = useState<string | null>(null);
   /** Under an armed no-ball: what the runs the scorer taps will be. */
   const [noBallRuns, setNoBallRuns] = useState<NoBallRunsKind>("bat");
@@ -271,22 +278,23 @@ export function ScoringPanel({
     return { runs, wickets };
   }, [lastBalls]);
 
+  // With an extra armed, each key is captioned with the ball it records in
+  // the app's one spelling (`deliveryLabel`: "wd+1", "nb+2", "nb+2b",
+  // "lb1"), as the over strip will show it: not a spelling of its own.
   const getRunSubLabel = (runs: number) => {
     if (selectedExtra === "wide") {
-      return runs === 0 ? "1 Wd" : `${1 + runs} Wd`;
+      return deliveryLabel({ extra_type: "wide", extras: 1 + runs, runs_scored: 0 });
     }
     if (selectedExtra === "no_ball") {
-      if (runs === 0) return "1 Nb";
-      if (noBallRuns === "bye") return `${runs}b+1 (${runs + 1})`;
-      if (noBallRuns === "leg_bye") return `${runs}lb+1 (${runs + 1})`;
-      return `${runs}+1 (${runs + 1})`;
+      return noBallRuns === "bye" || noBallRuns === "leg_bye"
+        ? deliveryLabel({ extra_type: "no_ball", no_ball_runs: noBallRuns, extras: 1 + runs, runs_scored: 0 })
+        : deliveryLabel({ extra_type: "no_ball", extras: 1, runs_scored: runs });
     }
-    // A bye needs a run: 0 is not offered.
-    if (selectedExtra === "bye") {
-      return runs === 0 ? "—" : runs === 1 ? "1 bye" : `${runs} byes`;
-    }
-    if (selectedExtra === "leg_bye") {
-      return runs === 0 ? "—" : runs === 1 ? "1 leg bye" : `${runs} leg byes`;
+    // A bye needs a run: 0 is not offered (the key is off, uncaptioned).
+    if (selectedExtra === "bye" || selectedExtra === "leg_bye") {
+      return runs === 0
+        ? null
+        : deliveryLabel({ extra_type: selectedExtra, extras: runs, runs_scored: 0 });
     }
     if (runs === 0) return "Dot";
     if (runs === 4) return "Four";
@@ -581,7 +589,7 @@ export function ScoringPanel({
                 undoNotice.note ? `${undoNotice.note}. ` : ""
               }${undoNotice.canRedo && !undoNotice.pending ? "Restore ball is available. " : ""}`
             : ""}
-          Over {currentOver}.{currentBall}
+          {currentOver}.{currentBall} overs
           {lastBalls.length > 0
             ? `, this over: ${lastBalls.map(getBallLabel).join(", ")}`
             : ", no balls yet this over"}
@@ -590,13 +598,20 @@ export function ScoringPanel({
 
         {/* Over position + this-over ball trail (tap a ball to edit it) */}
         <div className="flex items-center gap-2">
+          {/* Overs bowled, as cricket writes a position ("2.0 ov"): "Over
+              2.0" read as the 2nd over while the bowler is picked for the
+              3rd and Balls calls it "Over 3". */}
           <span className="tabular-nums shrink-0 rounded-full bg-primary-soft px-2.5 py-1 font-score text-sm font-bold leading-none text-primary-soft-foreground">
-            Over {currentOver}.{currentBall}
+            {currentOver}.{currentBall} ov
           </span>
           {lastBalls.length > 0 ? (
             <>
               <div
-                className="no-scrollbar flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto py-0.5"
+                ref={overStripRef}
+                // 6 px of padding inside, taken back outside: the strip
+                // keeps its height while each chip's 44 px tap area fits
+                // in it (the scroller clips anything beyond its box).
+                className="no-scrollbar -my-1 flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto py-1.5"
                 role="group"
                 aria-label="Balls this over"
               >
@@ -631,7 +646,8 @@ export function ScoringPanel({
                       onClick={() => onSelectBall?.(idx)}
                       className={cn(
                         chip,
-                        "transition-colors hover:brightness-95 active:scale-95",
+                        // 44 px tall to tap, and wider into half the gaps.
+                        "relative transition-colors before:absolute before:-inset-x-[3px] before:-inset-y-1.5 before:content-[''] hover:brightness-95 active:scale-95",
                         getBallDisplay(ball),
                       )}
                       title={`Ball ${number}: ${getBallLabel(ball)} (tap to edit)`}
@@ -660,12 +676,14 @@ export function ScoringPanel({
               variant="ghost"
               size="sm"
               onClick={onEditBalls}
-              aria-label="Correct a ball"
-              title="Correct a ball (any over)"
-              className="shrink-0 gap-1 px-2 text-muted-foreground hover:text-foreground"
+              aria-label="Fix a mistake"
+              title="Fix a mistake (any ball, any over)"
+              // A word, not the pencil the Change buttons above use; a 44 px
+              // hit area without growing the row (the column must fit).
+              className="relative shrink-0 gap-1 px-2 font-semibold text-muted-foreground before:absolute before:-inset-y-1 before:inset-x-0 before:content-[''] hover:text-foreground"
             >
-              <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-              <span className="hidden sm:inline">Correct a ball</span>
+              <span className="sm:hidden">Fix</span>
+              <span className="hidden sm:inline">Fix a mistake</span>
             </Button>
           )}
         </div>
@@ -674,7 +692,7 @@ export function ScoringPanel({
             being waited for, an armed extra and its choice, what Undo took
             back, a free hit), so the keys under it never move. */}
         <div
-          className="flex h-11 shrink-0 items-center"
+          className="flex h-10 shrink-0 items-center sm:h-11"
           data-testid="keypad-status"
         >
           {waitingNote ? (
@@ -729,7 +747,9 @@ export function ScoringPanel({
                           aria-checked={checked}
                           onClick={() => setNoBallRuns(kind)}
                           className={cn(
-                            "h-8 truncate rounded-lg border px-0.5 text-xs font-semibold transition-colors",
+                            // 36 px in the fixed 40 px row, 44 px to tap
+                            // (into the gaps, not over the keys).
+                            "relative h-9 truncate rounded-lg border px-0.5 text-xs font-semibold transition-colors before:absolute before:-inset-y-1 before:inset-x-0 before:content-['']",
                             sunlightMode
                               ? checked
                                 ? "border-2 border-black bg-black text-white"
@@ -831,7 +851,7 @@ export function ScoringPanel({
                   size="sm"
                   onClick={onRedo}
                   disabled={disabled}
-                  className="h-8 shrink-0"
+                  className="relative h-9 shrink-0 before:absolute before:-inset-y-1 before:inset-x-0 before:content-['']"
                 >
                   Restore ball
                 </Button>

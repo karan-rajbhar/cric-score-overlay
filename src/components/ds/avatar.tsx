@@ -1,5 +1,5 @@
 import type * as React from "react";
-import { cn, deriveShortName } from "~/lib/utils";
+import { cn, deriveShortName, initialsOf } from "~/lib/utils";
 import { AvatarPhoto } from "./avatar-photo";
 
 const SIZE = {
@@ -25,14 +25,6 @@ export function nameHue(name: string): number {
 export const TINT =
   "bg-[hsl(var(--h)_70%_93%)] text-[hsl(var(--h)_55%_28%)] dark:bg-[hsl(var(--h)_35%_20%)] dark:text-[hsl(var(--h)_70%_82%)]";
 
-function initialsOf(name: string, letters: 1 | 2): string {
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  if (words.length === 0) return "?";
-  if (letters === 1 || words.length === 1) {
-    return (words[0] ?? "?").slice(0, letters).toUpperCase();
-  }
-  return `${words[0]?.[0] ?? ""}${words.at(-1)?.[0] ?? ""}`.toUpperCase();
-}
 
 /** A person: photo when there is one, else initials on their tint. */
 export function Avatar({

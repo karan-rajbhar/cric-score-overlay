@@ -23,3 +23,11 @@ describe("local date and time inputs", () => {
     expect(todayLocalDateInput(new Date(2026, 0, 5, 23, 59))).toBe("2026-01-05");
   });
 });
+
+describe("weekdayOf", () => {
+  it("names a date field's weekday, and nothing for a non-date", async () => {
+    const { weekdayOf } = await import("./local-datetime");
+    expect(weekdayOf("2026-11-22")).toBe("Sunday");
+    expect(weekdayOf("")).toBe("");
+  });
+});

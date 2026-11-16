@@ -10,6 +10,7 @@ export interface GlobalSearchResult {
     status: string;
     venue: string | null;
     scheduled_at: string | null;
+    result_description?: string | null;
   }>;
   teams: Array<{
     id: string;
@@ -55,7 +56,7 @@ export async function globalSearch(
   const db = await createServerClient();
   const [matchesRes, teamsRes, playersRes, clubsRes, tournamentsRes] =
     await Promise.all([
-      prefixSearch(db, "matches", q, "id, title, status, venue, scheduled_at", SHOWN + 1),
+      prefixSearch(db, "matches", q, "id, title, status, venue, scheduled_at, result_description", SHOWN + 1),
       prefixSearch(db, "teams", q, "id, name, short_name, logo_url", SHOWN + 1),
       prefixSearch(db, "users", q, "id, full_name, avatar_url, username", SHOWN + 1),
       prefixSearch(db, "clubs", q, "id, name, short_name, location, logo_url", SHOWN + 1),

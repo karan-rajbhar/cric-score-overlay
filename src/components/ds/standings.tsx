@@ -2,13 +2,11 @@ import type * as React from "react";
 import Link from "next/link";
 import { cn } from "~/lib/utils";
 import { Avatar, TeamCrest } from "~/components/ds/avatar";
-import {
-  Abbr,
-  TableCard,
-  figCell,
-  figHead,
-  figTable,
-} from "~/components/ds/scorecard";
+import { Abbr, TableCard } from "~/components/ds/scorecard";
+// The class strings come from fig-table, not the "use client" scorecard:
+// a server page importing them through it got client references, and its
+// points table lost its alignment (figures under the wrong headings).
+import { figCell, figHead, figTable } from "~/components/ds/fig-table";
 import type { TeamRef } from "~/components/ds/score";
 
 export type StandingRow = {

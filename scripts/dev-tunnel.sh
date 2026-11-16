@@ -71,8 +71,8 @@ env_value() {
 TUNNEL_NAME="${DEV_TUNNEL_NAME:-$(env_value DEV_TUNNEL_NAME)}"
 TUNNEL_HOST="${DEV_TUNNEL_HOST:-$(env_value DEV_TUNNEL_HOST)}"
 
-TUNNEL_LOG="$(mktemp -t cloudflared)"
-URL_FILE="$(mktemp -t cloudflared-url)"
+TUNNEL_LOG="$(mktemp -t cloudflared.XXXXXX)"
+URL_FILE="$(mktemp -t cloudflared-url.XXXXXX)"
 TUNNEL_PID=""
 DEV_PID=""
 

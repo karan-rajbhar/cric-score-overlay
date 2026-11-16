@@ -25,6 +25,8 @@ import {
   type FlushResult,
   type QueuedAction,
   type ReplaceBatterPayload,
+  type SwapBattersPayload,
+  type CorrectOverBowlerPayload,
   type RetireBatterPayload,
 } from "~/lib/offline-queue";
 import {
@@ -39,6 +41,8 @@ import { deliveryLabel } from "~/lib/cricket";
 import {
   entryForChange,
   pushEntry,
+  redoToSave,
+  restoredRedo,
   takeUndo,
   undoableSeq,
   undoneBallOf,
@@ -517,7 +521,11 @@ export function useScoring(
   matchId: string,
   options?: {
     onNeedsBowler?: () => void;
-    onNeedsBatsman?: () => void;
+    /**
+     * Batters are needed. `inningsBreak`: the next innings is open with
+     * nobody in and no ball bowled (the screen shows its break card first).
+     */
+    onNeedsBatsman?: (at: { inningsBreak: boolean }) => void;
   },
 ) {
   const optionsRef = useRef(options);
@@ -663,6 +671,11 @@ export function useScoring(
   /** A server undo is in progress (one the screen could not show at once). */
   const [undoing, setUndoing] = useState(false);
   const saveUndoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** The state on screen, for saving "Restore ball" (set further down). */
+  const shownForSaveRef = useRef<() => ShownState | null>(() => null);
+  /** "Restore ball" read back from the device, checked once a state shows. */
+  const savedRedoRef = useRef<unknown>(null);
+  const restoreRedoRef = useRef<() => void>(() => {});
 
   /** Save the undo history on the device (debounced; on page hide too). */
   const saveUndoHistory = useCallback(() => {
@@ -674,6 +687,9 @@ export function useScoring(
           v: 1,
           stack: undoStackRef.current.slice(-6),
           targets: [...undoTargetsRef.current.entries()],
+          // Restore ball, so a reload (or the phone dropping the tab)
+          // keeps offering it.
+          redo: redoToSave(redoRef.current, shownForSaveRef.current()),
         }),
       );
     } catch {
@@ -710,6 +726,7 @@ export function useScoring(
           if (!undoTargetsRef.current.has(id)) undoTargetsRef.current.set(id, state);
         }
       }
+      savedRedoRef.current = saved.redo ?? null;
     } catch {
       // Unreadable: start without it.
     }
@@ -832,7 +849,15 @@ export function useScoring(
       const key = `${at.innings}:${at.balls}:${at.wickets}:${need}`;
       if (!fromAction && key === promptKeyRef.current) return;
       promptKeyRef.current = key;
-      if (need === "batsman") optionsRef.current?.onNeedsBatsman?.();
+      if (need === "batsman") {
+        optionsRef.current?.onNeedsBatsman?.({
+          inningsBreak:
+            (at.innings ?? 1) >= 2 &&
+            (at.balls ?? 0) === 0 &&
+            !at.striker &&
+            !at.nonStriker,
+        });
+      }
       else optionsRef.current?.onNeedsBowler?.();
     },
     [],
@@ -1085,6 +1110,7 @@ export function useScoring(
           restoreFromCache();
         }
       }
+      restoreRedoRef.current();
       if (!cancelled) setLoading(false);
     };
     void init();
@@ -2043,6 +2069,7 @@ export function useScoring(
 
   /** Clear the undo note and the redo list (a new scoring action). */
   const clearUndone = () => {
+    if (redoRef.current.length) scheduleUndoSave();
     redoRef.current = [];
     setUndoNotice(null);
   };
@@ -2131,7 +2158,30 @@ export function useScoring(
   ) => {
     if (ball && !ball.isEvent && !pending) redoRef.current.push(ball);
     setUndoNotice(noticeFor(ball, pending, note));
+    scheduleUndoSave();
   };
+
+  // The screen's state now, for saving Restore ball; and Restore ball read
+  // back after a reload, offered again when the scorecard is as it was.
+  // Set after each render (refs are not written during one): the load and
+  // the save timer read them later.
+  useEffect(() => {
+    shownForSaveRef.current = () =>
+      shownNow(getPendingActions(matchId)) ??
+      (snapshotRef.current
+        ? { snapshot: snapshotRef.current, base: baseRef.current }
+        : null);
+    restoreRedoRef.current = () => {
+      const saved = savedRedoRef.current;
+      savedRedoRef.current = null;
+      if (!saved || redoRef.current.length > 0) return;
+      const balls = restoredRedo(saved, shownForSaveRef.current());
+      const last = balls.at(-1);
+      if (!last) return;
+      redoRef.current = balls;
+      setUndoNotice(noticeFor(last));
+    };
+  });
 
   /**
    * Undo the last ball at once: show the state the screen had just before
@@ -2336,6 +2386,7 @@ export function useScoring(
     redoRef.current.pop();
     const next = redoRef.current.at(-1);
     setUndoNotice(next ? noticeFor(next) : null);
+    scheduleUndoSave();
     return handleScore(ball.bowlerId, ball.batsmanId, ball.nonStrikerId, ball.event, {
       fromRedo: true,
     });
@@ -2531,6 +2582,22 @@ export function useScoring(
       setNonStrikerId(swap);
     });
 
+  /**
+   * The batters were at the wrong ends from one ball to another (any
+   * innings, during or after the match): the server swaps them on every
+   * ball between and the screen shows what it committed.
+   */
+  const handleSwapBatters = (payload: SwapBattersPayload) =>
+    runOrQueue("swapBatters", payload, (id, options) => {
+      enqueueAction(matchId, "swapBatters", payload, id, options);
+    });
+
+  /** Someone else bowled a whole over (any innings, during or after). */
+  const handleCorrectOverBowler = (payload: CorrectOverBowlerPayload) =>
+    runOrQueue("correctOverBowler", payload, (id, options) => {
+      enqueueAction(matchId, "correctOverBowler", payload, id, options);
+    });
+
   const handleStartSuperOver = async () => {
     clearUndone();
     setIsProcessing(true);
@@ -2647,7 +2714,7 @@ export function useScoring(
         });
       }
 
-      optionsRef.current?.onNeedsBatsman?.();
+      optionsRef.current?.onNeedsBatsman?.({ inningsBreak: true });
       setIsProcessing(false);
       return { data: null, error: null };
     }
@@ -3062,7 +3129,7 @@ export function useScoring(
         ? said("Choose the openers and the bowler for the next innings.")
         : "Innings break (offline): choose the openers and the bowler for the next innings.",
     );
-    optionsRef.current?.onNeedsBatsman?.();
+    optionsRef.current?.onNeedsBatsman?.({ inningsBreak: true });
     setIsProcessing(false);
     return { data: null, error: null };
   };
@@ -3188,6 +3255,8 @@ export function useScoring(
     handleAwardPenalty,
     handleReassignOverBowler,
     handleReplaceBatter,
+    handleSwapBatters,
+    handleCorrectOverBowler,
     handleStartSuperOver,
     handleConfirmBatsmen,
     handleConfirmBowler,

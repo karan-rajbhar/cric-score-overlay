@@ -36,6 +36,7 @@ import {
 } from "./profiles";
 import {
   awardPenaltyRuns,
+  correctOverBowler,
   endInnings,
   reassignOverBowler,
   replaceBatter,
@@ -46,6 +47,7 @@ import {
   setCurrentBatsmen,
   setCurrentBowler,
   startSuperOver,
+  swapBatters,
   undoLastBall,
   updateBall,
   type RecordBallArgs,
@@ -136,6 +138,20 @@ export async function callRpc(
       return undoLastBall(scoring, str(args, "p_match_id"));
     case "update_ball":
       return updateBall(scoring, args as unknown as UpdateBallArgs);
+    case "swap_batters":
+      return swapBatters(scoring, {
+        p_match_id: str(args, "p_match_id"),
+        p_innings_id: str(args, "p_innings_id"),
+        p_from_ball_id: str(args, "p_from_ball_id"),
+        p_to_ball_id: optStr(args, "p_to_ball_id"),
+      });
+    case "correct_over_bowler":
+      return correctOverBowler(scoring, {
+        p_match_id: str(args, "p_match_id"),
+        p_innings_id: str(args, "p_innings_id"),
+        p_over_number: Number(args.p_over_number),
+        p_bowler_id: str(args, "p_bowler_id"),
+      });
     case "end_innings":
       return endInnings(
         scoring,

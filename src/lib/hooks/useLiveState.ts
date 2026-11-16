@@ -28,6 +28,10 @@
  */
 
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
+import {
+  correctionNoteOf,
+  type CorrectionNote,
+} from "~/lib/scoring-correction";
 import type { QueryClient, QueryKey } from "@tanstack/react-query";
 import { getFirebaseDb } from "~/lib/firebase/client";
 import {
@@ -89,6 +93,8 @@ export interface LiveLastChange {
   name: string | null;
   /** ISO timestamp. */
   at: string;
+  /** Set by a correction: what it did. */
+  correction?: CorrectionNote | null;
 }
 
 function lastChangeOf(value: unknown): LiveLastChange | null {
@@ -99,6 +105,7 @@ function lastChangeOf(value: unknown): LiveLastChange | null {
     uid: v.uid,
     name: typeof v.name === "string" ? v.name : null,
     at: v.at,
+    correction: correctionNoteOf(v.correction),
   };
 }
 

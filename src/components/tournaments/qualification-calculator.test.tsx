@@ -73,3 +73,19 @@ describe("remainingMatchesByTeam", () => {
     expect(remaining.get("d")).toBeUndefined();
   });
 });
+
+describe("QualificationCalculator before a ball is bowled", () => {
+  it("does not put three teams level on 0 points all in the top 2", () => {
+    const row = (teamId: string) => ({
+      teamId,
+      teamName: teamId,
+      matchesPlayed: 0,
+      points: 0,
+      netRunRate: 0,
+      remainingMatches: 2,
+    });
+    show([row("Ketan 11"), row("Vinayak 11"), row("Omkar 11")]);
+    expect(screen.queryByText(/In the top 2 now/)).not.toBeInTheDocument();
+    expect(screen.getAllByText(/Level on points with others for the top 2/)).toHaveLength(3);
+  });
+});

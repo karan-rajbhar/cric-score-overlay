@@ -1,4 +1,4 @@
-import { formatDecimalOvers } from "~/lib/cricket";
+import { formatFowOvers } from "~/lib/cricket";
 import type { FallOfWicket } from "~/lib/match-types";
 
 /** How one wicket fell, in the words of the scorecard's dropdown. */
@@ -43,6 +43,7 @@ export function dismissalDetailOf(
   batterName: string,
   entry: FallOfWicket | undefined,
   type?: string | null,
+  ballsPerOver = 6,
 ): DismissalDetail | null {
   if (!entry) return null;
   const bowler = entry.bowler?.full_name ?? null;
@@ -51,7 +52,7 @@ export function dismissalDetailOf(
     Boolean(entry.fielder_id) && entry.fielder_id === entry.bowler_id;
   const how = howOut(type ?? entry.dismissal_type, fielder, fielderIsBowler);
   return {
-    over: formatDecimalOvers(entry.overs_at_fall),
+    over: formatFowOvers(entry.overs_at_fall, ballsPerOver),
     headline: bowler ? `${bowler} to ${batterName}` : batterName,
     outcome: `Out, ${how}`,
     score: `${entry.runs_at_fall}/${entry.wicket_number} · wicket ${entry.wicket_number}`,

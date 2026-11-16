@@ -45,12 +45,28 @@ async function reads(ds: MemoryDataSource, run: () => Promise<unknown>) {
 
 /** What the old `ilike '%q%'` scan matched, restricted to word starts. */
 function expected(table: string, fields: string[], q: string, limit: number) {
-  return seed[table]!.filter((d) =>
+  const found = seed[table]!.filter((d) =>
     matchesSearch(
       q,
       fields.map((f) => d[f]),
     ),
-  )
+  );
+  // Matches come latest first (ties by id, in the same direction).
+  if (table === "matches") {
+    return found
+      .sort((a, b) =>
+        String(b.scheduled_at ?? "") !== String(a.scheduled_at ?? "")
+          ? String(b.scheduled_at ?? "") < String(a.scheduled_at ?? "")
+            ? -1
+            : 1
+          : a.id < b.id
+            ? 1
+            : -1,
+      )
+      .slice(0, limit)
+      .map((d) => d.id);
+  }
+  return found
     .sort((a, b) =>
       String(a.name_lower ?? a.title_lower) <
       String(b.name_lower ?? b.title_lower)
@@ -126,9 +142,72 @@ describe("prefixSearch", () => {
         ? expected("users", ["full_name", "username"], q, 5)
         : [];
       expect(rows.map((r) => r.id)).toEqual(want);
-      expect(n).toBeLessThanOrEqual(Math.max(1, want.length));
+      // A search that finds nobody looks for spelling variants too: one
+      // query more (a query that finds nothing is billed one read).
+      expect(n).toBeLessThanOrEqual(want.length > 0 ? want.length : 2);
     });
   }
+
+  describe("spelling variants", () => {
+    /** The seed plus players named as the scorers spell them. */
+    function withPlayers(...names: string[]) {
+      const users = names.map((full_name, i) => ({
+        id: `sound-${i}`,
+        full_name,
+        ...searchFieldsOf("users", { full_name }),
+      }));
+      const ds = new MemoryDataSource({ ...seed, users: [...seed.users!, ...users] });
+      const { ctx } = builderContextFor(ds, null);
+      const db = {
+        from: <T extends TableName>(table: T) => new QueryBuilder<T>(ctx, table),
+      };
+      return { ds, db };
+    }
+
+    it("finds Sandeep sir for \"Sandip sir\", and Aakash for \"Akash\"", async () => {
+      const { db } = withPlayers("Sandeep sir", "Aakash Patil");
+      const sandip = await prefixSearch(db, "users", "Sandip sir", "id, full_name", 5);
+      expect(sandip.data.map((r) => r.full_name)).toEqual(["Sandeep sir"]);
+      const akash = await prefixSearch(db, "users", "Akash", "id, full_name", 5);
+      expect(akash.data.map((r) => r.full_name)).toEqual(["Aakash Patil"]);
+    });
+
+    it("keeps only those whose every name word sounds alike", async () => {
+      const { db } = withPlayers("Sandeep Patil", "Sandeep More");
+      const { data } = await prefixSearch(db, "users", "Sandip More", "id, full_name", 5);
+      expect(data.map((r) => r.full_name)).toEqual(["Sandeep More"]);
+    });
+
+    it("lists variants beside a name found as typed, for the add-player boxes", async () => {
+      const { db } = withPlayers("Akashy More", "Aakash");
+      const plain = await prefixSearch(db, "users", "Akash", "id, full_name", 5);
+      expect(plain.data.map((r) => r.full_name)).toEqual(["Akashy More"]);
+      const adding = await prefixSearch(db, "users", "Akash", "id, full_name", 5, {
+        soundAlikes: true,
+      });
+      expect(adding.data.map((r) => r.full_name)).toEqual(["Akashy More", "Aakash"]);
+    });
+
+    it("lists variants beside a name found as typed, for the add-player boxes", async () => {
+      const { db } = withPlayers("Akashy More", "Aakash");
+      const plain = await prefixSearch(db, "users", "Akash", "id, full_name", 5);
+      expect(plain.data.map((r) => r.full_name)).toEqual(["Akashy More"]);
+      const adding = await prefixSearch(db, "users", "Akash", "id, full_name", 5, {
+        soundAlikes: true,
+      });
+      expect(adding.data.map((r) => r.full_name)).toEqual(["Akashy More", "Aakash"]);
+    });
+
+    it("costs nothing more when the name is found as typed", async () => {
+      const { ds, db } = withPlayers("Sandeep sir", "Sandip Kale");
+      const n = await reads(ds, async () => {
+        const { data } = await prefixSearch(db, "users", "Sandip", "id, full_name", 5);
+        // Found as typed: the variant is not looked up.
+        expect(data.map((r) => r.full_name)).toEqual(["Sandip Kale"]);
+      });
+      expect(n).toBe(1);
+    });
+  });
 
   it("long queries are confirmed in memory", async () => {
     const { db } = setup();

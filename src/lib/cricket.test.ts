@@ -1785,3 +1785,15 @@ describe("match format wording", () => {
     expect(matchFormatName({ match_format: "Custom" })).toBe("Match");
   });
 });
+
+describe("formatFowOvers", () => {
+  it("writes the ball a wicket fell on, as the Balls tab does", async () => {
+    const { formatFowOvers } = await import("./cricket");
+    expect(formatFowOvers(5.2)).toBe("5.2");
+    // 7 overs completed at the fall: the 7th over's last ball.
+    expect(formatFowOvers(7)).toBe("6.6");
+    expect(formatFowOvers(7, 8)).toBe("6.8");
+    expect(formatFowOvers(0)).toBe("0.0");
+    expect(formatFowOvers(null)).toBe("0.0");
+  });
+});

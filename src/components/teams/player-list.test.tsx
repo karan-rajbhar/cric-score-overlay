@@ -162,3 +162,61 @@ describe("PlayerList rows (P8)", () => {
     expect(updatePlayerRole).not.toHaveBeenCalled();
   });
 });
+
+describe("PlayerList order and marks", () => {
+  const squad = [
+    { id: "a", user_id: "u1", user: { id: "u1", full_name: "Hitesh" } },
+    { id: "b", user_id: "u2", role_in_team: "captain", user: { id: "u2", full_name: "Omkar" } },
+    { id: "c", user_id: "u3", role_in_team: "wicket_keeper", user: { id: "u3", full_name: "Sanket" } },
+    { id: "d", user_id: "u4", user: { id: "u4", full_name: "Ajay" } },
+  ];
+
+  it("lists the captain and keeper first, the rest in squad order", () => {
+    render(<PlayerList teamId="t1" players={squad} />);
+    // Each row's link reads the avatar's initials, then the name.
+    const names = screen
+      .getAllByRole("link")
+      .map((l) => l.querySelector(".font-medium")?.textContent);
+    expect(names).toEqual(["Omkar (c)", "Sanket (wk)", "Hitesh", "Ajay"]);
+  });
+
+  it("says once when most of the squad is not on CricScore, and marks the rest", () => {
+    const most = { u1: { state: "placeholder" as const }, u2: { state: "placeholder" as const }, u3: { state: "placeholder" as const } };
+    render(<PlayerList teamId="t1" players={squad} claims={most} allowEdit />);
+    expect(screen.getByText(/3 of 4 players are not on CricScore yet/)).toBeInTheDocument();
+    expect(screen.queryByText("Not on CricScore")).toBeNull();
+    expect(screen.getAllByText("On CricScore")).toHaveLength(1);
+  });
+});
+
+describe("PlayerList possible duplicates", () => {
+  const squad = [
+    { id: "a", user_id: "u1", user: { id: "u1", full_name: "Sanket" } },
+    { id: "b", user_id: "u2", user: { id: "u2", full_name: "Sa" } },
+    { id: "c", user_id: "u3", user: { id: "u3", full_name: "Hitesh" } },
+  ];
+  const claims = { u2: { state: "placeholder" as const } };
+  beforeEach(() => window.localStorage.clear());
+
+  it("lists a player added by name who may be someone in the squad, for admins", () => {
+    render(<PlayerList teamId="t1" players={squad} claims={claims} allowEdit />);
+    expect(screen.getByRole("heading", { name: "Possible duplicates" })).toBeInTheDocument();
+    expect(screen.getByText("Sa and Sanket")).toBeInTheDocument();
+  });
+
+  it("forgets a pair marked not the same, on this device", () => {
+    const { unmount } = render(
+      <PlayerList teamId="t1" players={squad} claims={claims} allowEdit />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Not the same" }));
+    expect(screen.queryByText("Sa and Sanket")).toBeNull();
+    unmount();
+    render(<PlayerList teamId="t1" players={squad} claims={claims} allowEdit />);
+    expect(screen.queryByText("Sa and Sanket")).toBeNull();
+  });
+
+  it("shows nothing to people who cannot manage the team", () => {
+    render(<PlayerList teamId="t1" players={squad} />);
+    expect(screen.queryByText("Possible duplicates")).toBeNull();
+  });
+});

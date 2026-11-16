@@ -20,6 +20,13 @@ export interface PickerRow {
   disabledReason?: string | null;
   /** Soft warning that does not block the pick, e.g. "Retired hurt". */
   note?: string | null;
+  /**
+   * Chosen for something in the dialog (an end: "Striker", "Non-striker"):
+   * the row is highlighted and carries a pill with a tick, in place, so a
+   * choice made earlier in the dialog never seems to vanish. `strong`
+   * fills the pill.
+   */
+  mark?: { label: string; strong?: boolean } | null;
 }
 
 export function roleLabel(role?: string | null): string | null {

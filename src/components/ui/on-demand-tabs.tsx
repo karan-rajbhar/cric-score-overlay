@@ -71,6 +71,21 @@ export function OnDemandTabs({
     });
   };
 
+  // Nothing cheap to open on (a visitor to a club with no teams): the plain
+  // URL's tab is a costly one, so ask the page for it once, as opening it
+  // would; until then its panel shows the skeleton.
+  const first = React.useRef(value);
+  React.useEffect(() => {
+    const tab = first.current;
+    if (!onDemand.includes(tab) || served.current !== null) return;
+    served.current = tab;
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", tab);
+    startTransition(() => {
+      router.replace(`${url.pathname}${url.search}`, { scroll: false });
+    });
+  }, [onDemand, router]);
+
   const context = React.useMemo(
     () => ({
       onDemand,

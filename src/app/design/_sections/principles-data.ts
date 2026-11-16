@@ -121,6 +121,13 @@ export const PRINCIPLE_GROUPS: readonly PrincipleGroup[] = [
         evidence: "learned",
         appliedIn: "ActionsSheet",
       },
+      {
+        title: "Read the match without leaving the keypad",
+        rule: "The scoring screen switches in place between Score, Scorecard and Balls, in its top bar: the score stays on every view, the keypad comes back as it was, and only Score takes keys.",
+        why: "Scorers left for the match page to check a figure or a ball, mid-over, and had to find their way back; GameChanger scores with its box score and plays one tap away.",
+        evidence: "pattern",
+        appliedIn: "ScoringViewSwitch",
+      },
     ],
   },
   {
@@ -184,6 +191,13 @@ export const PRINCIPLE_GROUPS: readonly PrincipleGroup[] = [
         why: "Players in the other squad were silently left out, which is how the first duplicates were made.",
         evidence: "learned",
         appliedIn: "whyNotAddable",
+      },
+      {
+        title: "A choice made earlier stays in sight",
+        rule: "When a dialog takes two picks from one list (the striker, then the non-striker), the first keeps its row, marked with what it was chosen for, while the second is chosen.",
+        why: "Choosing the non-striker, the striker just picked seemed to vanish from the list, and scorers were unsure whom they had picked.",
+        evidence: "learned",
+        appliedIn: "PickerRow.mark",
       },
       {
         title: "Tell two of one name apart",
@@ -325,6 +339,53 @@ export const PRINCIPLE_GROUPS: readonly PrincipleGroup[] = [
     ],
   },
   {
+    title: "Fixing mistakes",
+    principles: [
+      {
+        title: "Start a fix where the mistake is seen",
+        rule: "Corrections open from the ball, the over or the player on the scorecard, not from a separate page.",
+        why: "NV Play, PlayHQ and CricHeroes all edit from the ball-by-ball list. Here Replace sat behind the ⋯ menu on its own page, away from the scorecard where scorers noticed the mistake.",
+        evidence: "pattern",
+      },
+      {
+        title: "Ask what happened, in cricket words",
+        rule: "Name the mistake (\"The batters were at the wrong ends\"), not the tool (\"Replace\"), and pick the fix behind it.",
+        why: "A scorer used Wrong player: replace for a strike mix-up and moved a batter's real runs to a new player (15 Nov 2026).",
+        evidence: "learned",
+      },
+      {
+        title: "Say how far a fix reaches",
+        rule: "This ball, this over, until a chosen ball, the rest of the innings or the whole match: the scorer chooses, and the screen says which.",
+        why: "NV Play asks whole over or this delivery, PlayHQ whether later balls follow. Replace here was whole innings or whole match only.",
+        evidence: "pattern",
+      },
+      {
+        title: "Offer the knock-on fix, never apply it silently",
+        rule: "When a fix changes who should be on strike or who comes in next, propose the change to later balls and let the scorer decide.",
+        why: "NV Play's Auto Correct and Play-Cricket Scorer Pro's reassignment of subsequent balls both ask before moving later balls.",
+        evidence: "pattern",
+      },
+      {
+        title: "Show the result before saving",
+        rule: "List the figures that change, old and new, before a correction is saved.",
+        why: "Every repair of the 15 Nov matches was agreed from a before-and-after scorecard; no scoring app we looked at offers it.",
+        evidence: "learned",
+      },
+      {
+        title: "Do not steer to a new player when the right one exists",
+        rule: "Name a similar player in the squads before adding one, and when they cannot be picked, say which fix to use instead.",
+        why: "\"sandip\" did not find \"Sandeep sir\", who had batted and could not be picked, so a duplicate was made mid-match.",
+        evidence: "learned",
+      },
+      {
+        title: "Tell the other scorer what was corrected",
+        rule: "Show another scorer's correction in words, with who made it, on the screen that follows the match.",
+        why: "Two scorers replaced the same player back and forth a minute apart; each screen only said the other was also scoring.",
+        evidence: "learned",
+      },
+    ],
+  },
+  {
     title: "Checking the work",
     principles: [
       {
@@ -439,5 +500,25 @@ export const SOURCES: readonly Source[] = [
   {
     label: "Play-Cricket: Merging player records",
     href: "https://play-cricket.ecb.co.uk/hc/en-us/articles/115003512849-Merging-Player-Records",
+  },
+  {
+    label: "NV Play: Scoring and editing a match",
+    href: "https://support.nvplay.com/hc/en-gb/sections/360008895933-Scoring-and-Editing-a-Match",
+    note: "Read through search excerpts; the help centre blocks automated reading.",
+  },
+  {
+    label: "Play-Cricket Scorer Pro: Editing wickets and reassigning later balls",
+    href: "https://play-cricket.ecb.co.uk/hc/en-us/articles/360001225137-Editing-or-Adding-Wickets-Retirements-in-Edit-Mode-and-Auto-Reassignment-of-Subsequent-Balls-PCS-Pro",
+    note: "Read through search excerpts.",
+  },
+  {
+    label: "PlayHQ: Editing bowlers, batters, runs and line-ups",
+    href: "https://support.playhq.com/hc/en-au/articles/9601067169561-Editing-bowlers-batters-value-of-runs-extras-team-line-ups",
+    note: "Read through search excerpts.",
+  },
+  {
+    label: "CricHeroes: How to edit scorecards",
+    href: "https://blog.cricheroes.com/?p=4955",
+    note: "A how-to post, not product documentation.",
   },
 ];

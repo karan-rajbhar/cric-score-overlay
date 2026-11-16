@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { Avatar } from "~/components/ds/avatar";
 import { ListCard } from "~/components/ds/list";
@@ -24,6 +24,7 @@ import { Loader2 } from "lucide-react";
 import { ClaimProfileDialog } from "~/components/teams/claim-profile-dialog";
 import { MergePlayerDialog } from "~/components/teams/merge-player-dialog";
 import type { PlayerClaim } from "~/lib/squad-claims";
+import { possibleDuplicates, type DuplicatePair } from "~/lib/player-search";
 import { NETWORK_ERROR_MESSAGE } from "~/lib/network-error";
 
 const ROLE_LABEL: Record<string, string> = {
@@ -57,6 +58,14 @@ interface PlayerListProps {
   allowEdit?: boolean;
 }
 
+/** Captain, vice-captain and keeper head the list; the rest keep their order. */
+const ROLE_RANK: Record<string, number> = {
+  captain: 0,
+  vice_captain: 1,
+  wicket_keeper: 2,
+};
+const rankOf = (role?: string) => ROLE_RANK[role ?? ""] ?? 3;
+
 /** The roles a squad row's menu offers, in this order. */
 const SQUAD_ROLES = [
   ["captain", "Captain"],
@@ -73,7 +82,11 @@ export function PlayerList({
   allowEdit = false,
 }: PlayerListProps) {
   const [updating, setUpdating] = useState<string | null>(null);
-  const [merging, setMerging] = useState<{ id: string; name: string } | null>(
+  const [merging, setMerging] = useState<{
+    id: string;
+    name: string;
+    suggestion?: string;
+  } | null>(
     null,
   );
   const [claiming, setClaiming] = useState<{ id: string; name: string } | null>(
@@ -129,11 +142,45 @@ export function PlayerList({
     );
   }
   const claimOf = (userId: string) => claims[userId];
+  // Array sort is stable: the rest keep the squad's own order.
+  const ordered = [...players].sort(
+    (a, b) => rankOf(a.role_in_team) - rankOf(b.role_in_team),
+  );
+  // Mark the fewer: when most of the squad has no account (a club's usual
+  // squad), say so once and mark the ones who are on CricScore instead of
+  // repeating "Not on CricScore" on nearly every row.
+  const placeholders = players.filter(
+    (p) => claimOf(p.user_id)?.state === "placeholder",
+  ).length;
+  const markAccounts = placeholders > 0 && placeholders * 2 > players.length;
 
   return (
     <>
+    {allowEdit && (
+      <PossibleDuplicates
+        teamId={teamId}
+        players={players.map((p) => ({
+          id: p.user_id,
+          name: p.user?.full_name ?? "Player",
+        }))}
+        isPlaceholder={(id) => claimOf(id)?.state === "placeholder"}
+        onCheck={(pair) =>
+          setMerging({
+            id: pair.duplicate.id,
+            name: pair.duplicate.name,
+            suggestion: pair.keeper.name,
+          })
+        }
+      />
+    )}
+    {markAccounts && (
+      <p className="mb-2 px-1 text-xs text-muted-foreground">
+        {placeholders} of {players.length} players are not on CricScore yet.
+        Invite one to claim their profile from the ⋯ beside their name.
+      </p>
+    )}
     <ListCard aria-label="Squad">
-      {players.map((player) => {
+      {ordered.map((player) => {
         const name = player.user?.full_name ?? "Player";
         const roleLine = squadRoleLine(player.role_in_team);
         return (
@@ -161,9 +208,15 @@ export function PlayerList({
                   {roleLine}
                 </span>
               )}
-              {claimOf(player.user_id)?.state === "placeholder" && (
-                <span className="mt-0.5 inline-block rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                  Not on CricScore
+              {!markAccounts &&
+                claimOf(player.user_id)?.state === "placeholder" && (
+                  <span className="mt-0.5 inline-block rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                    Not on CricScore
+                  </span>
+                )}
+              {markAccounts && !claimOf(player.user_id) && (
+                <span className="mt-0.5 block text-xs text-muted-foreground">
+                  On CricScore
                 </span>
               )}
               {claimOf(player.user_id)?.state === "invited" && (
@@ -260,6 +313,7 @@ export function PlayerList({
         }}
         teamId={teamId}
         player={merging}
+        suggestion={merging.suggestion}
       />
     )}
     {claiming && (
@@ -277,5 +331,94 @@ export function PlayerList({
       />
     )}
     </>
+  );
+}
+
+const noSubscribe = () => () => {};
+
+/** Pairs dismissed on this device ("Not the same"), per team. */
+const dismissedKey = (teamId: string) => `cric_dup_dismissed_${teamId}`;
+const pairKey = (pair: DuplicatePair) => `${pair.duplicate.id}:${pair.keeper.id}`;
+
+function readDismissed(teamId: string): Set<string> {
+  try {
+    const raw = window.localStorage.getItem(dismissedKey(teamId));
+    return new Set(raw ? (JSON.parse(raw) as string[]) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+/**
+ * Squad players added by name who may be someone else in the squad
+ * (`possibleDuplicates`): each pair with Check, which opens the merge on
+ * it, and Not the same, remembered on this device. For team admins.
+ */
+function PossibleDuplicates({
+  teamId,
+  players,
+  isPlaceholder,
+  onCheck,
+}: {
+  teamId: string;
+  players: { id: string; name: string }[];
+  isPlaceholder: (id: string) => boolean;
+  onCheck: (pair: DuplicatePair) => void;
+}) {
+  // localStorage is the browser's: nothing on the server render.
+  const mounted = useSyncExternalStore(
+    noSubscribe,
+    () => true,
+    () => false,
+  );
+  const [dismissedNow, setDismissed] = useState<Set<string> | null>(null);
+  if (!mounted) return null;
+  const dismissed = dismissedNow ?? readDismissed(teamId);
+  const pairs = possibleDuplicates(players, isPlaceholder).filter(
+    (p) => !dismissed.has(pairKey(p)),
+  );
+  if (pairs.length === 0) return null;
+  const dismiss = (pair: DuplicatePair) => {
+    const next = new Set(dismissed).add(pairKey(pair));
+    setDismissed(next);
+    try {
+      window.localStorage.setItem(dismissedKey(teamId), JSON.stringify([...next]));
+    } catch {
+      // Storage blocked: dismissed for this visit only.
+    }
+  };
+  return (
+    <section
+      aria-labelledby={`dups-${teamId}`}
+      className="mb-3 space-y-2 rounded-xl border border-warning/40 bg-warning/10 p-3"
+    >
+      <h3 id={`dups-${teamId}`} className="text-sm font-semibold">
+        Possible duplicates
+      </h3>
+      <p className="text-xs text-muted-foreground">
+        Added by name, they may be someone already in the squad. The same
+        person twice splits their records.
+      </p>
+      <ul className="space-y-1.5">
+        {pairs.map((pair) => (
+          <li
+            key={pairKey(pair)}
+            className="flex flex-wrap items-center justify-between gap-2"
+          >
+            <span className="min-w-0 text-sm">
+              {pair.duplicate.name} and {pair.keeper.name}
+            </span>
+            <span className="flex gap-1.5">
+              <Button size="sm" variant="outline" onClick={() => onCheck(pair)}>
+                Check
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => dismiss(pair)}>
+                Not the same
+              </Button>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

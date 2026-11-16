@@ -45,10 +45,14 @@ function resolveImport(from: string, spec: string): string | null {
 
 const IMPORT = /import\s+(type\s+)?\{([^}]*)\}\s+from\s+["']([^"']+)["']/g;
 
-/** Calls to client functions in `file`, and the plain modules it imports. */
-function scan(file: string): { calls: string[]; next: string[] } {
+/**
+ * Calls to client functions in `file`, values (not components or hooks)
+ * it takes from client modules, and the plain modules it imports.
+ */
+function scan(file: string): { calls: string[]; values: string[]; next: string[] } {
   const src = readFileSync(file, "utf8");
   const calls: string[] = [];
+  const values: string[] = [];
   const next: string[] = [];
   for (const m of src.matchAll(IMPORT)) {
     const target = resolveImport(file, m[3]!);
@@ -68,10 +72,14 @@ function scan(file: string): { calls: string[]; next: string[] } {
       if (/^[A-Z]/.test(local)) continue;
       if (new RegExp(`(^|[^.\\w])${local}\\s*\\(`).test(body)) {
         calls.push(`${relative(SRC, file)}: ${local}() from ${m[3]}`);
+      } else if (!/^use[A-Z]/.test(local)) {
+        // A constant reaches the server as a reference, not its value: a
+        // class string in `cn(figCell, ...)` vanished from the points table.
+        values.push(`${relative(SRC, file)}: ${local} from ${m[3]}`);
       }
     }
   }
-  return { calls, next };
+  return { calls, values, next };
 }
 
 describe("server code and client modules", () => {
@@ -90,14 +98,18 @@ describe("server code and client modules", () => {
     const seen = new Set<string>();
     const queue = [...entries];
     const calls: string[] = [];
+    const values: string[] = [];
     while (queue.length) {
       const file = queue.pop()!;
       if (seen.has(file)) continue;
       seen.add(file);
       const found = scan(file);
       calls.push(...found.calls);
+      values.push(...found.values);
       queue.push(...found.next);
     }
     expect(calls).toEqual([]);
+    // Constants both sides need belong in a plain module (fig-table.ts).
+    expect(values).toEqual([]);
   });
 });

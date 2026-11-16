@@ -50,10 +50,8 @@ import { ClubLogo } from "~/components/clubs/club-logo";
 import { ClubMediaDialog } from "~/components/clubs/club-media-dialog";
 import { ClubTournamentsTab } from "~/components/clubs/club-tournaments-tab";
 import { EmptyState } from "~/components/ui/empty-state";
-import {
-  formatClubType,
-  formatTeamType,
-} from "~/lib/cricket";
+import { AddClubTeamDialog } from "~/components/clubs/add-club-team-dialog";
+import { formatClubType } from "~/lib/cricket";
 import { ContentSheet, pinnedPage, ScreenBar } from "~/components/ds/screen";
 import { PageContainer } from "~/components/layout/page";
 
@@ -214,7 +212,7 @@ export default async function ClubLayout({
 
   // Only what has something in it; its admins can start what does not yet.
   const clubTabs = [
-    { value: "teams", label: "Teams" },
+    (isAdmin || typedTeams.length > 0) && { value: "teams", label: "Teams" },
     (isAdmin || typedTournaments.length > 0) && {
       value: "tournaments",
       label: "Tournaments",
@@ -310,16 +308,24 @@ export default async function ClubLayout({
       <PinnedTitle>{club.name}</PinnedTitle>
 
       <ContentSheet className="mt-4 sm:mt-8">
+      {/* A visitor sees only figures there are; the club's admins see the
+          empty ones too, as theirs to fill. */}
       <StatGrid compact>
-        <StatTile compact icon={Shield} label="Teams" value={typedTeams.length} />
-        <StatTile compact icon={Trophy} label="Tournaments" value={typedTournaments.length} />
-        <StatTile compact icon={Award} label="Hall of fame" value={typedHallOfFame.length} />
+        {(isAdmin || typedTeams.length > 0) && (
+          <StatTile compact icon={Shield} label="Teams" value={typedTeams.length} />
+        )}
+        {(isAdmin || typedTournaments.length > 0) && (
+          <StatTile compact icon={Trophy} label="Tournaments" value={typedTournaments.length} />
+        )}
+        {(isAdmin || typedHallOfFame.length > 0) && (
+          <StatTile compact icon={Award} label="Hall of fame" value={typedHallOfFame.length} />
+        )}
         <StatTile compact icon={Users} label="Members" value={memberTotal} />
       </StatGrid>
 
       {/* Club Tabs */}
       <OnDemandTabs
-        fallback="teams"
+        fallback={clubTabs[0]?.value ?? "matches"}
         tabs={clubTabs.map((t) => t.value)}
         onDemand={["matches", "stats", "members"]}
         className="mt-3 sm:mt-8"
@@ -336,12 +342,21 @@ export default async function ClubLayout({
               </p>
             </div>
             {isAdmin && (
-              <Button asChild size="sm" className="gap-1.5">
-                <Link href={`/teams/create?clubId=${club.id}`}>
-                  <Plus className="h-4 w-4 shrink-0" />
-                  Add team
-                </Link>
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                {/* An existing team joins instead of being made again. */}
+                <AddClubTeamDialog clubId={club.id} clubName={club.name} />
+                {/* One "New team" per screen: the header has it from md up
+                    (on phones it is behind ⋯), and an empty list has its
+                    own. */}
+                {typedTeams.length > 0 && (
+                  <Button asChild size="sm" className="gap-1.5 md:hidden">
+                    <Link href={`/teams/create?clubId=${club.id}`}>
+                      <Plus className="h-4 w-4 shrink-0" />
+                      New team
+                    </Link>
+                  </Button>
+                )}
+              </div>
             )}
           </div>
 
@@ -379,7 +394,6 @@ export default async function ClubLayout({
                     title={team.name}
                     subtitle={[
                       `${players} ${players === 1 ? "player" : "players"}`,
-                      formatTeamType(team.team_type),
                       team.captain?.full_name
                         ? `${team.captain.full_name} (c)`
                         : null,

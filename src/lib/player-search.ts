@@ -4,7 +4,12 @@
  * `GET /api/players/search` (`~/lib/player-lookup`, `usePlayerSearch`).
  */
 
-import { matchesEveryWord, normalizeText } from "~/lib/firebase/derive.mjs";
+import {
+  matchesEveryWord,
+  NAME_EXTRAS,
+  normalizeText,
+  soundKey,
+} from "~/lib/firebase/derive.mjs";
 
 /** A player found by name. */
 export interface FoundPlayer {
@@ -61,6 +66,114 @@ export function sameNamePlayer(
   const typed = normalizeText(query);
   if (!typed) return null;
   return players.find((p) => normalizeText(p.name) === typed) ?? null;
+}
+
+
+/**
+ * How a name sounds, to catch a spelling variant of someone who already
+ * exists: lower case without accents or punctuation, honorifics dropped,
+ * common spellings folded (ee/i, oo/u, aa/a, w/v, sh/s, ph/f) and doubled
+ * letters single. "Sandeep sir" and "Sandip Sir" both give "sandip".
+ */
+export function nameSoundKey(name: string): string {
+  return normalizeText(name)
+    .split(/\s+/)
+    .filter((w) => w && !NAME_EXTRAS.has(w))
+    // The search's own rule (its sound tokens), so screen and server agree.
+    .map(soundKey)
+    .join(" ");
+}
+
+/** A squad player who may be someone else in the squad, and who. */
+export interface DuplicatePair {
+  duplicate: { id: string; name: string };
+  keeper: { id: string; name: string };
+}
+
+/**
+ * Squad players added by name who may be someone else in the squad: the
+ * same name as it sounds ("Sandip Sir" and "Sandeep sir"), or a short form
+ * of it ("Sa" beside "Sanket", "Amit" beside "Amit Jaiswal"). Only players
+ * not on CricScore are offered as the duplicate (an account is never
+ * merged away), each once, with someone on CricScore preferred as the one
+ * kept. Suggestions only: the merge itself refuses two players who played
+ * in the same match.
+ */
+export function possibleDuplicates(
+  players: readonly { id: string; name: string }[],
+  isPlaceholder: (id: string) => boolean,
+): DuplicatePair[] {
+  const keyed = players
+    .map((p) => ({ ...p, key: nameSoundKey(p.name) }))
+    .filter((p) => p.key.length >= 2);
+  const pairs: DuplicatePair[] = [];
+  const paired = new Set<string>();
+  for (const dup of keyed) {
+    if (!isPlaceholder(dup.id) || paired.has(dup.id)) continue;
+    const short = !dup.key.includes(" ");
+    const candidates = keyed.filter((other) => {
+      if (other.id === dup.id || paired.has(other.id)) return false;
+      if (other.key === dup.key) return true;
+      // A short form: one word that starts the other's first word, and
+      // the other is the longer name (so the shorter one is the duplicate).
+      const first = other.key.split(" ")[0] ?? "";
+      return short && first.startsWith(dup.key) && other.key.length > dup.key.length;
+    });
+    // Same sound first, then someone on CricScore.
+    const keeper =
+      candidates.find((c) => c.key === dup.key && !isPlaceholder(c.id)) ??
+      candidates.find((c) => c.key === dup.key) ??
+      candidates.find((c) => !isPlaceholder(c.id)) ??
+      candidates[0];
+    if (!keeper) continue;
+    // Two placeholders of the same sound: the longer name is kept.
+    if (
+      keeper.key === dup.key &&
+      isPlaceholder(keeper.id) &&
+      keeper.name.length < dup.name.length
+    ) {
+      continue;
+    }
+    pairs.push({
+      duplicate: { id: dup.id, name: dup.name },
+      keeper: { id: keeper.id, name: keeper.name },
+    });
+    paired.add(dup.id);
+    paired.add(keeper.id);
+  }
+  return pairs;
+}
+
+/**
+ * Someone whose name is, or sounds like, the one being added: an exact
+ * name first, then a spelling variant among `players` and `squad`, then,
+ * in `squad` only (the people on the screen), the same first name ("Amit"
+ * beside "Amit Jaiswal"). Null when nobody is close.
+ */
+export function similarNamePlayer(
+  query: string,
+  players: readonly FoundPlayer[],
+  squad: readonly FoundPlayer[] = [],
+): FoundPlayer | null {
+  const everyone = [...players, ...squad];
+  const exact = sameNamePlayer(query, everyone);
+  if (exact) return exact;
+  const key = nameSoundKey(query);
+  if (key.replace(/\s/g, "").length < 3) return null;
+  const sounds = everyone.find((p) => nameSoundKey(p.name) === key);
+  if (sounds) return sounds;
+  const firstOf = (k: string) => k.split(" ")[0] ?? "";
+  const one = !key.includes(" ");
+  return (
+    squad.find((p) => {
+      const other = nameSoundKey(p.name);
+      if (!other) return false;
+      // One of the two is a single word that is the other's first name.
+      return one
+        ? firstOf(other) === key
+        : !other.includes(" ") && firstOf(key) === other;
+    }) ?? null
+  );
 }
 
 /**

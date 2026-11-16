@@ -242,6 +242,8 @@ describe("MatchScorersDialog Component", () => {
     await waitFor(() => {
       expect(screen.getByText("Virat Kohli")).toBeInTheDocument();
     });
+    // One Add per player: the field's own button steps aside for the row's.
+    expect(screen.queryByRole("button", { name: /^add$/i })).toBeNull();
 
     const addQuickBtn = screen.getByRole("button", { name: /add virat kohli as a scorer/i });
     fireEvent.click(addQuickBtn);

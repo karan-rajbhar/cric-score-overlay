@@ -25,6 +25,7 @@
  */
 
 import type { Firestore } from "firebase-admin/firestore";
+import type { CorrectionNote } from "~/lib/scoring-correction";
 import type { DataSource } from "./datasource";
 import { canonicalJson } from "./derive.mjs";
 import { nextWicketStreaks } from "./live-events";
@@ -88,6 +89,8 @@ export interface LiveStateLastChange {
   name: string | null;
   /** ISO timestamp. */
   at: string;
+  /** Set by a correction: what it did (`~/lib/scoring-correction`). */
+  correction?: CorrectionNote | null;
 }
 
 export type LiveStateDoc = LiveMatchStateRow & {

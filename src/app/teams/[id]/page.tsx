@@ -36,6 +36,8 @@ import { formatTeamType } from "~/lib/cricket";
 import { EditTeamDialog } from "~/components/teams/edit-team-dialog";
 import { squadClaims, type PlayerClaim } from "~/lib/squad-claims";
 import { TeamSquadShare } from "~/components/teams/team-squad-share";
+import { TeamStatsView } from "~/components/teams/team-stats-view";
+import { teamStatsOf } from "~/lib/team-stats";
 import { PageTrail } from "~/components/ds/page-trail";
 import { backLabelOf, parentOf, teamTrail } from "~/lib/navigation";
 import { ActionsSheet } from "~/components/ds/actions-sheet";
@@ -64,6 +66,8 @@ function latestCount(raw: string | undefined): number {
 }
 import { EntityActions } from "~/components/follow/entity-actions";
 import { cachedForMetadata } from "~/lib/metadata-cache";
+import { requestOrigin } from "~/lib/match-share-server";
+import { linkPreview } from "~/lib/link-preview";
 
 /** The team: read once per request, by the page and its title. */
 const loadTeam = cache(getTeam);
@@ -78,7 +82,14 @@ export async function generateMetadata({
     `team:${id}`,
     async () => (await loadTeam(id)).data?.name,
   );
-  return { title: name ?? "Team" };
+  if (!name) return { title: "Team" };
+  // A shared link previews as a card (`./og`: its club, squad, captain).
+  const url = `${await requestOrigin()}/teams/${id}`;
+  return linkPreview({
+    title: name,
+    description: `${name} on CricScore: squad, matches and statistics.`,
+    url,
+  });
 }
 
 export default async function TeamDetailsPage({
@@ -314,6 +325,8 @@ export default async function TeamDetailsPage({
     ? teamRecordFromCounts({ played: counts[2], won: counts[3], decided: counts[4] })
     : teamRecordOf(latest as unknown as TeamMatchItem[], id);
   const totalCount = counts ? counts[0] : latest.length;
+  // The Stats tab: from the matches already read (no read of its own).
+  const teamStats = teamStatsOf(teamMatches, id);
   const tournamentCount = counts
     ? counts[1]
     : tournamentInfo
@@ -330,6 +343,7 @@ export default async function TeamDetailsPage({
         logo_url: team.logo_url,
         primary_color: team.primary_color,
         secondary_color: team.secondary_color,
+        club: clubInfo ? { id: clubInfo.id, name: clubInfo.name } : null,
       }}
     />
   );
@@ -397,7 +411,7 @@ export default async function TeamDetailsPage({
             ) : (
               team.team_type &&
               team.team_type !== "club" && (
-                <Chip>{formatTeamType(team.team_type)}</Chip>
+                <Chip>{formatTeamType(team.team_type)} team</Chip>
               )
             )}
           </>
@@ -459,7 +473,13 @@ export default async function TeamDetailsPage({
           {/* Matches and squad */}
           <div>
             <UrlTabs
-              defaultValue={tab === "squad" ? "squad" : "matches"}
+              defaultValue={
+                tab === "squad"
+                  ? "squad"
+                  : tab === "stats" && teamStats.matches > 0
+                    ? "stats"
+                    : "matches"
+              }
               fallback="matches"
               className="w-full"
             >
@@ -467,6 +487,10 @@ export default async function TeamDetailsPage({
                 label="Team sections"
                 tabs={[
                   { value: "matches", label: "Matches" },
+                  // Once a match is finished: there is nothing to count before.
+                  ...(teamStats.matches > 0
+                    ? [{ value: "stats", label: "Stats" }]
+                    : []),
                   { value: "squad", label: "Squad" },
                 ]}
               />
@@ -488,6 +512,12 @@ export default async function TeamDetailsPage({
                   />
                 )}
               </TabsContent>
+
+              {teamStats.matches > 0 && (
+                <TabsContent value="stats" className="mt-4">
+                  <TeamStatsView stats={teamStats} partial={!complete} />
+                </TabsContent>
+              )}
 
               <TabsContent value="squad" className="mt-4 space-y-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

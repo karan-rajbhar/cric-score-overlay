@@ -17,7 +17,9 @@ import { Label } from "~/components/ui/label";
 import {
   localDateTimeToIso,
   todayLocalDateInput,
+  weekdayOf,
 } from "~/lib/local-datetime";
+import { ChoiceGroup } from "~/components/ds/field";
 import { NETWORK_ERROR_MESSAGE } from "~/lib/network-error";
 import {
   SlidersHorizontal,
@@ -103,9 +105,9 @@ export function QualificationCalculatorButton({
 }
 
 /**
- * Round-robin fixtures for every confirmed team: one round a day from the
- * first match's day and time (in the organiser's own time zone), each match
- * reschedulable afterwards.
+ * Round-robin fixtures for every confirmed team: one round a day, or a week
+ * (the first match's weekday), from the first match's day and time (in the
+ * organiser's own time zone), each match reschedulable afterwards.
  */
 export function GenerateFixturesButton({
   tournamentId,
@@ -120,6 +122,7 @@ export function GenerateFixturesButton({
   const [open, setOpen] = useState(false);
   const [day, setDay] = useState("");
   const [time, setTime] = useState("10:00");
+  const [every, setEvery] = useState<"day" | "week">("day");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -143,7 +146,11 @@ export function GenerateFixturesButton({
     setLoading(true);
     setError(null);
     try {
-      const res = await generateTournamentFixtures(tournamentId, firstMatchAt);
+      const res = await generateTournamentFixtures(
+        tournamentId,
+        firstMatchAt,
+        every,
+      );
       if (res.error) {
         setError(res.error);
         return;
@@ -172,8 +179,8 @@ export function GenerateFixturesButton({
               Generate round-robin fixtures
             </DialogTitle>
             <DialogDescription>
-              Every confirmed team plays every other team once, one round a
-              day from the first match. You can reschedule any match
+              Every confirmed team plays every other team once, a round at a
+              time from the first match. You can reschedule any match
               afterwards.
             </DialogDescription>
           </DialogHeader>
@@ -201,6 +208,21 @@ export function GenerateFixturesButton({
               />
             </div>
           </div>
+          <ChoiceGroup
+            legend="A new round"
+            name="fixture-rounds"
+            value={every}
+            onChange={setEvery}
+            options={[
+              { value: "day", label: "Every day" },
+              {
+                value: "week",
+                label: weekdayOf(day)
+                  ? `Every week, on ${weekdayOf(day)}s`
+                  : "Every week",
+              },
+            ]}
+          />
           {error && (
             <p id={ids.error} role="alert" className="text-sm text-destructive">
               {error}

@@ -53,7 +53,7 @@ describe("ScoringPanel accessibility upgrades", () => {
   it("announces over state via live region", () => {
     render(<ScoringPanel {...baseProps} />);
     const live = document.querySelector('[aria-live="polite"]');
-    expect(live?.textContent).toMatch(/over 4\.2/i);
+    expect(live?.textContent).toMatch(/4\.2 overs/i);
     expect(live?.textContent).toMatch(/wicket/i);
   });
 

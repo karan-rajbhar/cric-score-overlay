@@ -85,17 +85,21 @@
     --gold: var(--warning);
     --gold-foreground: var(--warning-foreground);
 
-    /* Scoreboard panel (.scoreboard): deep navy with white figures */
-    --board: 241 50% 18%;
-    --board-foreground: 230 40% 97%;
-    --board-muted: 235 30% 78%;
-    --board-line: 241 40% 26%;
+    /* Scoreboard panel (.scoreboard): in light mode the hero's pale lavender
+       with dark figures, like every other score in the app (a navy slab was
+       the one dark surface of the light theme, and glares outdoors); the
+       dark theme keeps its navy. Contrast on it: text 16:1, muted 6.3:1. */
+    --board: 236 80% 96.5%;
+    --board-foreground: 236 45% 12%;
+    --board-muted: 233 14% 38%;
+    --board-line: 236 45% 86%;
     /* Chart series: the two teams (validated pair, CVD-safe) */
     --series-1: 241 51% 47.6%;
     --series-2: 17 82% 56.3%;
-    /* Accents on the board: ahead (green) and behind (amber) */
-    --board-good: 150 60% 66%;
-    --board-warn: 40 92% 66%;
+    /* Accents on the board: ahead (green) and behind (amber), dark enough
+       for the light board (5.6:1; 4.5:1 on their own 15% tint) */
+    --board-good: 142 72% 25%;
+    --board-warn: 26 90% 32%;
 
     --radius: 0.875rem;
   }
@@ -280,8 +284,9 @@
   }
 
   /*
-   * Scoreboard panel: the one bold surface in the product. Painted board
-   * green with chalk-white condensed figures, in both themes.
+   * Scoreboard panel: the scoring screen's score card. The hero's pale
+   * lavender with dark figures in the light theme, navy with white figures
+   * in the dark one (the --board tokens).
    */
   .scoreboard {
     @apply rounded-xl text-board-foreground;

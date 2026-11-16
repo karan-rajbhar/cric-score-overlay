@@ -324,6 +324,29 @@ describe("generateTournamentFixtures", () => {
     }
   });
 
+  it("puts a round a week apart when asked, on the first match's weekday", async () => {
+    await ds.insert("teams", [
+      { id: "hawks", name: "Hawks", created_by: "org" },
+    ]);
+    signIn("org");
+    for (const team of ["lions", "tigers", "hawks"]) {
+      await registerTeamForTournament("tour", team);
+    }
+    const first = "2026-11-22T04:30:00.000Z"; // a Sunday, 10:00 in India
+    expect(await generateTournamentFixtures("tour", first, "week")).toMatchObject({
+      success: true,
+      count: 3,
+    });
+    const fixtures = await ds.query("matches", [
+      { field: "tournament_id", op: "==", value: "tour" },
+    ]);
+    const gaps = fixtures
+      .map((m) => (Date.parse(String(m.scheduled_at)) - Date.parse(first)) / 86_400_000)
+      .sort((a, b) => a - b);
+    // Three teams: three rounds of one match, a week apart.
+    expect(gaps).toEqual([0, 7, 14]);
+  });
+
   it("refuses an unreadable start", async () => {
     signIn("org");
     expect(await generateTournamentFixtures("tour", "not a date")).toEqual({

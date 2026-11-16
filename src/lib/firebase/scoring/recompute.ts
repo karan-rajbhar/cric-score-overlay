@@ -463,6 +463,24 @@ export interface Ends {
 }
 
 /**
+ * The runs on `ball` that cross the batters when odd: off the bat, byes and
+ * leg byes (off a no-ball too) and the runs on a wide. One rule for the
+ * engine's ends and for Edit ball's warning that later ends may be wrong.
+ */
+export function crossingRunsOf(ball: {
+  runs_scored?: number | null;
+  extras?: number | null;
+  extra_type?: string | null;
+  no_ball_runs?: string | null;
+}): number {
+  const byeRuns =
+    ball.extra_type === "bye" || ball.extra_type === "leg_bye"
+      ? (ball.extras ?? 0)
+      : (noBallByesOf(ball)?.runs ?? 0) + wideRunsOf(ball);
+  return (ball.runs_scored ?? 0) + byeRuns;
+}
+
+/**
  * The ends after `ball` (by its batter `ball.batsman_id`), before an over's
  * end swaps them; `dismissedId` left the crease (null: that end is empty).
  */
@@ -470,13 +488,7 @@ export function endsAfterBall(
   ball: BallInput,
   dismissedId: string | null,
 ): Ends {
-  // Runs the batters ran that are not off the bat: byes and leg byes
-  // (off a no-ball too) and the runs on a wide.
-  const byeRuns =
-    ball.extra_type === "bye" || ball.extra_type === "leg_bye"
-      ? (ball.extras ?? 0)
-      : (noBallByesOf(ball)?.runs ?? 0) + wideRunsOf(ball);
-  const swap = ((ball.runs_scored ?? 0) + byeRuns) % 2 === 1;
+  const swap = crossingRunsOf(ball) % 2 === 1;
   const batter = ball.batsman_id;
   const partner = ball.non_striker_id ?? null;
   if (!ball.is_wicket) {

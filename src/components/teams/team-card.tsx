@@ -40,7 +40,7 @@ export function TeamCard({ team }: TeamCardProps) {
         </span>
         <span className="block truncate text-sm text-muted-foreground">
           {players} {players === 1 ? "player" : "players"} ·{" "}
-          {formatTeamType(team.team_type)}
+          {formatTeamType(team.team_type)} team
         </span>
         {team.description && (
           <span className="mt-1 line-clamp-1 block text-xs text-muted-foreground">

@@ -3,14 +3,15 @@
 import { cardDate } from "~/lib/dates";
 
 /**
- * Which game an entry is: the match's title when the page has it, else the
- * day it was played, from the player's own record (no read); never a bare
- * "Match" (P3).
+ * Which game an entry is: the day it was played, from the player's own
+ * record (no read), on every entry alike; the match's title only for a
+ * record without a date. Titles where the page had them and dates elsewhere
+ * mixed in one strip. Never a bare "Match" (P3).
  */
 const labelOf = (row: {
   match?: { title: string } | null;
   created_at?: string | null;
-}): string | null => row.match?.title ?? (cardDate(row.created_at) || null);
+}): string | null => cardDate(row.created_at) || row.match?.title || null;
 
 export interface FormBatting {
   match_id: string;

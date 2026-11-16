@@ -32,6 +32,26 @@ interface TeamOption {
   id: string;
   name: string;
   short_name: string | null;
+  /** Squad size, when known: shown when two teams read the same. */
+  players?: number;
+}
+
+/** "Karan (KAR)", with "· 12 players" when another team reads the same. */
+export function teamLabels(
+  teams: readonly TeamOption[],
+): Map<string, string> {
+  const base = (t: TeamOption) =>
+    t.short_name ? `${t.name} (${t.short_name})` : t.name;
+  const count = new Map<string, number>();
+  for (const t of teams) count.set(base(t), (count.get(base(t)) ?? 0) + 1);
+  return new Map(
+    teams.map((t) => [
+      t.id,
+      (count.get(base(t)) ?? 0) > 1 && t.players !== undefined
+        ? `${base(t)} · ${t.players} ${t.players === 1 ? "player" : "players"}`
+        : base(t),
+    ]),
+  );
 }
 
 interface RegisterTeamDialogProps {
@@ -44,6 +64,8 @@ interface RegisterTeamDialogProps {
   registeredTeamIds: string[];
   /** Organisers add teams directly; anyone else sends a request. */
   isOrganiser?: boolean;
+  /** "outline" beside another primary action (one primary per header). */
+  variant?: "default" | "outline";
 }
 
 /**
@@ -102,6 +124,7 @@ export function RegisterTeamDialog({
   availableTeams: givenTeams,
   registeredTeamIds,
   isOrganiser = false,
+  variant = "default",
 }: RegisterTeamDialogProps) {
   const [open, setOpen] = useState(false);
   const [selectedTeamId, setSelectedTeamId] = useState<string>("");
@@ -115,6 +138,7 @@ export function RegisterTeamDialog({
   const unregisteredTeams = availableTeams.filter(
     (t) => !registeredTeamIds.includes(t.id),
   );
+  const labels = teamLabels(unregisteredTeams);
 
   const handleRegister = () => {
     if (!selectedTeamId) return;
@@ -144,7 +168,7 @@ export function RegisterTeamDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" className="gap-1.5">
+        <Button size="sm" variant={variant} className="gap-1.5">
           <Plus className="h-4 w-4" />
           Register team
         </Button>
@@ -188,8 +212,7 @@ export function RegisterTeamDialog({
                 <SelectContent>
                   {unregisteredTeams.map((team) => (
                     <SelectItem key={team.id} value={team.id}>
-                      {team.name}{" "}
-                      {team.short_name ? `(${team.short_name})` : ""}
+                      {labels.get(team.id)}
                     </SelectItem>
                   ))}
                 </SelectContent>

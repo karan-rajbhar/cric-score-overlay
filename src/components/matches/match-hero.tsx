@@ -231,7 +231,9 @@ export function MatchHero({
   };
 
   const withPerformers = (s: Side, i: number): HeroSideProps => {
-    const props = side(s, i);
+    // On the match page each side's name opens its team (the only way there
+    // from a match); elsewhere (the report) it stays text.
+    const props = { ...side(s, i), href: page ? `/teams/${s.team.id}` : undefined };
     const lines = performers ? performerLines(match, s.team.id) : [];
     return lines.length
       ? {

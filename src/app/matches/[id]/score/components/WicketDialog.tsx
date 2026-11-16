@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from "~/components/ui/dialog";
 import { AlertTriangle } from "lucide-react";
+import { dismissesEitherBatter, formatHowOut, isCaughtAndBowled } from "~/lib/cricket";
 import { cn } from "~/lib/utils";
 import { PlayerPicker, type PickerAddPlayer } from "./PlayerPicker";
 import { buildFielderRows, type SideRules } from "./player-rows";
@@ -82,9 +83,7 @@ export type RetirementType = (typeof RETIREMENT_TYPES)[number]["value"];
 export type RunsKind = "bat" | "bye" | "leg_bye";
 
 /** Dismissals that may take either batter (the rest: the striker). */
-export function dismissesEitherBatter(type: string): boolean {
-  return type === "run_out" || type === "obstructing" || isRetirementType(type);
-}
+export { dismissesEitherBatter };
 
 /**
  * Why the wicket cannot be confirmed yet, in the words shown under the
@@ -236,6 +235,22 @@ export function WicketDialog({
     (dismissedPlayerId || strikerId) === nonStrikerId
       ? nonStrikerName || "Non-striker"
       : strikerName || "Striker";
+  // The button says what it records ("Confirm: Raju c Ram b Avhad"): on a
+  // phone the type and the batter have scrolled away by the time the
+  // fielder is picked.
+  const playerName = (id: string | null | undefined) =>
+    (id && bowlingTeamPlayers.find((p) => p.user_id === id)?.user?.full_name) ||
+    null;
+  const outcome =
+    dismissalType && !missing
+      ? `${retireeName} ${formatHowOut(
+          true,
+          dismissalType,
+          playerName(bowlerId),
+          playerName(fielderId),
+          isCaughtAndBowled(dismissalType, fielderId, bowlerId),
+        )}`
+      : null;
 
   // Ensure dismissed player is initialized to striker if not selected
   useEffect(() => {
@@ -499,14 +514,16 @@ export function WicketDialog({
           {/* Pinned on phones: reachable however long the fielder list is */}
           <div className="max-sm:sticky max-sm:bottom-0 max-sm:z-10 max-sm:-mx-4 max-sm:-mb-4 max-sm:border-t max-sm:border-border/70 max-sm:bg-card max-sm:px-4 max-sm:pb-4 max-sm:pt-3">
             <Button
-              className="h-11 min-h-[44px] w-full text-sm font-semibold"
+              className="h-auto min-h-11 w-full whitespace-normal text-balance py-2 text-sm font-semibold"
               onClick={onConfirm}
               disabled={isProcessing || Boolean(missing)}
               aria-describedby={missing ? "wicket-missing" : undefined}
             >
               {retiring
                 ? `${dismissalType === "retired_hurt" ? "Retire hurt" : "Retire out"}: ${retireeName}`
-                : "Confirm wicket"}
+                : outcome
+                  ? `Confirm: ${outcome}`
+                  : "Confirm wicket"}
             </Button>
             {missing && (
               <p

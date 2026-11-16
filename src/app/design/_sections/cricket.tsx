@@ -248,8 +248,8 @@ function Crease() {
         <div className="space-y-2 border-t border-border px-4 py-3">
           <OverStrip balls={THIS_OVER} total={5} />
           <p className="font-score text-xs tabular-nums text-muted-foreground">
-            CRR {LIVE.rates.current} · RRR {LIVE.rates.required} · Partnership
-            54 (38)
+            Run rate {LIVE.rates.current} · Required rate {LIVE.rates.required}{" "}
+            · Partnership 54 (38)
           </p>
         </div>
       </Card>

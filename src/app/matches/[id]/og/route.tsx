@@ -1,6 +1,7 @@
 import { ImageResponse } from "next/og";
 import { matchShareSummary, type ShareSide } from "~/lib/match-share";
 import { loadShareMatch } from "~/lib/match-share-server";
+import { OG_COLORS, OG_SIZE, OgMark as Mark } from "~/components/og/og-kit";
 
 /**
  * Link preview image for a match (1200x630): the two teams and their
@@ -9,31 +10,8 @@ import { loadShareMatch } from "~/lib/match-share-server";
  * crawlers fetch a new image when the score changes.
  */
 
-const SIZE = { width: 1200, height: 630 };
-// The light theme's tokens (src/styles/globals.css).
-const C = {
-  background: "hsl(230 40% 98.5%)",
-  card: "#ffffff",
-  border: "hsl(230 25% 91%)",
-  foreground: "hsl(236 45% 12%)",
-  muted: "hsl(233 12% 44%)",
-  brand: "hsl(228 55% 40%)",
-  live: "hsl(0 72% 51%)",
-};
-
-/** The brand mark, as in src/app/icon.svg. */
-function Mark() {
-  return (
-    <svg width={44} height={44} viewBox="0 0 32 32" style={{ marginRight: 14 }}>
-      <rect width={32} height={32} rx={9} fill={C.brand} />
-      <rect x={8} y={10.5} width={4} height={15.5} rx={2} fill={C.card} />
-      <rect x={14} y={10.5} width={4} height={15.5} rx={2} fill={C.card} />
-      <rect x={20} y={10.5} width={4} height={15.5} rx={2} fill={C.card} />
-      <rect x={8} y={6.5} width={7} height={2} rx={1} fill={C.card} />
-      <rect x={17} y={6.5} width={7} height={2} rx={1} fill={C.card} />
-    </svg>
-  );
-}
+const SIZE = OG_SIZE;
+const C = OG_COLORS;
 
 function Side({ side }: { side: ShareSide }) {
   return (

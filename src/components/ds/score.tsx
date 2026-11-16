@@ -1,4 +1,5 @@
 import type * as React from "react";
+import Link from "next/link";
 import { Trophy, type LucideIcon } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { TeamCrest } from "~/components/ds/avatar";
@@ -130,6 +131,8 @@ export function HeroTime({
 
 export type HeroSideProps = {
   team: TeamRef;
+  /** The team's page: the name opens it (not prefetched: a page of reads). */
+  href?: string;
   /** One short line under the name: "168/6 (20 ov)", "Batting". */
   detail?: React.ReactNode;
   /** More lines (top performers on the match page). */
@@ -139,6 +142,7 @@ export type HeroSideProps = {
 
 function HeroSide({
   team,
+  href,
   detail,
   extra,
   dim,
@@ -159,7 +163,17 @@ function HeroSide({
             dim ? "text-muted-foreground" : "text-foreground",
           )}
         >
-          {team.name}
+          {href ? (
+            <Link
+              href={href}
+              prefetch={false}
+              className="rounded-sm underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {team.name}
+            </Link>
+          ) : (
+            team.name
+          )}
         </p>
         {detail && (
           <div className="mt-0.5 text-xs text-muted-foreground">{detail}</div>

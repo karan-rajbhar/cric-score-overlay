@@ -38,6 +38,23 @@ describe("MatchHero on the match page", () => {
     expect(screen.queryByText("Result")).toBeNull();
   });
 
+  it("opens each team from its name, on the match page only", () => {
+    const match = finished();
+    const { unmount } = render(
+      <MatchHero match={match} sides={sidesInBattingOrder(match)} page />,
+    );
+    const links = screen
+      .getAllByRole("link")
+      .map((a) => a.getAttribute("href"))
+      .filter((h) => h?.startsWith("/teams/"));
+    expect(links.sort()).toEqual([`/teams/${match.team1_id}`, `/teams/${match.team2_id}`].sort());
+    unmount();
+    hero(match);
+    expect(
+      screen.queryAllByRole("link").filter((a) => a.getAttribute("href")?.startsWith("/teams/")),
+    ).toHaveLength(0);
+  });
+
   it("says the length, not a format that means nothing", () => {
     const match = finished();
     render(<MatchHero match={match} sides={sidesInBattingOrder(match)} page />);

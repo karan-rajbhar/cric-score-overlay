@@ -16,6 +16,11 @@ import { playerHrefOf } from "~/lib/player-href";
 
 interface MatchScorecardProps {
   match: Match;
+  /**
+   * Names open the players' pages (default). Off on the scoring screen,
+   * where a stray tap must not leave the scoring.
+   */
+  links?: boolean;
 }
 
 /**
@@ -90,8 +95,9 @@ function BestStand({ stands }: { stands: readonly StandData[] }) {
  * batting card, bowling and fall of wickets open, as on a printed scorecard,
  * and partnerships folded on phones, in the design system's tables.
  */
-export function MatchScorecard({ match }: MatchScorecardProps) {
+export function MatchScorecard({ match, links = true }: MatchScorecardProps) {
   const innings = allInnings(match);
+  const hrefOf = (id: string | null) => (links ? playerHrefOf(id) : undefined);
 
   if (innings.length === 0) {
     return (
@@ -141,7 +147,7 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
           <TabsContent key={inn.id} value={inn.id} className="space-y-3 md:space-y-4">
             <BattingCard
               title="Batting"
-              rows={inn.batters.map((b) => ({ ...b, href: playerHrefOf(b.userId) }))}
+              rows={inn.batters.map((b) => ({ ...b, href: hrefOf(b.userId) }))}
               extras={inn.extras}
               total={{
                 label: `${inn.score} (${inn.overs} ov)`,
@@ -156,7 +162,7 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
             />
             <BowlingCard
               title="Bowling"
-              rows={inn.bowlers.map((b) => ({ ...b, href: playerHrefOf(b.userId) }))}
+              rows={inn.bowlers.map((b) => ({ ...b, href: hrefOf(b.userId) }))}
               dense
             />
             {inn.fallOfWickets.length > 0 && (

@@ -34,7 +34,10 @@
         "sm",
         "smi",
         "smit",
-        "smith"
+        "smith",
+        "~john",
+        "~john_smith",
+        "~smith"
       ]
     },
     {
@@ -75,7 +78,10 @@
         "wil",
         "wils",
         "wilso",
-        "wilson"
+        "wilson",
+        "~mike",
+        "~mike_vilson",
+        "~vilson"
       ]
     },
     {
@@ -114,7 +120,10 @@
         "id_",
         "own",
         "row",
-        "vid"
+        "vid",
+        "~brovn",
+        "~david",
+        "~david_brovn"
       ]
     },
     {
@@ -151,7 +160,10 @@
         "ex_",
         "lex",
         "vis",
-        "x_d"
+        "x_d",
+        "~alex",
+        "~alex_davis",
+        "~davis"
       ]
     },
     {
@@ -194,7 +206,10 @@
         "mille",
         "miller",
         "ris",
-        "s_m"
+        "s_m",
+        "~chris",
+        "~chris_miler",
+        "~miler"
       ]
     },
     {
@@ -233,7 +248,10 @@
         "tom_gar",
         "tom_garc",
         "tom_garci",
-        "tom_garcia"
+        "tom_garcia",
+        "~garcia",
+        "~tom",
+        "~tom_garcia"
       ]
     },
     {
@@ -282,7 +300,10 @@
         "ryan_martine",
         "ryan_martinez",
         "tin",
-        "yan"
+        "yan",
+        "~martinez",
+        "~ryan",
+        "~ryan_martinez"
       ]
     },
     {
@@ -315,7 +336,10 @@
         "lisa_ch",
         "lisa_che",
         "lisa_chen",
-        "sa_"
+        "sa_",
+        "~chen",
+        "~lisa",
+        "~lisa_chen"
       ]
     },
     {
@@ -352,7 +376,10 @@
         "pate",
         "patel",
         "t_p",
-        "tel"
+        "tel",
+        "~amit",
+        "~amit_patel",
+        "~patel"
       ]
     },
     {
@@ -387,7 +414,10 @@
         "raj_kum",
         "raj_kuma",
         "raj_kumar",
-        "uma"
+        "uma",
+        "~kumar",
+        "~raj",
+        "~raj_kumar"
       ]
     },
     {
@@ -426,7 +456,10 @@
         "sin",
         "sing",
         "singh",
-        "y_s"
+        "y_s",
+        "~boby",
+        "~boby_singh",
+        "~singh"
       ]
     },
     {
@@ -463,7 +496,10 @@
         "jordan_bell",
         "n_b",
         "ord",
-        "rda"
+        "rda",
+        "~bel",
+        "~jordan",
+        "~jordan_bel"
       ]
     },
     {
@@ -498,7 +534,10 @@
         "sam_cl",
         "sam_cla",
         "sam_clar",
-        "sam_clark"
+        "sam_clark",
+        "~clark",
+        "~sam",
+        "~sam_clark"
       ]
     },
     {
@@ -543,7 +582,10 @@
         "taylo",
         "taylor",
         "us_",
-        "ylo"
+        "ylo",
+        "~marcus",
+        "~marcus_taylor",
+        "~taylor"
       ]
     },
     {
@@ -580,7 +622,10 @@
         "tha",
         "wo",
         "woo",
-        "wood"
+        "wood",
+        "~nathan",
+        "~nathan_vud",
+        "~vud"
       ]
     },
     {
@@ -621,7 +666,10 @@
         "wri",
         "wrig",
         "wrigh",
-        "wright"
+        "wright",
+        "~liam",
+        "~liam_vright",
+        "~vright"
       ]
     },
     {
@@ -660,7 +708,10 @@
         "rajbh",
         "rajbha",
         "rajbhar",
-        "ran"
+        "ran",
+        "~karan",
+        "~kran",
+        "~rajbhar"
       ]
     },
     {
@@ -707,7 +758,10 @@
         "sarah_johns",
         "sarah_johnso",
         "sarah_johnson",
-        "son"
+        "son",
+        "~johnson",
+        "~sarah",
+        "~sarah_johnson"
       ]
     },
     {
@@ -746,7 +800,10 @@
         "harris",
         "n_h",
         "ris",
-        "rri"
+        "rri",
+        "~dan",
+        "~dan_haris",
+        "~haris"
       ]
     },
     {
@@ -797,7 +854,10 @@
         "nde",
         "rso",
         "s_a",
-        "son"
+        "son",
+        "~anderson",
+        "~james",
+        "~james_anderson"
       ]
     },
     {
@@ -840,7 +900,10 @@
         "taylo",
         "taylor",
         "vin",
-        "ylo"
+        "ylo",
+        "~kevin",
+        "~kevin_taylor",
+        "~taylor"
       ]
     },
     {
@@ -881,7 +944,10 @@
         "tho",
         "thom",
         "thoma",
-        "thomas"
+        "thomas",
+        "~mark",
+        "~mark_thomas",
+        "~thomas"
       ]
     },
     {
@@ -926,7 +992,10 @@
         "paul_jackso",
         "paul_jackson",
         "son",
-        "ul_"
+        "ul_",
+        "~jackson",
+        "~paul",
+        "~paul_jackson"
       ]
     },
     {
@@ -965,7 +1034,10 @@
         "wh",
         "whi",
         "whit",
-        "white"
+        "white",
+        "~steve",
+        "~steve_vhite",
+        "~vhite"
       ]
     },
     {
@@ -1022,7 +1094,10 @@
         "rodrigue",
         "rodriguez",
         "s_r",
-        "uez"
+        "uez",
+        "~carlos",
+        "~carlos_rodriguez",
+        "~rodriguez"
       ]
     },
     {
@@ -1057,7 +1132,10 @@
         "ter",
         "wo",
         "won",
-        "wong"
+        "wong",
+        "~peter",
+        "~peter_vong",
+        "~vong"
       ]
     },
     {
@@ -1092,7 +1170,10 @@
         "hal",
         "hall",
         "k_h",
-        "rek"
+        "rek",
+        "~derek",
+        "~derek_hal",
+        "~hal"
       ]
     },
     {
@@ -1131,7 +1212,10 @@
         "ian",
         "n_e",
         "ria",
-        "van"
+        "van",
+        "~brian",
+        "~brian_evans",
+        "~evans"
       ]
     },
     {
@@ -1162,7 +1246,10 @@
         "lee",
         "n_l",
         "on_",
-        "son"
+        "son",
+        "~jason",
+        "~jason_li",
+        "~li"
       ]
     },
     {
@@ -1201,7 +1288,10 @@
         "n_g",
         "on_",
         "ree",
-        "ron"
+        "ron",
+        "~aron",
+        "~aron_grin",
+        "~grin"
       ]
     }
   ],
@@ -1488,7 +1578,11 @@
         "ric",
         "rop",
         "tan",
-        "tro"
+        "tro",
+        "~club",
+        "~cricket",
+        "~mc",
+        "~metropolitan"
       ],
       "team_count": 2
     },
@@ -1577,7 +1671,11 @@
         "soc",
         "sso",
         "tio",
-        "ver"
+        "ver",
+        "~asociation",
+        "~cricket",
+        "~rca",
+        "~riverside"
       ],
       "team_count": 2
     }
@@ -2184,7 +2282,9 @@
         "strikers",
         "tan",
         "tri",
-        "tro"
+        "tro",
+        "~metropolitan",
+        "~strikers"
       ],
       "roster": [
         {
@@ -2459,7 +2559,9 @@
         "warri",
         "warrio",
         "warrior",
-        "warriors"
+        "warriors",
+        "~riverside",
+        "~variors"
       ],
       "roster": [
         {
@@ -2737,7 +2839,9 @@
         "thunde",
         "thunder",
         "tro",
-        "und"
+        "und",
+        "~metropolitan",
+        "~thunder"
       ],
       "roster": [
         {
@@ -2972,7 +3076,9 @@
         "tita",
         "titan",
         "titans",
-        "ver"
+        "ver",
+        "~riverside",
+        "~titans"
       ],
       "roster": [
         {
@@ -3794,7 +3900,12 @@
         "ons",
         "pio",
         "ric",
-        "shi"
+        "shi",
+        "~2024",
+        "~championsip",
+        "~coast",
+        "~cricket",
+        "~east"
       ]
     },
     {
@@ -3853,7 +3964,10 @@
         "weekend 10 over b",
         "weekend 10 over ba",
         "weekend 10 over bas",
-        "weekend 10 over bash"
+        "weekend 10 over bash",
+        "~bas",
+        "~over",
+        "~vikend"
       ]
     },
     {
@@ -3917,7 +4031,11 @@
         "west coast odi ser",
         "west coast odi seri",
         "west coast odi serie",
-        "west coast odi series"
+        "west coast odi series",
+        "~coast",
+        "~odi",
+        "~series",
+        "~vest"
       ]
     }
   ],
@@ -4209,7 +4327,11 @@
         "warri",
         "warrio",
         "warrior",
-        "warriors"
+        "warriors",
+        "~championsip",
+        "~opener",
+        "~strikers",
+        "~variors"
       ],
       "innings_summary": [
         {
@@ -4378,7 +4500,11 @@
         "warri",
         "warrio",
         "warrior",
-        "warriors"
+        "warriors",
+        "~league",
+        "~match",
+        "~thunder",
+        "~variors"
       ],
       "innings_summary": [
         {
@@ -4537,7 +4663,11 @@
         "titan",
         "titans",
         "tri",
-        "vs"
+        "vs",
+        "~live",
+        "~match",
+        "~strikers",
+        "~titans"
       ],
       "innings_summary": [
         {
@@ -4709,7 +4839,12 @@
         "tri",
         "und",
         "ver",
-        "vs"
+        "vs",
+        "~bas",
+        "~match",
+        "~over",
+        "~strikers",
+        "~thunder"
       ],
       "innings_summary": [
         {
@@ -4886,7 +5021,13 @@
         "warriors vs titans 10 over bash match 2 l",
         "warriors vs titans 10 over bash match 2 li",
         "warriors vs titans 10 over bash match 2 liv",
-        "warriors vs titans 10 over bash match 2 live"
+        "warriors vs titans 10 over bash match 2 live",
+        "~bas",
+        "~live",
+        "~match",
+        "~over",
+        "~titans",
+        "~variors"
       ],
       "innings_summary": [
         {
@@ -5055,7 +5196,11 @@
         "warri",
         "warrio",
         "warrior",
-        "warriors"
+        "warriors",
+        "~final",
+        "~semi",
+        "~strikers",
+        "~variors"
       ],
       "innings_summary": [],
       "summary_runs": 0,
@@ -5186,7 +5331,11 @@
         "warri",
         "warrio",
         "warrior",
-        "warriors"
+        "warriors",
+        "~match",
+        "~odi",
+        "~titans",
+        "~variors"
       ],
       "innings_summary": [],
       "summary_runs": 0,
@@ -5357,7 +5506,14 @@
         "warri",
         "warrio",
         "warrior",
-        "warriors"
+        "warriors",
+        "~clasic",
+        "~derby",
+        "~match",
+        "~mc",
+        "~strikers",
+        "~tied",
+        "~variors"
       ],
       "innings_summary": [
         {

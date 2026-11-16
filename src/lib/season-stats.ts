@@ -60,12 +60,24 @@ export interface SeasonFigures {
   matches: number;
   runs: number;
   wickets: number;
+  /** Innings batted (one record each), and those not out. */
+  innings: number;
+  notOuts: number;
+  /** "47*" (not out) or "47"; null without an innings. */
+  highest: string | null;
+  balls: number;
+  fours: number;
+  sixes: number;
   average: number | null;
   strikeRate: number | null;
   halfCenturies: number;
   centuries: number;
+  /** "3.4" (balls in overs); best figures "3/12" (most wickets, fewest runs). */
+  overs: string;
+  best: string | null;
   bowlingAverage: number | null;
   economy: number | null;
+  threeWickets: number;
   fiveWickets: number;
 }
 
@@ -91,8 +103,48 @@ export function seasonFigures(
     halfCenturies: batting.filter((b) => b.runs_scored >= 50 && b.runs_scored < 100)
       .length,
     centuries: batting.filter((b) => b.runs_scored >= 100).length,
+    innings: batting.length,
+    notOuts: batting.filter((b) => !b.is_out).length,
+    highest: highestOf(batting),
+    balls,
+    fours: batting.reduce((n, b) => n + (b.fours ?? 0), 0),
+    sixes: batting.reduce((n, b) => n + (b.sixes ?? 0), 0),
+    overs: `${Math.floor(bowled / 6)}.${bowled % 6}`,
+    best: bestOf(bowling),
     bowlingAverage: wickets > 0 ? round2(conceded / wickets) : null,
     economy: bowled > 0 ? round2(conceded / (bowled / 6)) : null,
+    threeWickets: bowling.filter((b) => b.wickets_taken >= 3).length,
     fiveWickets: bowling.filter((b) => b.wickets_taken >= 5).length,
   };
+}
+
+/** The highest score, "47*" when not out (a not-out ties above an out). */
+function highestOf(batting: readonly SeasonBatting[]): string | null {
+  let top: SeasonBatting | null = null;
+  for (const b of batting) {
+    if (
+      !top ||
+      b.runs_scored > top.runs_scored ||
+      (b.runs_scored === top.runs_scored && !b.is_out && top.is_out)
+    ) {
+      top = b;
+    }
+  }
+  return top ? `${top.runs_scored}${top.is_out ? "" : "*"}` : null;
+}
+
+/** Best bowling figures: most wickets, then fewest runs; "3/12". */
+function bestOf(bowling: readonly SeasonBowling[]): string | null {
+  let top: SeasonBowling | null = null;
+  for (const b of bowling) {
+    if (b.balls_bowled === 0) continue;
+    if (
+      !top ||
+      b.wickets_taken > top.wickets_taken ||
+      (b.wickets_taken === top.wickets_taken && b.runs_conceded < top.runs_conceded)
+    ) {
+      top = b;
+    }
+  }
+  return top ? `${top.wickets_taken}/${top.runs_conceded}` : null;
 }
