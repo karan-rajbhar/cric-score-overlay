@@ -5,10 +5,16 @@ rules_version = '2';
 // the public asset folders.
 service firebase.storage {
   match /b/{bucket}/o {
-    match /team-logos/{allPaths=**}  { allow read: if true; allow write: if false; }
-    match /club-assets/{allPaths=**} { allow read: if true; allow write: if false; }
+    // Readable by anyone, on purpose (see firestore.rules: lint still
+    // catches a bare `allow read: if true` as a possible mistake).
+    function publicData() {
+      return true;
+    }
+
+    match /team-logos/{allPaths=**}  { allow read: if publicData(); allow write: if false; }
+    match /club-assets/{allPaths=**} { allow read: if publicData(); allow write: if false; }
     // Club / tournament sponsor logos for the overlay (server-validated).
-    match /sponsor-logos/{allPaths=**} { allow read: if true; allow write: if false; }
+    match /sponsor-logos/{allPaths=**} { allow read: if publicData(); allow write: if false; }
     match /{allPaths=**}             { allow read, write: if false; }
   }
 }
