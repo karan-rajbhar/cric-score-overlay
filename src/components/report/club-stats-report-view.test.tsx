@@ -3,7 +3,11 @@ import { render, screen, within } from "@testing-library/react";
 import { clubStatsRows, tabTable } from "~/lib/club-stats-export";
 import { emptyAcc } from "~/lib/firebase/stats.mjs";
 import { leaderboardFromPlayers } from "~/lib/leaderboard";
-import { ClubStatsReportView, sheetsOfRows } from "./club-stats-report-view";
+import {
+  ClubStatsReportView,
+  SHEET_ROWS,
+  sheetsOfRows,
+} from "./club-stats-report-view";
 
 vi.mock("./report-pdf", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./report-pdf")>()),
@@ -151,7 +155,7 @@ describe("ClubStatsReportView", () => {
           within(sheet).getAllByRole("columnheader").length,
         ).toBeGreaterThan(3);
         expect(sheet.querySelectorAll("tbody tr").length).toBeLessThanOrEqual(
-          22,
+          SHEET_ROWS,
         );
       }
       const titles = pointSheets.map((s) => s.querySelector("h3")!.textContent);

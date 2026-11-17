@@ -172,6 +172,7 @@ export function MatchHero({
   plain = true,
   performers = true,
   page = false,
+  quiet = false,
   className,
   children,
 }: {
@@ -189,6 +190,12 @@ export function MatchHero({
    * time needs no chip.
    */
   page?: boolean;
+  /**
+   * Under a header that already names the competition and the format (the
+   * report's first page): no row for them, and a finished match's result
+   * needs no "Result" chip.
+   */
+  quiet?: boolean;
   className?: string;
   children?: React.ReactNode;
 }) {
@@ -308,17 +315,18 @@ export function MatchHero({
       <MatchNote>{fixtureNote(start, late, match.venue)}</MatchNote>
     ) : null;
 
+  // No chip where the rest says enough: a fixture or a result on the match
+  // page, a result under the report's header.
+  const noChip =
+    (page && (match.status === "scheduled" || Boolean(finished && note))) ||
+    (quiet && finished);
   return (
     <ScoreHero
       plain={plain}
-      competition={competition}
+      competition={quiet ? undefined : competition}
       competitionIcon={!match.tournament && match.club ? Shield : Trophy}
-      stage={stage}
-      status={
-        page && (match.status === "scheduled" || (finished && note))
-          ? undefined
-          : displayStatusOf(match)
-      }
+      stage={quiet ? undefined : stage}
+      status={noChip ? undefined : displayStatusOf(match)}
       compact={page}
       home={withPerformers(sides[0], 0)}
       away={withPerformers(sides[1], 1)}

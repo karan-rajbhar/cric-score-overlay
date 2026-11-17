@@ -92,14 +92,17 @@ describe("MatchReportView", () => {
     pdf.canShare.mockReturnValue(true);
   });
 
-  it("opens on the summary, then the first innings, then the second", () => {
+  it("opens on the summary, then a sheet an innings, then the rest", () => {
     const { container } = renderReport();
     const pages = container.querySelectorAll(".report-page");
-    expect(pages).toHaveLength(3);
+    expect(pages).toHaveLength(4);
     // Page 1 is the summary image's layout: each side's batters beside the
     // bowlers who bowled at them, no scorecards, no impact points.
     const summary = pages[0] as HTMLElement;
     expect(summary).toHaveTextContent("Royal Tigers won by 18 runs");
+    // Under the report's header, the hero names no competition and no
+    // "Result" chip.
+    expect(within(summary).queryByText("Result")).not.toBeInTheDocument();
     const tigers = within(summary)
       .getByRole("heading", { name: "Royal Tigers", level: 2 })
       .closest("div")!.parentElement!;
@@ -109,27 +112,48 @@ describe("MatchReportView", () => {
     expect(summary).not.toHaveTextContent("1st innings");
     expect(summary).not.toHaveTextContent("Match impact");
     expect(within(summary).getByRole("img", { name: QR })).toBeInTheDocument();
+    // The summary has no running header; every detail sheet has.
+    expect(summary).not.toHaveAttribute("data-running-header");
+    for (const page of Array.from(pages).slice(1)) {
+      expect(page).toHaveAttribute("data-running-header");
+    }
 
     expect(pages[1]).toHaveTextContent("1st innings");
+    expect(pages[1]).toHaveTextContent("Bowling Coastal Kings");
     expect(pages[1]).not.toHaveTextContent("2nd innings");
     expect(pages[2]).toHaveTextContent("2nd innings");
     expect(pages[2]).toHaveTextContent("Target 179");
-    // The analysis, sign-off, link and QR code close the report.
-    expect(pages[2]).toHaveTextContent("Match impact");
-    expect(pages[2]).toHaveTextContent("Match information");
-    expect(pages[2]).toHaveTextContent("Official verification and sign-off");
-    expect(within(pages[2] as HTMLElement).getByAltText(QR)).toBeInTheDocument();
+    // The analysis closes the report; no sign-off outside a tournament, and
+    // the link is on the first page only.
+    expect(pages[3]).toHaveTextContent("Match impact");
+    expect(pages[3]).toHaveTextContent("Match information");
+    expect(pages[3]).not.toHaveTextContent("Official verification");
+    expect(screen.getAllByAltText(QR)).toHaveLength(1);
   });
 
-  it("keeps a one-innings report to the summary and one more page", () => {
+  it("names the match, its day and its organiser for the running header", () => {
+    const { container } = renderReport(
+      matchOf({
+        scheduled_at: "2026-11-15T03:50:00Z",
+        club: { id: "c1", name: "Unity Cricket Club" } as Match["club"],
+      }),
+    );
+    const heading = container.querySelector("[data-report-heading]");
+    expect(heading).toHaveTextContent(
+      /^Royal Tigers vs Coastal Kings · 1[45] Nov 2026 · Unity Cricket Club$/,
+    );
+  });
+
+  it("keeps a one-innings report to the summary, the innings and the rest", () => {
     const { container } = renderReport(
       matchOf({ innings: matchOf().innings!.slice(0, 1) }),
     );
     const pages = container.querySelectorAll(".report-page");
-    expect(pages).toHaveLength(2);
+    expect(pages).toHaveLength(3);
     // The side yet to bat is just its header.
     expect(pages[0]).toHaveTextContent("Coastal KingsYet to bat");
-    expect(pages[1]).toHaveTextContent("Official verification and sign-off");
+    expect(pages[1]).toHaveTextContent("1st innings");
+    expect(pages[2]).toHaveTextContent("Match information");
   });
 
   it("closes a report with no innings on its one page", () => {
@@ -137,11 +161,52 @@ describe("MatchReportView", () => {
     const pages = container.querySelectorAll(".report-page");
     expect(pages).toHaveLength(1);
     expect(pages[0]).toHaveTextContent("No innings recorded yet.");
-    expect(pages[0]).toHaveTextContent("Official verification and sign-off");
+    expect(pages[0]).toHaveTextContent("Match information");
   });
 
-  it("leaves a line to write each unknown name on", () => {
-    const { container } = renderReport();
+  it("puts super overs after the second innings, on its page", () => {
+    const base = matchOf().innings!;
+    const { container } = renderReport(
+      matchOf({
+        innings: [
+          ...base,
+          makeInnings({
+            id: "inn-3",
+            innings_number: 3,
+            team_id: "t2",
+            total_runs: 14,
+            total_wickets: 1,
+            total_balls: 6,
+            is_completed: true,
+          }),
+          makeInnings({
+            id: "inn-4",
+            innings_number: 4,
+            team_id: "t1",
+            total_runs: 18,
+            total_wickets: 0,
+            total_balls: 5,
+            is_completed: true,
+          }),
+        ],
+      }),
+    );
+    const pages = container.querySelectorAll(".report-page");
+    expect(pages).toHaveLength(4);
+    const supers = within(pages[2] as HTMLElement).getAllByRole("region", {
+      name: /^Super over/,
+    });
+    expect(supers).toHaveLength(2);
+  });
+
+  it("asks a tournament match's captains, umpire and scorer to sign", () => {
+    const { container } = renderReport(
+      matchOf({
+        tournament_id: "t9",
+        tournament: { id: "t9", name: "Unity League" } as Match["tournament"],
+      }),
+    );
+    expect(container).toHaveTextContent("Official verification and sign-off");
     expect(container.querySelectorAll("[data-blank-name]")).toHaveLength(4);
     expect(screen.getByText("RTG captain")).toBeInTheDocument();
     expect(screen.getAllByText("Signature and date")).toHaveLength(4);

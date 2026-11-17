@@ -2,8 +2,7 @@ import * as React from "react";
 import { Shield } from "lucide-react";
 import { BrandMark, BrandWordmark } from "~/components/brand";
 import { Chip } from "~/components/ds/chip";
-import { figCell, figHead, figTable } from "~/components/ds/fig-table";
-import { Abbr, TableCard, type Column } from "~/components/ds/scorecard";
+import { Abbr, type Column } from "~/components/ds/scorecard";
 import { StatTile } from "~/components/ds/stat-tile";
 import type { ClubStatsRow, TabTable } from "~/lib/club-stats-export";
 import { cn } from "~/lib/utils";
@@ -18,21 +17,22 @@ const PRINT_CSS = `@page { size: A4 portrait; margin: 10mm; }
  * Sheets. The PDF is cut from the page as it renders at a fixed width, one
  * `.report-page` at a time (each starts a sheet), so a long table is split
  * here, into sheets that each hold their own title and column heads, not by
- * the PDF cutting a table through a row. Measured on a real report: a row
- * is about 45 px, a sheet holds about 1,120 px of content, the heading and
- * totals take about 4 rows, the footer about 3, a table's own title and
- * column heads about 2. These limits keep some room to spare.
+ * the PDF cutting a table through a row. Measured on a real report (flat
+ * tables): a row is about 29 px; a sheet after the first holds about 1,100
+ * px under its running header; the first sheet's heading and totals take
+ * about 380 px, the footer about 160, a table's own title and column heads
+ * about 60. These limits keep some room to spare.
  */
 /** Rows beside the report's heading and totals. */
-const FIRST_SHEET_ROWS = 14;
+const FIRST_SHEET_ROWS = 20;
 /** Rows beside a tab report's heading (more room: no totals). */
-const FIRST_TAB_SHEET_ROWS = 18;
+const FIRST_TAB_SHEET_ROWS = 26;
 /** Rows on a sheet of a table's own. */
-const SHEET_ROWS = 22;
+export const SHEET_ROWS = 30;
 /** Rows on the last sheet of the report, which carries the footer too. */
-const FOOTER_SHEET_ROWS = 18;
+const FOOTER_SHEET_ROWS = 25;
 /** Rows a first sheet holds beside both its heading and the footer. */
-const ONLY_SHEET_ROWS = 14;
+const ONLY_SHEET_ROWS = 15;
 
 export interface SheetLimits {
   /** The first sheet (the report's heading is on it). */
@@ -80,7 +80,17 @@ type FigureColumn = readonly [
 
 type NamedRow = { rank: number; userId: string; name: string };
 
-/** The table: a rank chip and name, then right-aligned figures. */
+/** A head cell; the first (Player) is left-aligned. */
+const HEAD =
+  "border-b border-border pb-1 pt-1.5 pl-3 text-right text-[0.6875rem] font-semibold text-muted-foreground first:pl-0 first:text-left";
+/** A figure cell. */
+const CELL = "py-1 pl-3 text-right font-score text-[0.8125rem] text-foreground";
+
+/**
+ * The table, flat for paper: a firm rule over its title, hairlines between
+ * rows, the figures right beside the name (not across the sheet: a phone
+ * that pinches the PDF shows half a sheet, names and figures together).
+ */
 function FigureTable<R extends NamedRow>({
   title,
   aside,
@@ -95,43 +105,55 @@ function FigureTable<R extends NamedRow>({
   cells: (row: R) => React.ReactNode;
 }) {
   return (
-    <TableCard title={title} aside={aside} className="break-inside-avoid">
-      <table className={figTable}>
-        <thead>
-          <tr>
-            {head.map(([short, full], i) => (
-              <th key={`${short}-${i}`} scope="col" className={figHead}>
-                <Abbr short={short} full={full} />
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.userId} className="border-t border-border">
-              <th
-                scope="row"
-                // A name column that never collapses: on a narrow screen the table
-                // scrolls inside its card (TableCard) instead of crushing names.
-                className={cn(
-                  figCell,
-                  "min-w-[9rem] font-medium text-foreground",
-                )}
-              >
-                <span className="flex min-w-0 items-center gap-2.5">
-                  <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-muted-foreground">
+    // The running header names the table, "(continued)" or not.
+    <section
+      data-sheet-label={title.replace(/ \(continued\)$/, "")}
+      className="break-inside-avoid"
+    >
+      <header className="flex items-baseline justify-between gap-3 border-t-[1.5px] border-foreground pt-1.5">
+        <h3 className="min-w-0 text-sm font-semibold text-foreground">
+          {title}
+        </h3>
+        {aside && (
+          <span className="shrink-0 font-score text-xs tabular-nums text-muted-foreground">
+            {aside}
+          </span>
+        )}
+      </header>
+      {/* relative: the headings' visually hidden labels stay in this box. */}
+      <div className="relative overflow-x-auto">
+        <table className="border-collapse text-sm tabular-nums">
+          <thead>
+            <tr>
+              {head.map(([short, full], i) => (
+                <th key={`${short}-${i}`} scope="col" className={HEAD}>
+                  <Abbr short={short} full={full} />
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.userId} className="border-b border-border">
+                <th
+                  scope="row"
+                  // A name column that never collapses: on a narrow screen
+                  // the table scrolls in its box instead of crushing names.
+                  className="w-52 min-w-[9rem] py-1 pr-2 text-left font-medium text-foreground"
+                >
+                  <span className="mr-2 inline-block w-6 font-score text-xs font-semibold text-muted-foreground">
                     {r.rank}
                   </span>
                   {/* Wraps rather than truncates: the PDF cannot clip text. */}
                   <span className="min-w-0 break-words">{r.name}</span>
-                </span>
-              </th>
-              {cells(r)}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </TableCard>
+                </th>
+                {cells(r)}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 
@@ -142,10 +164,7 @@ const cellOf = (
 ) => (
   <td
     key={key}
-    className={cn(
-      figCell,
-      strong ? "font-semibold text-foreground" : undefined,
-    )}
+    className={cn(CELL, strong ? "text-sm font-semibold" : undefined)}
   >
     {v}
   </td>
@@ -263,6 +282,9 @@ function Sheet({
 }) {
   return (
     <article
+      // Every sheet after the first starts with the running header (the
+      // club, the report, its day, the table and "Page N of M").
+      data-running-header={first ? undefined : ""}
       className={cn(
         "report-page space-y-6 pb-8 pt-6",
         !first && "break-before-page",
@@ -293,11 +315,14 @@ function Page({
   fileName,
   clubUrl,
   title,
+  heading,
   children,
 }: {
   fileName: string;
   clubUrl: string;
   title: string;
+  /** What the running header says, read by the PDF builder. */
+  heading: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -313,6 +338,9 @@ function Page({
         title={title}
         closeLabel="Back to the club"
       />
+      <p hidden data-report-heading="">
+        {heading}
+      </p>
       <main className="mx-auto max-w-[52rem] px-4 sm:px-6 print:max-w-none print:px-0">
         {children}
       </main>
@@ -381,6 +409,11 @@ export function ClubStatsReportView({
         fileName={fileName}
         clubUrl={clubUrl}
         title={`${tab.label} statistics`}
+        heading={
+          <>
+            {club.name} · {tab.label} statistics · {generated}
+          </>
+        }
       >
         {sheets.map((chunk, i) => (
           <Sheet key={i} first={i === 0}>
@@ -445,19 +478,36 @@ export function ClubStatsReportView({
   ];
   const present = tables.filter((t) => t.rows.length > 0);
   const tableCount = present.length;
-  const sheetsOf = present.map((t, ti) => ({
-    ...t,
-    sheets: sheetsOfRows(t.rows, {
-      first: ti === 0 ? FIRST_SHEET_ROWS : SHEET_ROWS,
-      max: SHEET_ROWS,
-      // Only the report's last table has the footer on its last sheet.
-      last: ti === tableCount - 1 ? FOOTER_SHEET_ROWS : SHEET_ROWS,
-      only: ti === 0 && tableCount === 1 ? ONLY_SHEET_ROWS : SHEET_ROWS,
-    }),
-  }));
+  const sheetsOf = present.map((t, ti) => {
+    const first = ti === 0 ? FIRST_SHEET_ROWS : SHEET_ROWS;
+    // Only the report's last table has the footer on its last sheet.
+    const last = ti === tableCount - 1 ? FOOTER_SHEET_ROWS : SHEET_ROWS;
+    return {
+      ...t,
+      sheets: sheetsOfRows(t.rows, {
+        first,
+        max: SHEET_ROWS,
+        last,
+        // A table on one sheet is on its first and its last sheet both.
+        only:
+          ti === 0 && tableCount === 1
+            ? ONLY_SHEET_ROWS
+            : Math.min(first, last),
+      }),
+    };
+  });
 
   return (
-    <Page fileName={fileName} clubUrl={clubUrl} title="Club statistics">
+    <Page
+      fileName={fileName}
+      clubUrl={clubUrl}
+      title="Club statistics"
+      heading={
+        <>
+          {club.name} · Club statistics · {generated}
+        </>
+      }
+    >
       {rows.length === 0 && (
         <Sheet first>
           <ReportBar club={club} />

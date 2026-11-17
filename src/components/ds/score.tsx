@@ -239,40 +239,44 @@ export function ScoreHero({
           the icon (lavender would vanish into the wash), and from md one
           centred line in one type size, "Club · T20 · 20 overs", rather
           than two ends of a wide row. */}
-      <div
-        className={cn(
-          "flex items-center gap-3",
-          competition ? "justify-between" : "justify-center",
-          plain && "md:justify-center md:gap-2",
-        )}
-      >
-        {competition && (
-          <span className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
+      {(competition || stage) && (
+        <div
+          className={cn(
+            "flex items-center gap-3",
+            competition ? "justify-between" : "justify-center",
+            plain && "md:justify-center md:gap-2",
+          )}
+        >
+          {competition && (
+            <span className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
+              <span
+                className={cn(
+                  "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full",
+                  plain
+                    ? "bg-card text-primary shadow-soft"
+                    : "bg-primary-soft text-primary-soft-foreground",
+                )}
+              >
+                <CompetitionIcon className="h-3.5 w-3.5" aria-hidden="true" />
+              </span>
+              <span className="truncate">{competition}</span>
+            </span>
+          )}
+          {stage && (
             <span
               className={cn(
-                "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full",
-                plain
-                  ? "bg-card text-primary shadow-soft"
-                  : "bg-primary-soft text-primary-soft-foreground",
+                "shrink-0 text-xs font-semibold text-primary",
+                plain && "md:text-sm md:font-medium md:text-muted-foreground",
+                plain &&
+                  competition &&
+                  "md:before:mr-2 md:before:content-['·']",
               )}
             >
-              <CompetitionIcon className="h-3.5 w-3.5" aria-hidden="true" />
+              {stage}
             </span>
-            <span className="truncate">{competition}</span>
-          </span>
-        )}
-        {stage && (
-          <span
-            className={cn(
-              "shrink-0 text-xs font-semibold text-primary",
-              plain && "md:text-sm md:font-medium md:text-muted-foreground",
-              plain && competition && "md:before:mr-2 md:before:content-['·']",
-            )}
-          >
-            {stage}
-          </span>
-        )}
-      </div>
+          )}
+        </div>
+      )}
       <div
         className={cn(
           "mt-4 grid items-start gap-2",
