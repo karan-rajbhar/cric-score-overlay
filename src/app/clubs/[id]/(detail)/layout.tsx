@@ -17,6 +17,7 @@ import {
 import { Card, CardContent } from "~/components/ui/card";
 import { StatGrid, StatTile } from "~/components/ds/stat-tile";
 import { Chip } from "~/components/ds/chip";
+import { LocalDate } from "~/components/ds/local-date";
 import { Avatar, TeamCrest } from "~/components/ds/avatar";
 import { ListCard, ListRow } from "~/components/ds/list";
 import { ProfileHeader } from "~/components/ds/player-header";
@@ -504,11 +505,7 @@ export default async function ClubLayout({
                     {entry.inducted_at && (
                       <p className="mt-auto border-t border-border pt-2 text-xs text-muted-foreground">
                         Inducted{" "}
-                        {new Date(entry.inducted_at).toLocaleDateString("en-GB", {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        })}
+                        <LocalDate value={entry.inducted_at} format="short" />
                       </p>
                     )}
                   </Card>

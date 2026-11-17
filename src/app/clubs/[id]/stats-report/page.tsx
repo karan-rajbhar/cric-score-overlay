@@ -10,6 +10,7 @@ import {
 } from "~/lib/club-stats-export";
 import { loadClubStatsExport } from "~/lib/firebase/club-stats-data";
 import { originFromHeaders } from "~/lib/request-origin";
+import { LocalDate } from "~/components/ds/local-date";
 
 export const dynamic = "force-dynamic";
 
@@ -59,11 +60,8 @@ export default async function ClubStatsReportPage({
       clubUrl={clubUrl}
       rows={stats.rows}
       matches={stats.matches}
-      generated={now.toLocaleDateString("en-GB", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-      })}
+      // The viewer's day, not the server's (UTC).
+      generated={<LocalDate value={now.toISOString()} format="short" />}
       tab={tab ? tabTable(stats.data, tab) : null}
       fileName={clubStatsFileName(
         stats.club.name,

@@ -44,4 +44,24 @@ describe("dates", () => {
     expect(cardDate(null)).toBe("");
     expect(shortDate("not a date")).toBe("");
   });
+
+  it("formats a moment in a given zone, whatever the runtime's", () => {
+    // 03:50 UTC on the 15th is 09:20 in India, 22:50 on the 14th in New York.
+    const at = "2026-11-15T03:50:00Z";
+    expect(timeOfDay(at, "Asia/Kolkata")).toBe("09:20");
+    expect(shortDate(at, "Asia/Kolkata")).toBe("15 Nov 2026");
+    expect(timeOfDay(at, "America/New_York")).toBe("22:50");
+    expect(shortDate(at, "America/New_York")).toBe("14 Nov 2026");
+    expect(cardDate(at, new Date("2026-06-01T00:00:00Z"), "America/New_York")).toBe(
+      "Sat 14 Nov",
+    );
+    expect(fullDateTime(at, "Asia/Kolkata")).toBe(
+      "Sunday 15 November 2026, 09:20",
+    );
+  });
+
+  it("keeps a calendar day the same day in every zone", () => {
+    expect(shortDate("2024-07-15", "America/New_York")).toBe("15 Jul 2024");
+    expect(shortDate("2024-07-15", "Pacific/Kiritimati")).toBe("15 Jul 2024");
+  });
 });

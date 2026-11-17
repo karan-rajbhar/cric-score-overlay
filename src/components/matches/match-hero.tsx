@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { cardDate, isLateFixture, longDate, timeOfDay } from "~/lib/dates";
+import { isLateFixture } from "~/lib/dates";
 import { Shield, Trophy } from "lucide-react";
 import type * as React from "react";
+import { LocalDate } from "~/components/ds/local-date";
 import { PlayerAwardCard } from "~/components/ds/player-award";
 import { PlayerLink } from "~/components/ds/player-link";
 import {
@@ -131,10 +132,33 @@ export function performerLines(
   return lines;
 }
 
-/** "19:30" and "Saturday 10 August" (the year when not this one). */
+/**
+ * "19:30", "Saturday 10 August" (the year when not this one) and "Sat 10
+ * Aug", in the viewer's time zone: the report renders this on the server.
+ */
 function scheduledTime(iso?: string | null) {
   if (!iso) return null;
-  return { time: timeOfDay(iso), date: longDate(iso), short: cardDate(iso) };
+  return {
+    time: <LocalDate value={iso} format="time" />,
+    date: <LocalDate value={iso} format="long" />,
+    short: <LocalDate value={iso} format="card" />,
+    shortTime: <LocalDate value={iso} format="cardTime" />,
+  };
+}
+
+/** "Saturday 10 August · Central Park", "Was due Sat 10 Aug, 19:30", "Upcoming". */
+function fixtureNote(
+  start: ReturnType<typeof scheduledTime>,
+  late: boolean,
+  venue?: string | null,
+): React.ReactNode {
+  if (!start) return venue || "Upcoming";
+  return (
+    <>
+      {late ? <>Was due {start.shortTime}</> : start.date}
+      {venue && ` · ${venue}`}
+    </>
+  );
 }
 
 /**
@@ -281,14 +305,7 @@ export function MatchHero({
     ) : line ? (
       <MatchNote tone="live">{line}</MatchNote>
     ) : match.status === "scheduled" ? (
-      <MatchNote>
-        {[
-          late && start ? `Was due ${start.short}, ${start.time}` : start?.date,
-          match.venue,
-        ]
-          .filter(Boolean)
-          .join(" · ") || "Upcoming"}
-      </MatchNote>
+      <MatchNote>{fixtureNote(start, late, match.venue)}</MatchNote>
     ) : null;
 
   return (

@@ -9,6 +9,7 @@ import {
   FixtureCard,
   MatchCard as MatchCardView,
 } from "~/components/ds/match-card";
+import { useDisplayTimeZone } from "~/components/ds/local-date";
 import { MatchNote } from "~/components/ds/score";
 import {
   displayStatusOf,
@@ -31,16 +32,19 @@ interface MatchCardProps {
   detail?: React.ReactNode;
 }
 
-/** "Sat 25 Oct" (the year when not this one) and "14:00" for a fixture's start. */
-export function matchStart(iso?: string | null) {
+/**
+ * "Sat 25 Oct" (the year when not this one) and "14:00" for a fixture's
+ * start, in `zone` (none: the runtime's; a card takes `useDisplayTimeZone`).
+ */
+export function matchStart(iso?: string | null, zone?: string) {
   if (!iso) return null;
-  return { date: cardDate(iso), time: timeOfDay(iso) };
+  return { date: cardDate(iso, undefined, zone), time: timeOfDay(iso, zone) };
 }
 
 /** "Sun 15 Nov, 09:20": when a result was played (the day alone, untimed). */
-function playedAt(iso: string | null | undefined): string {
-  const day = cardDate(iso);
-  const time = timeOfDay(iso);
+function playedAt(iso: string | null | undefined, zone?: string): string {
+  const day = cardDate(iso, undefined, zone);
+  const time = timeOfDay(iso, zone);
   return day && time ? `${day}, ${time}` : day;
 }
 
@@ -84,6 +88,8 @@ export function MatchCard({
 }: MatchCardProps) {
   // A live match follows its live_state doc (no refresh needed).
   const match = useLiveListMatch(fetched);
+  // Server-rendered lists (a tournament's) hydrate this card: see the hook.
+  const zone = useDisplayTimeZone();
   const href = `/matches/${match.id}`;
   const bpo =
     match.balls_per_over && match.balls_per_over > 0 ? match.balls_per_over : 6;
@@ -102,7 +108,7 @@ export function MatchCard({
     );
 
   if (match.status === "scheduled") {
-    const start = matchStart(match.scheduled_at);
+    const start = matchStart(match.scheduled_at, zone);
     // Its time has passed and it has not started: say so (M3, M17).
     const late = isLateFixture(match);
     return (
@@ -183,7 +189,7 @@ export function MatchCard({
       competition={[
         status === "live" || status === "innings_break"
           ? null
-          : playedAt(match.scheduled_at ?? match.actual_start_time),
+          : playedAt(match.scheduled_at ?? match.actual_start_time, zone),
         competition,
         format,
       ]

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LocalDate } from "~/components/ds/local-date";
 import { Card, CardHeader } from "~/components/ds/card";
 import {
   playerMilestones,
@@ -10,18 +11,6 @@ import {
 /** Most recent milestones listed under the counts. */
 const MAX_LISTED = 8;
 
-function shortDate(iso: string | null): string | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-}
-
 function MatchLine({
   matchId,
   title,
@@ -31,7 +20,9 @@ function MatchLine({
   title: string | null;
   date: string | null;
 }) {
-  const when = shortDate(date);
+  // The day in the viewer's time zone (the page renders on the server).
+  const valid = date && !Number.isNaN(new Date(date).getTime());
+  const when = valid ? <LocalDate value={date} format="short" /> : null;
   // The title when known, else the date is the link (P3): never "Match".
   return (
     <span className="block min-w-0 truncate text-xs text-muted-foreground">

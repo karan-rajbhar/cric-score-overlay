@@ -726,15 +726,19 @@ export interface MatchReportModel {
   fileName: string;
   matchUrl: string;
   matchIdShort: string;
-  /** The day the report was made (YYYY-MM-DD). */
-  generated: string;
-  /** "17 Oct 2026, 18:30", when scheduled. */
-  date: string | null;
+  /** When the report was made (ISO; the page shows the viewer's day). */
+  generatedAt: string;
+  /**
+   * When the match was due to start (ISO), or null. Not formatted here: the
+   * server cannot know the viewer's time zone (`LocalDate` shows it).
+   */
+  scheduledAt: string | null;
   tournament: string | null;
   club: string | null;
   /** The two sides in batting order (the side that batted first first). */
   teams: [ReportTeam, ReportTeam];
-  info: { label: string; value: string; wide?: boolean }[];
+  /** `time`: `value` is an ISO timestamp, shown in the viewer's zone. */
+  info: { label: string; value: string; wide?: boolean; time?: boolean }[];
   playerOfTheMatch: PlayerAward | null;
   /**
    * The first page, as on the share-summary image: each side's score with
@@ -1009,7 +1013,7 @@ function oversOf(match: Match): MatchReportModel["overs"] {
   };
 }
 
-function infoOf(match: Match, date: string | null): MatchReportModel["info"] {
+function infoOf(match: Match): MatchReportModel["info"] {
   const toss = match.toss_winner_team_id
     ? tossSentence(
         match.toss_winner_team_id === match.team2.id ? match.team2.name : match.team1.name,
@@ -1034,13 +1038,13 @@ function infoOf(match: Match, date: string | null): MatchReportModel["info"] {
     match.golden_ball ? "Golden ball tiebreak" : null,
   ].filter(Boolean);
   // Only what the match holds: a missing fact gets no row, not a filler.
-  const rows: [string, string | null | undefined, boolean?][] = [
+  const rows: [string, string | null | undefined, boolean?, boolean?][] = [
     ["Organiser", match.tournament?.name ?? match.club?.name ?? null],
     ["Match", match.title],
     ["Format", namedFormat(match)],
     ["Overs", `${match.overs_per_innings} overs a side`],
     ["Venue", match.venue ?? null],
-    ["Date and time", date],
+    ["Date and time", match.scheduled_at, undefined, true],
     ["Toss", toss],
     ["Umpires", umpires || null],
     ["Scorer", match.scorer_name ?? null],
@@ -1050,8 +1054,13 @@ function infoOf(match: Match, date: string | null): MatchReportModel["info"] {
     ["Match ID", `#${match.id.slice(0, 8)}`],
   ];
   return rows
-    .filter((r): r is [string, string, boolean?] => Boolean(r[1]))
-    .map(([label, value, wide]) => ({ label, value, wide }));
+    .filter((r): r is [string, string, boolean?, boolean?] => Boolean(r[1]))
+    .map(([label, value, wide, time]) => ({
+      label,
+      value,
+      wide,
+      ...(time ? { time } : {}),
+    }));
 }
 
 function signoffOf(match: Match): MatchReportModel["signoff"] {
@@ -1079,12 +1088,6 @@ export function buildMatchReport(
 ): MatchReportModel {
   // Batting order: the side that batted first, then the chase.
   const [{ team: first }, { team: second }] = sidesInBattingOrder(match);
-  const date = match.scheduled_at
-    ? new Date(match.scheduled_at).toLocaleString("en-GB", {
-        dateStyle: "medium",
-        timeStyle: "short",
-      })
-    : null;
   const summary = buildExportSummary(match, matchUrl);
   return {
     title: match.title,
@@ -1094,12 +1097,12 @@ export function buildMatchReport(
       .trim(),
     matchUrl,
     matchIdShort: match.id.slice(0, 8).toUpperCase(),
-    generated: now.toISOString().slice(0, 10),
-    date,
+    generatedAt: now.toISOString(),
+    scheduledAt: match.scheduled_at ?? null,
     tournament: match.tournament?.name ?? null,
     club: match.club?.name ?? null,
     teams: [teamRef(first), teamRef(second)],
-    info: infoOf(match, date),
+    info: infoOf(match),
     playerOfTheMatch: playerAwardOf(match),
     summary: [summary.team1, summary.team2],
     innings: allInnings(match),

@@ -16,8 +16,8 @@ import {
 import { ShowMoreLink } from "~/components/layout/pager";
 import { Avatar } from "~/components/ds/avatar";
 import { Chip } from "~/components/ds/chip";
+import { LocalDate } from "~/components/ds/local-date";
 import { PlayerLink } from "~/components/ds/player-link";
-import { shortDate } from "~/lib/dates";
 import { playerHrefOf } from "~/lib/player-href";
 import { Card, CardContent } from "~/components/ui/card";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -324,7 +324,11 @@ async function MembersTab({ viewer, raw }: { viewer: ClubViewer; raw?: string })
                         >
                           {m.role}
                         </Chip>
-                        {m.joined_at && <span>Joined {shortDate(m.joined_at)}</span>}
+                        {m.joined_at && (
+                          <span>
+                            Joined <LocalDate value={m.joined_at} format="short" />
+                          </span>
+                        )}
                       </div>
                     </div>
                     <MemberActions

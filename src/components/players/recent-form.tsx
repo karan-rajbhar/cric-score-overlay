@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Card, CardHeader } from "~/components/ds/card";
+import { LocalDate } from "~/components/ds/local-date";
 import {
   recentBatting,
   recentBowling,
@@ -32,9 +33,13 @@ function Strip({ label, entries }: { label: string; entries: FormEntry[] }) {
               <span className="block text-xs text-muted-foreground">
                 {e.detail}
               </span>
-              {e.matchTitle && (
+              {(e.playedAt || e.matchTitle) && (
                 <span className="mt-1 block truncate text-xs text-muted-foreground">
-                  {e.matchTitle}
+                  {e.playedAt ? (
+                    <LocalDate value={e.playedAt} format="card" />
+                  ) : (
+                    e.matchTitle
+                  )}
                 </span>
               )}
             </Link>
