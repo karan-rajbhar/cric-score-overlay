@@ -11,6 +11,8 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# Runners are pinned (not ubuntu-latest), so an image change is a reviewed
+# edit here rather than a surprise on some later run.
 permissions:
   contents: read
   pull-requests: read
@@ -24,11 +26,11 @@ jobs:
   verify-merge:
     name: Verify merge was tested
     if: github.event_name == 'push'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     outputs:
       tested: ${{ steps.tree.outputs.tested }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - id: tree
         env:
           GH_TOKEN: ${{ github.token }}
@@ -52,7 +54,7 @@ jobs:
     name: ${{ matrix.check.name }}
     needs: verify-merge
     if: always() && needs.verify-merge.outputs.tested != 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     strategy:
       fail-fast: true
       matrix:
@@ -63,9 +65,9 @@ jobs:
           - { name: Test (2/2), run: npx vitest run --shard=2/2 }
           - { name: Build, run: SKIP_ENV_VALIDATION=1 npm run build }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -75,7 +77,7 @@ jobs:
 
       - name: Restore Next.js build cache
         if: matrix.check.name == 'Build'
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .next/cache
           key: nextjs-${{ hashFiles('package-lock.json') }}-${{ hashFiles('src/**', 'next.config.mjs', 'tailwind.config.ts') }}
@@ -90,7 +92,7 @@ jobs:
     name: Lint, Typecheck & Build
     needs: [verify-merge, checks]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Result
         env:
@@ -110,7 +112,7 @@ jobs:
     name: Deploy to production
     needs: quality
     if: always() && needs.quality.result == 'success' && github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     environment: production
     # Never cancel a deploy halfway; queue the next one instead.
     concurrency:
@@ -120,9 +122,9 @@ jobs:
       FIREBASE_PROJECT: cricscore-prod-7411
       APPHOSTING_BACKEND: cricscore
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
