@@ -1,5 +1,11 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { makeInnings, makeMatch } from "~/test/factories";
 import { buildMatchReport } from "~/lib/match-report";
 import type { Match } from "~/lib/match-types";
@@ -68,6 +74,8 @@ function matchOf(overrides: Partial<Match> = {}): Match {
   });
 }
 
+const QR = "QR code linking to this match";
+
 function renderReport(match = matchOf()) {
   return render(
     <MatchReportView
@@ -84,27 +92,52 @@ describe("MatchReportView", () => {
     pdf.canShare.mockReturnValue(true);
   });
 
-  it("puts the first innings on page 1 and the second on page 2", () => {
+  it("opens on the summary, then the first innings, then the second", () => {
     const { container } = renderReport();
     const pages = container.querySelectorAll(".report-page");
-    expect(pages).toHaveLength(2);
-    expect(pages[0]).toHaveTextContent("1st innings");
-    expect(pages[0]).not.toHaveTextContent("2nd innings");
-    expect(pages[1]).toHaveTextContent("2nd innings");
-    expect(pages[1]).toHaveTextContent("Target 179");
-    // The sign-off, link and QR code close the report.
-    expect(pages[1]).toHaveTextContent("Official verification and sign-off");
-    expect(
-      screen.getByAltText("QR code linking to this match"),
-    ).toBeInTheDocument();
+    expect(pages).toHaveLength(3);
+    // Page 1 is the summary image's layout: each side's batters beside the
+    // bowlers who bowled at them, no scorecards, no impact points.
+    const summary = pages[0] as HTMLElement;
+    expect(summary).toHaveTextContent("Royal Tigers won by 18 runs");
+    const tigers = within(summary)
+      .getByRole("heading", { name: "Royal Tigers", level: 2 })
+      .closest("div")!.parentElement!;
+    expect(tigers).toHaveTextContent("178/5 (20.0 ov)");
+    expect(tigers).toHaveTextContent("Bowling: Coastal Kings");
+    expect(tigers).toHaveTextContent("Virat Kohli82(82)");
+    expect(summary).not.toHaveTextContent("1st innings");
+    expect(summary).not.toHaveTextContent("Match impact");
+    expect(within(summary).getByRole("img", { name: QR })).toBeInTheDocument();
+
+    expect(pages[1]).toHaveTextContent("1st innings");
+    expect(pages[1]).not.toHaveTextContent("2nd innings");
+    expect(pages[2]).toHaveTextContent("2nd innings");
+    expect(pages[2]).toHaveTextContent("Target 179");
+    // The analysis, sign-off, link and QR code close the report.
+    expect(pages[2]).toHaveTextContent("Match impact");
+    expect(pages[2]).toHaveTextContent("Match information");
+    expect(pages[2]).toHaveTextContent("Official verification and sign-off");
+    expect(within(pages[2] as HTMLElement).getByAltText(QR)).toBeInTheDocument();
   });
 
-  it("keeps a one-innings report on one page", () => {
+  it("keeps a one-innings report to the summary and one more page", () => {
     const { container } = renderReport(
       matchOf({ innings: matchOf().innings!.slice(0, 1) }),
     );
-    expect(container.querySelectorAll(".report-page")).toHaveLength(1);
-    expect(container).toHaveTextContent("Official verification and sign-off");
+    const pages = container.querySelectorAll(".report-page");
+    expect(pages).toHaveLength(2);
+    // The side yet to bat is just its header.
+    expect(pages[0]).toHaveTextContent("Coastal KingsYet to bat");
+    expect(pages[1]).toHaveTextContent("Official verification and sign-off");
+  });
+
+  it("closes a report with no innings on its one page", () => {
+    const { container } = renderReport(matchOf({ innings: [] }));
+    const pages = container.querySelectorAll(".report-page");
+    expect(pages).toHaveLength(1);
+    expect(pages[0]).toHaveTextContent("No innings recorded yet.");
+    expect(pages[0]).toHaveTextContent("Official verification and sign-off");
   });
 
   it("leaves a line to write each unknown name on", () => {
