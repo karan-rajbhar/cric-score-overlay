@@ -736,6 +736,11 @@ export interface MatchReportModel {
   teams: [ReportTeam, ReportTeam];
   info: { label: string; value: string; wide?: boolean }[];
   playerOfTheMatch: PlayerAward | null;
+  /**
+   * The first page, as on the share-summary image: each side's score with
+   * its top batters beside the bowlers who bowled at them, in `teams` order.
+   */
+  summary: [ExportTeamStats, ExportTeamStats];
   innings: ReportInnings[];
   phases: { teams: [string, string]; rows: ReportPhaseRow[] } | null;
   impact: ImpactLeader[];
@@ -1080,6 +1085,7 @@ export function buildMatchReport(
         timeStyle: "short",
       })
     : null;
+  const summary = buildExportSummary(match, matchUrl);
   return {
     title: match.title,
     fileName: `${first.name} vs ${second.name} – match report.pdf`
@@ -1095,6 +1101,7 @@ export function buildMatchReport(
     teams: [teamRef(first), teamRef(second)],
     info: infoOf(match, date),
     playerOfTheMatch: playerAwardOf(match),
+    summary: [summary.team1, summary.team2],
     innings: allInnings(match),
     phases: phasesOf(match),
     impact: calculateMatchImpactLeaders(match),

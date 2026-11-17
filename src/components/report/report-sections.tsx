@@ -15,10 +15,12 @@ import {
 import { figCell, figHead, figTable } from "~/components/ds/fig-table";
 import { RankList } from "~/components/ds/standings";
 import type {
+  ExportTeamStats,
   ImpactLeader,
   MatchReportModel,
   OverData,
   ReportInnings,
+  ReportTeam,
 } from "~/lib/match-report";
 import { cn } from "~/lib/utils";
 
@@ -162,6 +164,99 @@ export function InfoCard({ info }: { info: MatchReportModel["info"] }) {
           </div>
         ))}
       </dl>
+    </Card>
+  );
+}
+
+type SummaryRow = { name: string; fig: string; sub: string };
+
+/** One column of a summary card, its heading shown (paper has no hover). */
+function SummaryColumn({ title, rows }: { title: string; rows: SummaryRow[] }) {
+  return (
+    <div className="min-w-0">
+      <h3 className="truncate text-xs text-muted-foreground">{title}</h3>
+      {rows.length === 0 ? (
+        <p className="mt-1 text-sm text-muted-foreground">No figures</p>
+      ) : (
+        <ol className="mt-1">
+          {rows.map((r, i) => (
+            <li
+              key={`${i}-${r.name}`}
+              // A phone's half width: the name on its own line, not cut.
+              // `sm`, not `md`: an A4 print is narrower than `md`.
+              className="flex items-baseline gap-2 py-1 max-sm:flex-wrap max-sm:gap-x-1.5 max-sm:gap-y-0"
+            >
+              <span className="min-w-0 flex-1 truncate text-sm text-foreground max-sm:basis-full">
+                {r.name}
+              </span>
+              <span className="font-score text-base font-semibold tabular-nums text-foreground">
+                {r.fig}
+              </span>
+              <span className="w-10 shrink-0 text-right font-score text-xs tabular-nums text-muted-foreground max-sm:w-auto">
+                {r.sub}
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
+
+/**
+ * One side on the report's first page, as on the share-summary image: its
+ * score, then its top three batters beside the bowlers who bowled at them
+ * (the other side's), two columns on every size. Before a side bats it is
+ * just the header.
+ */
+export function InningsSummaryCard({
+  team,
+  stats,
+}: {
+  team: ReportTeam;
+  stats: ExportTeamStats;
+}) {
+  // "178/5 (20.0)": the score large, the overs beside it.
+  const [score, overs] = stats.scoreLine.replace(")", "").split(" (");
+  const played = stats.batters.length > 0 || stats.bowlers.length > 0;
+  return (
+    <Card className="break-inside-avoid overflow-hidden">
+      <div className="flex items-center gap-3 px-4 py-3 sm:px-5">
+        <TeamCrest {...team} size="sm" />
+        <h2 className="min-w-0 flex-1 truncate text-base font-semibold text-foreground">
+          {team.name}
+        </h2>
+        {overs ? (
+          <span className="shrink-0 font-score tabular-nums">
+            <span className="text-xl font-bold text-foreground">{score}</span>{" "}
+            <span className="text-sm text-muted-foreground">({overs} ov)</span>
+          </span>
+        ) : (
+          <span className="shrink-0 text-sm text-muted-foreground">
+            {score}
+          </span>
+        )}
+      </div>
+      {played && (
+        <div className="grid grid-cols-2 gap-x-6 border-t border-border px-4 py-3 sm:gap-x-10 sm:px-5">
+          <SummaryColumn
+            title="Batting"
+            rows={stats.batters.map((b) => ({
+              name: b.name,
+              fig: `${b.runs}${b.notOut ? "*" : ""}`,
+              sub: `(${b.balls})`,
+            }))}
+          />
+          <SummaryColumn
+            title={`Bowling: ${stats.bowlingSide}`}
+            rows={stats.bowlers.map((b) => ({
+              name: b.name,
+              fig: `${b.wickets}/${b.runs}`,
+              sub: `(${b.overs})`,
+            }))}
+          />
+        </div>
+      )}
     </Card>
   );
 }
