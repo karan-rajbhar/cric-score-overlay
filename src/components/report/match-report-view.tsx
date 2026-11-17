@@ -1,3 +1,4 @@
+import { LocalDate } from "~/components/ds/local-date";
 import { MatchHero } from "~/components/matches/match-hero";
 import { sidesInBattingOrder } from "~/lib/cricket";
 import type { MatchReportModel } from "~/lib/match-report";
@@ -67,7 +68,7 @@ function ReportClosing({
       <SignoffCard
         signoff={report.signoff}
         matchIdShort={report.matchIdShort}
-        generated={report.generated}
+        generatedAt={report.generatedAt}
       />
       <ReportFooter matchUrl={report.matchUrl} qrDataUrl={qrDataUrl} />
     </>
@@ -89,9 +90,11 @@ function SummaryPage({ match, report, qrDataUrl }: ReportProps) {
         <h1 className="text-balance text-2xl font-semibold text-foreground">
           {report.title}
         </h1>
-        {report.date && (
+        {(report.scheduledAt || match.venue) && (
           <p className="mt-0.5 text-sm text-muted-foreground">
-            {[report.date, match.venue].filter(Boolean).join(" · ")}
+            <LocalDate value={report.scheduledAt} format="shortTime" />
+            {report.scheduledAt && match.venue && " · "}
+            {match.venue}
           </p>
         )}
       </div>

@@ -8,14 +8,36 @@
  * - `dateRange`: "15 Jul to 30 Aug 2024", "28 Dec 2025 to 4 Jan 2026"
  * - `timeOfDay`: "19:30"
  * - `fullDateTime`: "Saturday 10 August 2024, 19:30"
+ *
+ * Each takes an optional time zone. Without one they use the runtime's: in
+ * the browser that is the viewer's own, which is what a page should show,
+ * but on the server it is UTC. Server-rendered pages therefore show times
+ * through `LocalDate` / `useDisplayTimeZone` (`~/components/ds/local-date`),
+ * which render in `SERVER_TIME_ZONE` on the server and in the viewer's zone
+ * once the page is in the browser.
  */
 
 type DateInput = string | number | Date | null | undefined;
 
+/**
+ * The zone a page is rendered in before the browser takes over (and for
+ * readers without JavaScript): the app's home, where nearly every match is
+ * played. The browser then shows the viewer's own zone.
+ */
+export const SERVER_TIME_ZONE = "Asia/Kolkata";
+
+/** A bare "2024-07-15" names a calendar day, the same day in every zone. */
+const isCalendarDay = (value: DateInput) =>
+  typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
+
+/** The zone to format `value` in: none for a calendar day. */
+const zoneOf = (value: DateInput, zone?: string) =>
+  zone && !isCalendarDay(value) ? { timeZone: zone } : {};
+
 function toDate(value: DateInput): Date | null {
   if (value === null || value === undefined || value === "") return null;
   // A bare "2024-07-15" is a calendar day, not midnight UTC.
-  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+  if (typeof value === "string" && isCalendarDay(value)) {
     const [y, m, d] = value.split("-").map(Number);
     return new Date(y!, m! - 1, d!);
   }
@@ -23,32 +45,41 @@ function toDate(value: DateInput): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-const sameYear = (date: Date, now: Date) =>
-  date.getFullYear() === now.getFullYear();
+const sameYear = (date: Date, now: Date, tz: { timeZone?: string }) => {
+  const year = (d: Date) => d.toLocaleDateString("en-GB", { year: "numeric", ...tz });
+  return year(date) === year(now);
+};
 
 /** "Sat 25 Oct", with the year when it is not this year. */
-export function cardDate(value: DateInput, now = new Date()): string {
+export function cardDate(
+  value: DateInput,
+  now = new Date(),
+  zone?: string,
+): string {
   const date = toDate(value);
   if (!date) return "";
+  const tz = zoneOf(value, zone);
   // Built in parts: en-GB puts a comma after the weekday when the year
   // is there ("Sat, 10 Aug 2024").
-  const weekday = date.toLocaleDateString("en-GB", { weekday: "short" });
+  const weekday = date.toLocaleDateString("en-GB", { weekday: "short", ...tz });
   const day = date.toLocaleDateString("en-GB", {
     day: "numeric",
     month: "short",
-    ...(sameYear(date, now) ? {} : { year: "numeric" }),
+    ...(sameYear(date, now, tz) ? {} : { year: "numeric" }),
+    ...tz,
   });
   return `${weekday} ${day}`;
 }
 
 /** "20 Jul 2024": always with the year. */
-export function shortDate(value: DateInput): string {
+export function shortDate(value: DateInput, zone?: string): string {
   const date = toDate(value);
   if (!date) return "";
   return date.toLocaleDateString("en-GB", {
     day: "numeric",
     month: "short",
     year: "numeric",
+    ...zoneOf(value, zone),
   });
 }
 
@@ -67,37 +98,46 @@ export function dateRange(start: DateInput, end: DateInput): string {
 }
 
 /** "19:30". */
-export function timeOfDay(value: DateInput): string {
+export function timeOfDay(value: DateInput, zone?: string): string {
   const date = toDate(value);
   if (!date) return "";
   return date.toLocaleTimeString("en-GB", {
     hour: "2-digit",
     minute: "2-digit",
+    ...zoneOf(value, zone),
   });
 }
 
 /** "Saturday 10 August 2024, 19:30". */
-export function fullDateTime(value: DateInput): string {
+export function fullDateTime(value: DateInput, zone?: string): string {
   const date = toDate(value);
   if (!date) return "";
-  const weekday = date.toLocaleDateString("en-GB", { weekday: "long" });
+  const tz = zoneOf(value, zone);
+  const weekday = date.toLocaleDateString("en-GB", { weekday: "long", ...tz });
   const day = date.toLocaleDateString("en-GB", {
     day: "numeric",
     month: "long",
     year: "numeric",
+    ...tz,
   });
-  return `${weekday} ${day}, ${timeOfDay(date)}`;
+  return `${weekday} ${day}, ${timeOfDay(value, zone)}`;
 }
 
 /** "Saturday 10 August", with the year when it is not this year. */
-export function longDate(value: DateInput, now = new Date()): string {
+export function longDate(
+  value: DateInput,
+  now = new Date(),
+  zone?: string,
+): string {
   const date = toDate(value);
   if (!date) return "";
-  const weekday = date.toLocaleDateString("en-GB", { weekday: "long" });
+  const tz = zoneOf(value, zone);
+  const weekday = date.toLocaleDateString("en-GB", { weekday: "long", ...tz });
   const day = date.toLocaleDateString("en-GB", {
     day: "numeric",
     month: "long",
-    ...(sameYear(date, now) ? {} : { year: "numeric" }),
+    ...(sameYear(date, now, tz) ? {} : { year: "numeric" }),
+    ...tz,
   });
   return `${weekday} ${day}`;
 }

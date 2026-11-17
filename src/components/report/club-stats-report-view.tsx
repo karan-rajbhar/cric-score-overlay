@@ -362,7 +362,8 @@ export function ClubStatsReportView({
   clubUrl: string;
   rows: readonly ClubStatsRow[];
   matches: number;
-  generated: string;
+  /** The day it was made (a `LocalDate` on the page). */
+  generated: React.ReactNode;
   fileName: string;
   qrDataUrl: string;
   /** One leaderboard tab's table instead of the combined report. */

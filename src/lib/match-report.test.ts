@@ -513,7 +513,7 @@ describe("match-report export helpers", () => {
       ]);
       // A name only when the match holds it: a line to write it on.
       expect(r.signoff.every((s) => s.name === null)).toBe(true);
-      expect(r.generated).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(r.generatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     });
 
     it("builds partnerships from the actual pair, ball by ball", () => {

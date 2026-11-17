@@ -1,4 +1,5 @@
-import { cardDate, timeOfDay } from "~/lib/dates";
+import { Fragment, type ReactNode } from "react";
+import { LocalDate } from "~/components/ds/local-date";
 import { globalSearch } from "./actions";
 import { Input } from "~/components/ui/input";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -41,6 +42,18 @@ function Section<T>({
       <ListCard>{items.map(render)}</ListCard>
     </section>
   );
+}
+
+/** Parts of a row's subtitle joined with " · ", or `empty` when none. */
+function joinParts(parts: ReactNode[], empty: string): ReactNode {
+  const present = parts.filter(Boolean);
+  if (present.length === 0) return empty;
+  return present.map((part, i) => (
+    <Fragment key={i}>
+      {i > 0 && " · "}
+      {part}
+    </Fragment>
+  ));
 }
 
 export default async function SearchPage({
@@ -135,17 +148,17 @@ export default async function SearchPage({
                 title={x.title}
                 // The result, then when (to the minute) and where, so two of
                 // one name on one day differ (N13).
-                subtitle={
+                subtitle={joinParts(
                   [
                     x.status === "completed" ? x.result_description : null,
-                    [cardDate(x.scheduled_at), timeOfDay(x.scheduled_at)]
-                      .filter(Boolean)
-                      .join(", "),
+                    // In the viewer's time zone, not the server's.
+                    x.scheduled_at ? (
+                      <LocalDate value={x.scheduled_at} format="cardTime" />
+                    ) : null,
                     x.venue,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ") || "Date to be confirmed"
-                }
+                  ],
+                  "Date to be confirmed",
+                )}
                 trailing={<MatchStatusChip status={x.status} />}
               />
             )}

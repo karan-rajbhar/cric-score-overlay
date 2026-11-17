@@ -53,6 +53,7 @@ import { PageContainer } from "~/components/layout/page";
 import { MatchCard } from "~/components/matches/match-card";
 import type { Match } from "~/lib/match-types";
 import { Chip } from "~/components/ds/chip";
+import { LocalDate } from "~/components/ds/local-date";
 import { ListCard, ListRow, MetaItem } from "~/components/ds/list";
 import { TeamCrest } from "~/components/ds/avatar";
 import { ProfileHeader } from "~/components/ds/player-header";
@@ -71,7 +72,7 @@ import {
   isTournamentOver,
 } from "~/app/tournaments/rules";
 import { TournamentEndedNotice } from "~/components/tournaments/tournament-ended-notice";
-import { cardDate, dateRange, shortDate } from "~/lib/dates";
+import { dateRange, shortDate } from "~/lib/dates";
 import { SponsorLogosDialog } from "~/components/streaming/sponsor-logos-manager";
 
 export const dynamic = "force-dynamic";
@@ -831,9 +832,11 @@ export default async function TournamentLayout({
                         </span>
                         <span className="block text-xs text-muted-foreground">
                           Asked{" "}
-                          {r.registered_at
-                            ? cardDate(r.registered_at)
-                            : "recently"}
+                          {r.registered_at ? (
+                            <LocalDate value={r.registered_at} format="card" />
+                          ) : (
+                            "recently"
+                          )}
                         </span>
                       </span>
                       {isTournamentAdmin ? (

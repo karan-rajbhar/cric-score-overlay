@@ -5,6 +5,7 @@ import { TeamCrest } from "~/components/ds/avatar";
 import { BallChip, type BallKind } from "~/components/ds/ball";
 import { Card, CardHeader } from "~/components/ds/card";
 import { Chip } from "~/components/ds/chip";
+import { LocalDate } from "~/components/ds/local-date";
 import { PartnershipList, type StandData } from "~/components/ds/partnership";
 import {
   BattingCard,
@@ -160,7 +161,9 @@ export function InfoCard({ info }: { info: MatchReportModel["info"] }) {
             )}
           >
             <dt className="text-xs text-muted-foreground">{r.label}</dt>
-            <dd className="text-sm text-foreground">{r.value}</dd>
+            <dd className="text-sm text-foreground">
+              {r.time ? <LocalDate value={r.value} format="shortTime" /> : r.value}
+            </dd>
           </div>
         ))}
       </dl>
@@ -460,8 +463,8 @@ export function OverComparison({
 export function SignoffCard({
   signoff,
   matchIdShort,
-  generated,
-}: Pick<MatchReportModel, "signoff" | "matchIdShort" | "generated">) {
+  generatedAt,
+}: Pick<MatchReportModel, "signoff" | "matchIdShort" | "generatedAt">) {
   return (
     <Card className="break-inside-avoid p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -504,7 +507,8 @@ export function SignoffCard({
           final record of the match.
         </span>
         <span className="font-score tabular-nums">
-          Match ID #{matchIdShort} · Generated {generated}
+          Match ID #{matchIdShort} · Generated{" "}
+          <LocalDate value={generatedAt} format="short" />
         </span>
       </p>
     </Card>
