@@ -1,28 +1,27 @@
 import { LocalDate } from "~/components/ds/local-date";
 import { MatchHero } from "~/components/matches/match-hero";
-import { sidesInBattingOrder } from "~/lib/cricket";
+import { matchFormatLabel, sidesInBattingOrder } from "~/lib/cricket";
 import type { MatchReportModel } from "~/lib/match-report";
 import type { Match } from "~/lib/match-types";
 import { ReportCharts } from "./report-charts";
 import {
-  ImpactCard,
-  InfoCard,
-  InningsSection,
   InningsSummaryCard,
-  OverComparison,
-  PhasesCard,
   ReportFooter,
   ReportHeader,
-  ReportSectionTitle,
-  SignoffCard,
 } from "./report-sections";
+import {
+  AnalysisSheet,
+  InningsSheet,
+  OverGrid,
+  SignoffSheet,
+} from "./report-sheet";
 import { ReportToolbar } from "./report-toolbar";
 
 /**
  * A4 sheets with a 10 mm margin; backgrounds (chips, bars) print too. The
- * summary is a sheet of its own: at a sheet's 718 px it stands about 1,200
- * px high, more than the 1,047 px a sheet holds, so it prints smaller (the
- * PDF draws it at 820 px, where it fits).
+ * summary is a sheet of its own: at a sheet's 718 px it stands taller than
+ * the 1,047 px a sheet holds, so it prints smaller (the PDF draws it at
+ * 820 px, where it fits).
  */
 const PRINT_CSS = `@page { size: A4 portrait; margin: 10mm; }
 @media print {
@@ -36,42 +35,57 @@ type ReportProps = {
   qrDataUrl: string;
 };
 
+/** The side that bowled an innings: the other of the two. */
+const bowlingSideOf = (report: MatchReportModel, team: string) =>
+  report.teams.find((t) => t.name !== team)?.name ?? null;
+
 /**
- * The analysis, the over-by-over comparison, the match information, the
- * sign-off and the link.
+ * The detail after the scorecards: the analysis, the charts and the over
+ * grid, and the sign-off (tournament matches: a league's official record).
+ * The link and its QR code are on the first page.
  */
-function ReportClosing({
-  report,
-  qrDataUrl,
-}: Omit<ReportProps, "match">) {
+function ReportClosing({ report }: { report: MatchReportModel }) {
   return (
     <>
-      {(report.phases || report.impact.length > 0) && (
-        <div className="grid gap-4 md:grid-cols-2 print:grid-cols-2">
-          {report.phases && <PhasesCard phases={report.phases} />}
-          {report.impact.length > 0 && <ImpactCard leaders={report.impact} />}
-        </div>
-      )}
+      <AnalysisSheet report={report} />
       {(report.charts || report.overs) && (
-        <section className="space-y-4" aria-label="Over by over">
-          <ReportSectionTitle
-            title="Over by over"
-            description="Both innings side by side: the run progression, the runs in each over and every delivery."
-          />
-          {report.charts && <ReportCharts charts={report.charts} />}
-          {report.overs && <OverComparison overs={report.overs} />}
+        <section
+          aria-label="Over by over"
+          data-sheet-label="Over by over"
+          className="space-y-3"
+        >
+          {report.charts && <ReportCharts charts={report.charts} flat />}
+          {report.overs && <OverGrid overs={report.overs} />}
         </section>
       )}
-      {/* Reference, beside the sign-off (umpires, toss), as scorecard
-          sites put it under the scorecard. */}
-      <InfoCard info={report.info} />
-      <SignoffCard
-        signoff={report.signoff}
-        matchIdShort={report.matchIdShort}
-        generatedAt={report.generatedAt}
-      />
-      <ReportFooter matchUrl={report.matchUrl} qrDataUrl={qrDataUrl} />
+      {report.tournament && (
+        <SignoffSheet
+          signoff={report.signoff}
+          matchIdShort={report.matchIdShort}
+          generatedAt={report.generatedAt}
+        />
+      )}
     </>
+  );
+}
+
+/**
+ * What the running header at the top of every detail sheet says (the PDF
+ * builder reads its text once the date shows in the viewer's zone).
+ */
+function SheetHeading({ report }: { report: MatchReportModel }) {
+  return (
+    <p hidden data-report-heading="">
+      {report.teams[0].name} vs {report.teams[1].name}
+      {report.scheduledAt && (
+        <>
+          {" · "}
+          <LocalDate value={report.scheduledAt} format="short" />
+        </>
+      )}
+      {(report.tournament ?? report.club) &&
+        ` · ${report.tournament ?? report.club}`}
+    </p>
   );
 }
 
@@ -90,13 +104,17 @@ function SummaryPage({ match, report, qrDataUrl }: ReportProps) {
         <h1 className="text-balance text-2xl font-semibold text-foreground">
           {report.title}
         </h1>
-        {(report.scheduledAt || match.venue) && (
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            <LocalDate value={report.scheduledAt} format="shortTime" />
-            {report.scheduledAt && match.venue && " · "}
-            {match.venue}
-          </p>
-        )}
+        {/* When, where and the format (the hero below repeats none). */}
+        <p className="mt-0.5 text-sm text-muted-foreground">
+          {report.scheduledAt && (
+            <>
+              <LocalDate value={report.scheduledAt} format="shortTime" />
+              {" · "}
+            </>
+          )}
+          {match.venue && `${match.venue} · `}
+          {matchFormatLabel(match)}
+        </p>
       </div>
       {/* Each side's best are on its card below, not under its name. */}
       <MatchHero
@@ -104,34 +122,37 @@ function SummaryPage({ match, report, qrDataUrl }: ReportProps) {
         sides={sidesInBattingOrder(match)}
         plain={false}
         performers={false}
+        quiet
         className="break-inside-avoid"
       />
       {report.innings.length > 0 ? (
-        <>
-          <div className="space-y-4">
-            <InningsSummaryCard
-              team={report.teams[0]}
-              stats={report.summary[0]}
-            />
-            <InningsSummaryCard
-              team={report.teams[1]}
-              stats={report.summary[1]}
-            />
-          </div>
-          <ReportFooter
-            matchUrl={report.matchUrl}
-            qrDataUrl={qrDataUrl}
-            hint="The full scorecard follows on the next pages. Scan the code for the ball-by-ball log."
+        <div className="space-y-4">
+          <InningsSummaryCard
+            team={report.teams[0]}
+            stats={report.summary[0]}
           />
-        </>
+          <InningsSummaryCard
+            team={report.teams[1]}
+            stats={report.summary[1]}
+          />
+        </div>
       ) : (
         <>
           <p className="rounded-xl bg-muted/60 p-4 text-sm text-muted-foreground">
             No innings recorded yet.
           </p>
-          <ReportClosing report={report} qrDataUrl={qrDataUrl} />
+          <ReportClosing report={report} />
         </>
       )}
+      <ReportFooter
+        matchUrl={report.matchUrl}
+        qrDataUrl={qrDataUrl}
+        hint={
+          report.innings.length > 0
+            ? "The full scorecard follows on the next pages. Scan the code for the ball-by-ball log."
+            : "Scan the code to follow the match."
+        }
+      />
     </article>
   );
 }
@@ -145,7 +166,7 @@ function SummaryPage({ match, report, qrDataUrl }: ReportProps) {
  */
 export function MatchReportView({ match, report, qrDataUrl }: ReportProps) {
   const [first, second, ...superOvers] = report.innings;
-  const closing = <ReportClosing report={report} qrDataUrl={qrDataUrl} />;
+  const page = "report-page break-before-page space-y-6 pb-8 pt-6";
 
   return (
     <div className="relative isolate min-h-screen bg-background text-foreground [-webkit-print-color-adjust:exact] [print-color-adjust:exact]">
@@ -155,21 +176,32 @@ export function MatchReportView({ match, report, qrDataUrl }: ReportProps) {
         className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-96 bg-wash [mask-image:linear-gradient(to_bottom,#000_35%,transparent)] print:hidden"
       />
       <ReportToolbar fileName={report.fileName} matchUrl={report.matchUrl} />
+      <SheetHeading report={report} />
       <main className="mx-auto max-w-[52rem] px-4 sm:px-6 print:max-w-none print:px-0">
         <SummaryPage match={match} report={report} qrDataUrl={qrDataUrl} />
+        {/* Each innings on a sheet of its own, then the rest: each page is
+            drawn as one picture, and a picture taller than about four
+            sheets fails on an iPhone (Safari's canvas limit). */}
         {first && (
-          <article className="report-page innings-page-1 break-before-page space-y-6 pb-8 pt-6">
-            <InningsSection inn={first} />
-            {!second && closing}
+          <article data-running-header="" className={page}>
+            <InningsSheet inn={first} bowlingSide={bowlingSideOf(report, first.team.name)} />
           </article>
         )}
         {second && (
-          <article className="report-page innings-page-2 break-before-page space-y-6 pb-12 pt-6">
-            <InningsSection inn={second} />
+          <article data-running-header="" className={page}>
+            <InningsSheet inn={second} bowlingSide={bowlingSideOf(report, second.team.name)} />
             {superOvers.map((inn) => (
-              <InningsSection key={inn.id} inn={inn} />
+              <InningsSheet
+                key={inn.id}
+                inn={inn}
+                bowlingSide={bowlingSideOf(report, inn.team.name)}
+              />
             ))}
-            {closing}
+          </article>
+        )}
+        {first && (
+          <article data-running-header="" className={page}>
+            <ReportClosing report={report} />
           </article>
         )}
       </main>

@@ -106,11 +106,49 @@ async function proxyLogos(): Promise<Map<string, string>> {
   return via;
 }
 
-/** Where a sheet may end, measured on the copy html2canvas renders. */
-type Layout = { box: DOMRect; cuts: number[]; blocks: [number, number][] };
+/**
+ * Where a sheet may end, measured on the copy html2canvas renders, and the
+ * section each part of the page belongs to (for the running header).
+ */
+type Layout = {
+  box: DOMRect;
+  cuts: number[];
+  blocks: [number, number][];
+  labels: [number, string][];
+};
+
+/**
+ * A `.report-page` with `data-running-header` starts every sheet with a
+ * band naming the match (`[data-report-heading]`'s text) on the left and
+ * the section and "Page N of M" on the right, so a sheet seen alone (a
+ * WhatsApp preview, a printout) says what it is. Its height, CSS px.
+ */
+const HEADER_PX = 44;
 
 /** The page's width in the PDF copy (CSS px, margin included). */
 const SHEET_PX = 820;
+
+/** Pixels per CSS px in the PDF's pictures. */
+const SCALE = 2;
+
+/**
+ * iPhone Safari draws no canvas larger than 16,777,216 pixels (it comes out
+ * blank), and each `.report-page` is one canvas; keep below it with room.
+ */
+const MAX_CANVAS_PX = 15_000_000;
+
+/**
+ * The scale for one page's canvas: SCALE, or less for a page tall enough
+ * to pass MAX_CANVAS_PX. Its height in the copy is not known yet; as shown
+ * it is at least as tall (a page narrower than SHEET_PX only grows).
+ */
+export function canvasScale(shown: { width: number; height: number }): number {
+  const height = shown.height * Math.max(1, shown.width / SHEET_PX);
+  if (height <= 0) return SCALE;
+  // Rounded down, so the canvas never ends a pixel over the limit.
+  const fit = Math.floor(Math.sqrt(MAX_CANVAS_PX / (SHEET_PX * height)) * 1000) / 1000;
+  return Math.min(SCALE, fit);
+}
 
 /**
  * What html2canvas draws differently from the browser, set right in its
@@ -140,7 +178,10 @@ function fitForCanvas(doc: Document, el: HTMLElement) {
   }
   el.style.width = `${SHEET_PX}px`;
   el.style.margin = "0";
-  el.style.padding = "28px 28px 8px";
+  // A running header's band is the top margin of every sheet.
+  el.style.padding = el.hasAttribute("data-running-header")
+    ? "0 28px 8px"
+    : "28px 28px 8px";
 }
 
 /**
@@ -170,33 +211,56 @@ function prepare(
   layout.box = el.getBoundingClientRect();
   layout.cuts = [];
   layout.blocks = [];
+  layout.labels = [];
+  const sheetH = sheetHeight(layout.box.width, el);
   el.querySelectorAll("*").forEach((n) => {
     const rect = n.getBoundingClientRect();
     const t = rect.top - layout.box.top;
     let b = rect.bottom - layout.box.top;
     if (b - t <= 0) return;
     layout.cuts.push(t, b);
+    const label = n.getAttribute("data-sheet-label");
+    if (label) layout.labels.push([t, label]);
     if (n.matches("h1, h2, h3, h4, header")) b += KEEP_WITH_NEXT;
-    if (b - t <= KEEP_WHOLE) layout.blocks.push([t, b]);
+    // `data-keep-whole`: a group taller than KEEP_WHOLE that must not be
+    // cut (an innings' two columns), as long as it fits a sheet at all.
+    const keep = b - t <= KEEP_WHOLE || n.hasAttribute("data-keep-whole");
+    if (keep && b - t < sheetH) layout.blocks.push([t, b]);
   });
 }
 
+/** How much of a page one sheet holds, CSS px (less its header band). */
+function sheetHeight(width: number, page: Element): number {
+  const sheetH = (width * A4_H) / A4_W;
+  return page.hasAttribute("data-running-header") ? sheetH - HEADER_PX : sheetH;
+}
+
 /**
- * Sheets of one page: [top, bottom] in CSS px, each at most an A4 high,
- * ending at the lowest clean cut in its lower half (else a sheet high).
+ * Sheets of one page: [top, bottom] in CSS px, each at most `sheetH` high,
+ * ending at the lowest clean cut in its lower half; failing that, at the
+ * lowest clean cut higher up (a short sheet rather than a block cut
+ * through, e.g. five overs that start just past the middle); else a sheet
+ * high.
  */
-function sheets(layout: Layout, height: number): [number, number][] {
+function sheets(
+  layout: Layout,
+  height: number,
+  sheetH: number,
+): [number, number][] {
   const clean = (y: number) =>
     !layout.blocks.some(([t, b]) => t < y - 0.5 && b > y + 0.5);
-  const sheetH = (layout.box.width * A4_H) / A4_W;
   const out: [number, number][] = [];
+  // Past the last content there is only padding: no sheet for that alone.
+  const bottom = Math.min(height, Math.max(0, ...layout.cuts));
   let y = 0;
-  while (height - y > 1) {
-    let end = Math.min(height, y + sheetH);
-    if (end < height) {
-      const from = y + sheetH / 2;
-      const fit = layout.cuts.filter((c) => c > from && c <= end && clean(c));
-      if (fit.length) end = Math.max(...fit);
+  while (bottom - y > 1) {
+    let end = Math.min(bottom, y + sheetH);
+    if (end < bottom) {
+      const lowest = (from: number) =>
+        layout.cuts.filter((c) => c > from && c <= end && clean(c));
+      const fit = lowest(y + sheetH / 2);
+      const any = fit.length ? fit : lowest(y + 24);
+      if (any.length) end = Math.max(...any);
     }
     out.push([y, end]);
     y = end;
@@ -204,37 +268,107 @@ function sheets(layout: Layout, height: number): [number, number][] {
   return out;
 }
 
-function addSheets(
-  pdf: JsPdf,
+/** One A4 sheet, cut and ready for the PDF. */
+type Sheet = {
+  canvas: HTMLCanvasElement;
+  /** The section it shows, when the page has a running header. */
+  header: { label: string | null } | null;
+};
+
+/** The section a sheet starts in: the last label above its top. */
+function labelAt(layout: Layout, top: number): string | null {
+  let label: string | null = layout.labels[0]?.[1] ?? null;
+  for (const [t, l] of layout.labels) if (t <= top + 4) label = l;
+  return label;
+}
+
+function cutSheets(
   canvas: HTMLCanvasElement,
   layout: Layout,
-  first: { value: boolean },
-) {
+  page: Element,
+  background: string,
+): Sheet[] {
   const k = canvas.width / layout.box.width;
-  const px = canvas.width / A4_W;
-  for (const [top, bottom] of sheets(layout, canvas.height / k)) {
+  const header = page.hasAttribute("data-running-header");
+  const band = header ? Math.round(HEADER_PX * k) : 0;
+  const out: Sheet[] = [];
+  const sheetH = sheetHeight(layout.box.width, page);
+  for (const [top, bottom] of sheets(layout, canvas.height / k, sheetH)) {
     const y = Math.round(top * k);
     const h = Math.min(canvas.height, Math.round(bottom * k)) - y;
     if (h <= 0) continue;
     const part = document.createElement("canvas");
     part.width = canvas.width;
-    part.height = h;
+    part.height = band + h;
     const ctx = part.getContext("2d");
     if (!ctx) continue;
     ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, part.width, h);
-    ctx.drawImage(canvas, 0, y, canvas.width, h, 0, 0, canvas.width, h);
-    if (!first.value) pdf.addPage();
-    first.value = false;
-    pdf.addImage(
-      part.toDataURL("image/jpeg", 0.92),
-      "JPEG",
-      0,
-      0,
-      A4_W,
-      h / px,
-    );
+    ctx.fillRect(0, 0, part.width, part.height);
+    if (band && !/^(transparent|rgba\(.*,\s*0\))$/.test(background)) {
+      // The band takes the page's own background, as the margin did.
+      ctx.fillStyle = background;
+      ctx.fillRect(0, 0, part.width, band);
+    }
+    ctx.drawImage(canvas, 0, y, canvas.width, h, 0, band, canvas.width, h);
+    out.push({
+      canvas: part,
+      header: header ? { label: labelAt(layout, top) } : null,
+    });
   }
+  return out;
+}
+
+/**
+ * The running header on a sheet's band: the match on the left, the section
+ * and "Page N of M" on the right, over a hairline, in the page's text face
+ * (next/font may rename the family, so it is read, not named).
+ */
+function drawHeader(
+  sheet: Sheet,
+  heading: string,
+  pageNo: number,
+  pages: number,
+  look: { font: string; muted: string; strong: string; line: string },
+) {
+  const ctx = sheet.canvas.getContext("2d");
+  if (!ctx || !sheet.header) return;
+  const k = sheet.canvas.width / SHEET_PX;
+  const pad = 28 * k;
+  const base = 28 * k;
+  const right = [sheet.header.label, `Page ${pageNo} of ${pages}`]
+    .filter(Boolean)
+    .join(" · ");
+  ctx.textBaseline = "alphabetic";
+  ctx.font = `500 ${11 * k}px ${look.font}`;
+  ctx.fillStyle = look.muted;
+  ctx.textAlign = "right";
+  ctx.fillText(right, sheet.canvas.width - pad, base);
+  const room = sheet.canvas.width - 2 * pad - ctx.measureText(right).width - 16 * k;
+  ctx.textAlign = "left";
+  ctx.font = `600 ${11 * k}px ${look.font}`;
+  ctx.fillStyle = look.strong;
+  let text = heading;
+  while (text.length > 4 && ctx.measureText(text).width > room) {
+    text = `${text.slice(0, -2).trimEnd()}…`;
+  }
+  ctx.fillText(text, pad, base);
+  ctx.fillStyle = look.line;
+  ctx.fillRect(pad, base + 7 * k, sheet.canvas.width - 2 * pad, Math.max(1, k));
+}
+
+/** The header's face and colours, from the report itself (always light). */
+function headerLook(page: Element) {
+  const css = getComputedStyle(page);
+  const hsl = (name: string, fallback: string) => {
+    const v = css.getPropertyValue(name).trim();
+    return v ? `hsl(${v})` : fallback;
+  };
+  return {
+    font: css.fontFamily || "sans-serif",
+    muted: hsl("--muted-foreground", "#5f6275"),
+    strong: hsl("--foreground", "#111433"),
+    line: hsl("--border", "#e2e4ee"),
+  };
 }
 
 /**
@@ -272,8 +406,9 @@ async function drawPdf(
 ): Promise<File> {
   if (!w.html2canvas || !w.jspdf) throw new Error("PDF libraries missing");
   const pdf = new w.jspdf.jsPDF({ unit: "mm", format: "a4", compress: true });
-  const first = { value: true };
   const background = getComputedStyle(document.body).backgroundColor;
+  const all: Sheet[] = [];
+  let look: ReturnType<typeof headerLook> | null = null;
   for (const el of Array.from(
     document.querySelectorAll<HTMLElement>(".report-page"),
   )) {
@@ -281,9 +416,10 @@ async function drawPdf(
       box: el.getBoundingClientRect(),
       cuts: [],
       blocks: [],
+      labels: [],
     };
     const canvas = await w.html2canvas(el, {
-      scale: 2,
+      scale: canvasScale(el.getBoundingClientRect()),
       useCORS: true,
       backgroundColor: background,
       logging: false,
@@ -294,8 +430,26 @@ async function drawPdf(
       onclone: (doc: Document, clone: HTMLElement) =>
         prepare(doc, clone, via, layout),
     });
-    addSheets(pdf, canvas, layout, first);
+    look ??= headerLook(el);
+    all.push(...cutSheets(canvas, layout, el, background));
   }
+  // The heading is read now, after the page has shown its dates in the
+  // viewer's time zone (`LocalDate`).
+  const heading =
+    document.querySelector("[data-report-heading]")?.textContent?.trim() ?? "";
+  all.forEach((sheet, i) => {
+    if (sheet.header && look) drawHeader(sheet, heading, i + 1, all.length, look);
+    if (i > 0) pdf.addPage();
+    const px = sheet.canvas.width / A4_W;
+    pdf.addImage(
+      sheet.canvas.toDataURL("image/jpeg", 0.92),
+      "JPEG",
+      0,
+      0,
+      A4_W,
+      sheet.canvas.height / px,
+    );
+  });
   return new File([pdf.output("blob")], fileName, { type: "application/pdf" });
 }
 

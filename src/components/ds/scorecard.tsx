@@ -120,7 +120,7 @@ export function Abbr({ short, full }: { short: string; full?: string }) {
  * A figure that reached a milestone (50 / 100 runs, 3 / 5 wickets) on a
  * soft chip, the bigger one solid; anything else plain.
  */
-function Milestone({
+export function Milestone({
   value,
   soft,
   solid,
