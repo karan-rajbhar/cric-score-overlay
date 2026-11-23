@@ -9,6 +9,10 @@ const inn: ReportInnings = {
   heading: "1st innings",
   team: { name: "Vinayak 11", shortName: "VIN", logoUrl: null },
   score: "66/7",
+  runs: 66,
+  wickets: 7,
+  declared: false,
+  forfeited: false,
   overs: "8.0",
   runRate: "8.25",
   target: null,
@@ -126,6 +130,33 @@ describe("InningsSheet", () => {
     expect(container.querySelector("[data-keep-whole]")).toHaveTextContent(
       "Batting",
     );
+  });
+});
+
+describe("InningsSheet in a Test", () => {
+  it("says a declaration and a forfeit on the total", () => {
+    const { container, rerender } = render(
+      <InningsSheet
+        inn={{ ...inn, score: "66/7d", declared: true }}
+        bowlingSide="Hil"
+      />,
+    );
+    expect(container).toHaveTextContent("Total 7 wkts dec, 8.0 ov66");
+    rerender(
+      <InningsSheet
+        inn={{
+          ...inn,
+          score: "forfeited",
+          runs: 0,
+          wickets: 0,
+          declared: true,
+          forfeited: true,
+          overs: "0.0",
+        }}
+        bowlingSide="Hil"
+      />,
+    );
+    expect(container).toHaveTextContent("Total forfeited, 0.0 ov0");
   });
 });
 

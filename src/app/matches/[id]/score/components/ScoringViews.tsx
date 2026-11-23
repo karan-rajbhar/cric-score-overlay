@@ -7,6 +7,7 @@ import { Button } from "~/components/ds/button";
 import { MatchScorecard } from "~/components/matches/match-scorecard";
 import { TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { chaseLine, oversFromBalls } from "~/lib/cricket";
+import { isTwoInningsMatch, standingLine } from "~/lib/multi-innings";
 import type { Innings, Match } from "~/lib/match-types";
 import { cn } from "~/lib/utils";
 import {
@@ -91,9 +92,12 @@ export function ScoringScoreLine({
   if (!innings) return null;
   const bpo = match.balls_per_over ?? 6;
   const balls = innings.total_balls ?? 0;
+  // A Test's second and third innings: the lead or deficit, not a chase.
   const chase = over
     ? null
-    : chaseLine(match, innings, battingName, bpo);
+    : isTwoInningsMatch(match) && !innings.target_runs
+      ? standingLine(match.innings ?? [], innings, battingName)
+      : chaseLine(match, innings, battingName, bpo);
   const rate = balls > 0 ? (((innings.total_runs ?? 0) * bpo) / balls).toFixed(2) : null;
   return (
     <div className="flex items-baseline justify-between gap-3 rounded-xl bg-card px-3.5 py-2.5 shadow-soft">

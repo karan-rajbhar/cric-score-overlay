@@ -1,3 +1,4 @@
+import { isTwoInningsMatch } from "~/lib/multi-innings";
 import { LocalDate } from "~/components/ds/local-date";
 import { MatchHero } from "~/components/matches/match-hero";
 import { matchFormatLabel, sidesInBattingOrder } from "~/lib/cricket";
@@ -165,7 +166,10 @@ function SummaryPage({ match, report, qrDataUrl }: ReportProps) {
  * the second innings onwards.
  */
 export function MatchReportView({ match, report, qrDataUrl }: ReportProps) {
-  const [first, second, ...superOvers] = report.innings;
+  // A Test's four innings each get a sheet; a limited-overs match's super
+  // overs follow its second innings.
+  const twoInnings = isTwoInningsMatch(match);
+  const [first, second, ...superOvers] = twoInnings ? [] : report.innings;
   const page = "report-page break-before-page space-y-6 pb-8 pt-6";
 
   return (
@@ -182,6 +186,12 @@ export function MatchReportView({ match, report, qrDataUrl }: ReportProps) {
         {/* Each innings on a sheet of its own, then the rest: each page is
             drawn as one picture, and a picture taller than about four
             sheets fails on an iPhone (Safari's canvas limit). */}
+        {twoInnings &&
+          report.innings.map((inn) => (
+            <article key={inn.id} data-running-header="" className={page}>
+              <InningsSheet inn={inn} bowlingSide={bowlingSideOf(report, inn.team.name)} />
+            </article>
+          ))}
         {first && (
           <article data-running-header="" className={page}>
             <InningsSheet inn={first} bowlingSide={bowlingSideOf(report, first.team.name)} />
@@ -199,7 +209,7 @@ export function MatchReportView({ match, report, qrDataUrl }: ReportProps) {
             ))}
           </article>
         )}
-        {first && (
+        {report.innings.length > 0 && (
           <article data-running-header="" className={page}>
             <ReportClosing report={report} />
           </article>

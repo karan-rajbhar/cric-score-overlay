@@ -1,6 +1,7 @@
 import { isDecidingInnings } from "~/lib/firebase/scoring/result";
 import {
   dayLine,
+  daysOf,
   inningsHeading,
   inningsScoreText,
   isForfeited,
@@ -742,8 +743,14 @@ export interface ReportInnings {
   /** "1st innings", "2nd innings", "Super over". */
   heading: string;
   team: ReportTeam;
-  /** "178/5". */
+  /** "178/5", "450/7d" declared, "forfeited". */
   score: string;
+  runs: number;
+  wickets: number;
+  /** Closed by a declaration (two-innings matches). */
+  declared: boolean;
+  /** Declared before a ball (Law 15.2). */
+  forfeited: boolean;
   overs: string;
   runRate: string;
   /** The chase's target, on the second innings of a pair. */
@@ -952,6 +959,10 @@ function reportInnings(
     score: isForfeited(inn)
       ? "forfeited"
       : `${inn.total_runs ?? 0}/${inn.total_wickets ?? 0}${inn.declared ? "d" : ""}`,
+    runs: inn.total_runs ?? 0,
+    wickets: inn.total_wickets ?? 0,
+    declared: Boolean(inn.declared),
+    forfeited: isForfeited(inn),
     overs: oversFromBalls(balls),
     runRate:
       balls > 0 ? ((inn.total_runs ?? 0) / (balls / 6)).toFixed(2) : "0.00",
@@ -1021,13 +1032,15 @@ function phasesOf(match: Match): MatchReportModel["phases"] {
 }
 
 function chartsOf(match: Match): MatchReportModel["charts"] {
+  // A Test compares each side's first innings, and says so.
+  const which = isTwoInningsMatch(match) ? " 1st innings" : "";
   const sides = mainInningsInOrder(match)
     .filter((inn): inn is InningsRow => Boolean(inn))
     .map((inn) => {
       const team = inn.team_id === match.team2_id ? match.team2 : match.team1;
       return {
         key: inn.id,
-        label: tagOf(team),
+        label: `${tagOf(team)}${which}`,
         score: `${inn.total_runs ?? 0}/${inn.total_wickets ?? 0}`,
         overs: getInningsOverComparison(inn, match).map((o) => ({
           over: o.overNumber,
@@ -1051,6 +1064,9 @@ function chartsOf(match: Match): MatchReportModel["charts"] {
 }
 
 function oversOf(match: Match): MatchReportModel["overs"] {
+  // Over by over side by side is a limited-overs comparison; a Test's
+  // innings run to a hundred overs and more (pages of rows).
+  if (isTwoInningsMatch(match)) return null;
   const inn1 =
     match.innings?.find((i) => i.innings_number === 1) ?? match.innings?.[0];
   const inn2 =
@@ -1072,6 +1088,21 @@ function oversOf(match: Match): MatchReportModel["overs"] {
       o2[i] ?? null,
     ]),
   };
+}
+
+/**
+ * The overs, and a two-innings match's days: "20 overs a side"; a Test
+ * "2 days" and "No overs limit" (or its limit "80 overs an innings").
+ */
+function oversRowsOf(match: Match): [string, string][] {
+  const overs = match.overs_per_innings;
+  if (!isTwoInningsMatch(match)) return [["Overs", `${overs ?? 20} overs a side`]];
+  const days = daysOf(match) ?? 1;
+  return [
+    ["Innings", "Two a side"],
+    ["Days", `${days} ${days === 1 ? "day" : "days"}`],
+    ["Overs", overs ? `${overs} overs an innings` : "No overs limit"],
+  ];
 }
 
 function infoOf(match: Match): MatchReportModel["info"] {
@@ -1103,7 +1134,7 @@ function infoOf(match: Match): MatchReportModel["info"] {
     ["Organiser", match.tournament?.name ?? match.club?.name ?? null],
     ["Match", match.title],
     ["Format", namedFormat(match)],
-    ["Overs", `${match.overs_per_innings} overs a side`],
+    ...oversRowsOf(match),
     ["Venue", match.venue ?? null],
     ["Date and time", match.scheduled_at, undefined, true],
     ["Toss", toss],

@@ -2,11 +2,15 @@ import { formatBowlerOvers } from "./cricket";
 import type { BattingPerformance, BowlingPerformance, Match } from "./match-types";
 import { lastMainInningsOf } from "./multi-innings";
 
-/** One innings' figures, or several added up (a Test's two); out if out in the last. */
+/**
+ * One innings' figures, or several added up (a Test's two): not out ("*")
+ * only when not out in every one of them.
+ */
 function sumBatting(rows: BattingPerformance[]): BattingPerformance | undefined {
   if (rows.length <= 1) return rows[0];
   return rows.reduce((a, b) => ({
     ...b,
+    is_out: a.is_out || b.is_out,
     runs_scored: (a.runs_scored ?? 0) + (b.runs_scored ?? 0),
     balls_faced: (a.balls_faced ?? 0) + (b.balls_faced ?? 0),
     fours: (a.fours ?? 0) + (b.fours ?? 0),
