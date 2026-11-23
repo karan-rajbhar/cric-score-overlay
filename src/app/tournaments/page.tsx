@@ -15,7 +15,7 @@ export const metadata = { title: "Tournaments" };
 export const dynamic = "force-dynamic";
 
 const COLUMNS =
-  "id, name, description, status, tournament_format, match_format, overs_per_innings, custom_overs, start_date, end_date, venue";
+  "id, name, description, status, tournament_format, match_format, overs_per_innings, custom_overs, match_days, start_date, end_date, venue";
 
 type TournamentRow = React.ComponentProps<typeof TournamentCard>["tournament"] & {
   id: string;

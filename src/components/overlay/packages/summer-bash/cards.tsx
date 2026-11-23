@@ -250,7 +250,7 @@ function ScorecardCard(p: OverlayElementProps["scorecard"]) {
       <Card
         side={side}
         width={full ? 1640 : 1120}
-        eyebrow={eyebrowOf(state, inningsLabel(innings.innings_number))}
+        eyebrow={eyebrowOf(state, inningsLabel(innings.innings_number, state))}
         title={`${teamName} batting`}
         aside={<AsideScore score={scoreOf(innings)} detail={`${oversText(innings.total_balls, bpo)} overs`} />}
       >
@@ -288,7 +288,7 @@ function BowlingCard(p: OverlayElementProps["bowlingCard"]) {
       <Card
         side={side}
         width={1040}
-        eyebrow={eyebrowOf(state, inningsLabel(innings.innings_number))}
+        eyebrow={eyebrowOf(state, inningsLabel(innings.innings_number, state))}
         title={`${teamName} bowling`}
         aside={<AsideScore score={scoreOf(innings)} detail={`${oversText(innings.total_balls, bpo)} overs`} />}
       >
@@ -318,7 +318,7 @@ function FallOfWicketsCard(p: OverlayElementProps["fallOfWickets"]) {
       <Card
         side={side}
         width={1180}
-        eyebrow={eyebrowOf(state, inningsLabel(innings.innings_number))}
+        eyebrow={eyebrowOf(state, inningsLabel(innings.innings_number, state))}
         title={`${teamName} fall of wickets`}
         aside={<AsideScore score={scoreOf(innings)} detail={`${oversText(innings.total_balls, bpo)} overs`} />}
       >

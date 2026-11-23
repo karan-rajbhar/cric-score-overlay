@@ -26,8 +26,18 @@ import {
 import type { Match, Innings } from "~/lib/match-types";
 import type { DeliveryToEdit } from "~/app/matches/[id]/score/components/EditBallDialog";
 import { bowlerQuota } from "~/app/matches/[id]/score/components/player-rows";
-import { isSuperOverInnings } from "~/lib/firebase/scoring/result";
+import {
+  isDecidingInnings,
+  isSuperOverInnings,
+} from "~/lib/firebase/scoring/result";
 import { limitsOfInnings } from "~/app/matches/[id]/score/innings-notice";
+import {
+  dayLine,
+  isTwoInningsMatch,
+  nextAfterInnings,
+  sideInningsLabel,
+  standingLine,
+} from "~/lib/multi-innings";
 import { cn } from "~/lib/utils";
 import { useMediaQuery } from "~/lib/hooks/useMediaQuery";
 
@@ -61,7 +71,11 @@ export interface LiveMatchHUDProps {
   lastBalls: string[];
   rawDeliveries?: DeliveryToEdit[];
   battingTeamName?: string;
-  onEndInnings?: () => void;
+  /**
+   * Ends the innings; in a two-innings match `declared` says the batting
+   * side declared (Law 15), else it was all out short of its wickets.
+   */
+  onEndInnings?: (options?: { declared?: boolean }) => void;
   /** The End innings confirm, when the page also opens it (Match tools). */
   endInningsOpen?: boolean;
   onEndInningsOpenChange?: (open: boolean) => void;
@@ -140,12 +154,17 @@ export function LiveMatchHUD({
   status,
 }: LiveMatchHUDProps) {
   const inningsNumber = match.current_innings ?? 1;
-  // Super overs (innings 3 on) are one over and two wickets a side.
-  const superOver = isSuperOverInnings(inningsNumber);
-  /** A chase: the match's 2nd innings, or a super over's. */
-  const isSecondInnings = inningsNumber % 2 === 0;
+  // Super overs (after the match proper) are one over and two wickets a side.
+  const superOver = isSuperOverInnings(match, inningsNumber);
+  // A Test (each side bats twice): no super overs, and no overs limit
+  // unless the match sets one.
+  const twoInnings = isTwoInningsMatch(match);
+  /** A chase: the match's last innings, or a super over's 2nd. */
+  const isSecondInnings = isDecidingInnings(match, inningsNumber);
   // The engine's limits for this innings (one over for a super over).
   const limits = limitsOfInnings(match, inningsNumber);
+  /** No overs limit (a Test): no quota, balls left or projections. */
+  const unlimited = !Number.isFinite(limits.maxBalls);
   const oversLimit = limits.maxBalls / limits.ballsPerOver;
   const wicketsLimit = limits.wicketsCap;
   const firstInnings = useMemo(
@@ -155,11 +174,11 @@ export function LiveMatchHUD({
 
   const targetRuns = useMemo(() => {
     if (currentInnings?.target_runs != null) return currentInnings.target_runs;
-    if (inningsNumber === 2 && firstInnings?.total_runs != null) {
+    if (!twoInnings && inningsNumber === 2 && firstInnings?.total_runs != null) {
       return firstInnings.total_runs + 1;
     }
     return null;
-  }, [currentInnings, inningsNumber, firstInnings]);
+  }, [currentInnings, inningsNumber, firstInnings, twoInnings]);
 
   const ballsBowled = useMemo(
     () => (currentInnings ? inningsBalls(currentInnings) : 0),
@@ -168,12 +187,12 @@ export function LiveMatchHUD({
 
   const bpo = match.balls_per_over ?? 6;
   const totalInningsBalls = limits.maxBalls;
-  const ballsRem = Math.max(0, totalInningsBalls - ballsBowled);
+  const ballsRem = unlimited ? 0 : Math.max(0, totalInningsBalls - ballsBowled);
 
   const currentRuns = currentInnings?.total_runs ?? 0;
   const currentWickets = currentInnings?.total_wickets ?? 0;
   const wicketsInHand = Math.max(0, wicketsLimit - currentWickets);
-  const endInningsDue = ballsRem <= bpo || wicketsInHand <= 1;
+  const endInningsDue = (!unlimited && ballsRem <= bpo) || wicketsInHand <= 1;
 
   const runsNeeded = useMemo(() => {
     if (targetRuns == null || !isSecondInnings) return null;
@@ -182,21 +201,25 @@ export function LiveMatchHUD({
 
   const crr = currentInnings ? runRate(currentRuns, ballsBowled, bpo) : "0.00";
   const rrr =
-    runsNeeded == null ? null : requiredRunRate(runsNeeded, ballsRem, bpo);
+    runsNeeded == null || unlimited
+      ? null
+      : requiredRunRate(runsNeeded, ballsRem, bpo);
 
   const projectedScore = useMemo(() => {
-    if (isSecondInnings || ballsBowled === 0) return null;
+    if (isSecondInnings || ballsBowled === 0 || unlimited) return null;
     const crrNum = parseFloat(crr);
     if (isNaN(crrNum) || crrNum <= 0) return null;
     return Math.round(crrNum * oversLimit);
-  }, [isSecondInnings, ballsBowled, crr, oversLimit]);
+  }, [isSecondInnings, ballsBowled, crr, oversLimit, unlimited]);
 
-  const proj8 = isSecondInnings
-    ? null
-    : Math.round(currentRuns + (ballsRem / bpo) * 8);
-  const proj10 = isSecondInnings
-    ? null
-    : Math.round(currentRuns + (ballsRem / bpo) * 10);
+  const proj8 =
+    isSecondInnings || unlimited
+      ? null
+      : Math.round(currentRuns + (ballsRem / bpo) * 8);
+  const proj10 =
+    isSecondInnings || unlimited
+      ? null
+      : Math.round(currentRuns + (ballsRem / bpo) * 10);
 
   // The stand at the crease, as the engine keeps it (the innings' current
   // partnership, worked out from the ball log): a retirement starts a new
@@ -246,9 +269,9 @@ export function LiveMatchHUD({
   const [ownEndOpen, setOwnEndOpen] = useState(false);
   const confirmEndOpen = endInningsOpen ?? ownEndOpen;
   const setConfirmEndOpen = onEndInningsOpenChange ?? setOwnEndOpen;
-  const confirmEndInnings = () => {
+  const confirmEndInnings = (declared = false) => {
     setConfirmEndOpen(false);
-    onEndInnings?.();
+    onEndInnings?.(twoInnings ? { declared } : undefined);
   };
 
   // Phones drop the card headers to save height and show the bowler's
@@ -288,9 +311,13 @@ export function LiveMatchHUD({
   const muted = sunlightMode ? "text-black/70" : "text-board-muted";
   const inningsLabel = superOver
     ? `Super over · ${isSecondInnings ? "2nd" : "1st"} innings`
-    : `${inningsNumber === 1 ? "1st" : "2nd"} innings · ${matchFormatName(match)}`;
-  // "of 5 ov", "of 12.3 ov" (a revised quota): no ".0".
-  const oversQuota = oversFromBalls(totalInningsBalls, bpo).replace(/\.0$/, "");
+    : twoInnings
+      ? [sideInningsLabel(match, inningsNumber), dayLine(match) ?? matchFormatName(match)].join(" · ")
+      : `${inningsNumber === 1 ? "1st" : "2nd"} innings · ${matchFormatName(match)}`;
+  // "of 5 ov", "of 12.3 ov" (a revised quota): no ".0". None without a limit.
+  const oversQuota = unlimited
+    ? null
+    : oversFromBalls(totalInningsBalls, bpo).replace(/\.0$/, "");
   const aheadText = rateDiff
     ? `${rateDiff.diff} an over ${rateDiff.ahead ? "ahead" : "behind"}`
     : "";
@@ -309,6 +336,35 @@ export function LiveMatchHUD({
       null
     : null;
   const bright = sunlightMode ? "text-black" : "text-board-foreground";
+
+  // A two-innings match from the second innings: the batting side's lead or
+  // deficit ("Trail by 120 runs"), worked out from every innings so far.
+  const standing =
+    twoInnings && !superOver && currentInnings && inningsNumber < 4
+      ? standingLine(match.innings ?? [], currentInnings)
+      : null;
+  const sideName = (teamId: string) =>
+    (teamId === match.team1_id ? match.team1?.name : match.team2?.name) ?? "The other side";
+  // What closing this innings of a two-innings match leads to.
+  const whatFollows = (() => {
+    if (!twoInnings || !currentInnings) return "";
+    const next = nextAfterInnings(
+      { ...currentInnings, total_runs: currentRuns },
+      match.innings ?? [],
+      (id) => (id === match.team1_id ? match.team2_id : match.team1_id),
+    );
+    if (next.kind === "decided") {
+      return "This ends the match: the result is worked out from the scores.";
+    }
+    if (next.kind === "innings_win") {
+      return `${sideName(next.winnerId)} win by an innings and ${next.margin} ${next.margin === 1 ? "run" : "runs"}.`;
+    }
+    return next.target
+      ? `${sideName(next.teamId)} then need ${next.target} to win.`
+      : inningsNumber === 2
+        ? `${sideName(next.teamId)} bat next, unless the follow-on is enforced.`
+        : `${sideName(next.teamId)} bat next.`;
+  })();
 
   return (
     <div className="space-y-1 sm:space-y-3">
@@ -370,7 +426,8 @@ export function LiveMatchHUD({
                       muted,
                     )}
                   >
-                    {oversFromBalls(ballsBowled, bpo)} of {oversQuota} ov
+                    {oversFromBalls(ballsBowled, bpo)}
+                    {oversQuota ? ` of ${oversQuota}` : ""} ov
                   </span>
                 </p>
               </div>
@@ -419,11 +476,20 @@ export function LiveMatchHUD({
                             {oversFromBalls(ballsBowled, bpo)}
                           </span>{" "}
                           overs.{" "}
-                          {isSecondInnings
-                            ? "This ends the match: the result is worked out from the scores."
-                            : `The next innings starts with a target of ${currentRuns + 1}.`}
+                          {twoInnings && !superOver
+                            ? whatFollows
+                            : isSecondInnings
+                              ? "This ends the match: the result is worked out from the scores."
+                              : `The next innings starts with a target of ${currentRuns + 1}.`}
                         </DialogDescription>
                       </DialogHeader>
+                      {twoInnings && !superOver && (
+                        <p className="text-sm text-muted-foreground">
+                          Declare when the captain closes the innings (before
+                          a ball, that forfeits it). All out is for a side
+                          with no one left to bat.
+                        </p>
+                      )}
                       <DialogFooter className="gap-2 sm:gap-0">
                         <Button
                           variant="outline"
@@ -432,13 +498,32 @@ export function LiveMatchHUD({
                         >
                           Keep scoring
                         </Button>
-                        <Button
-                          variant="destructive"
-                          onClick={confirmEndInnings}
-                          disabled={isProcessing}
-                        >
-                          End innings
-                        </Button>
+                        {twoInnings && !superOver ? (
+                          <>
+                            <Button
+                              variant="outline"
+                              onClick={() => confirmEndInnings(false)}
+                              disabled={isProcessing}
+                            >
+                              All out
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              onClick={() => confirmEndInnings(true)}
+                              disabled={isProcessing}
+                            >
+                              Declare
+                            </Button>
+                          </>
+                        ) : (
+                          <Button
+                            variant="destructive"
+                            onClick={() => confirmEndInnings()}
+                            disabled={isProcessing}
+                          >
+                            End innings
+                          </Button>
+                        )}
                       </DialogFooter>
                     </DialogContent>
                   </Dialog>
@@ -447,8 +532,14 @@ export function LiveMatchHUD({
               )}
             </div>
 
-            {/* Larger screens: the overs as a bar, and the balls left. */}
-            <div className="hidden items-center gap-2.5 sm:flex">
+            {/* Larger screens: the overs as a bar, and the balls left
+                (none without an overs limit). */}
+            <div
+              className={cn(
+                "hidden items-center gap-2.5",
+                !unlimited && "sm:flex",
+              )}
+            >
               <div
                 className={cn(
                   "h-2 flex-1 overflow-hidden rounded-full",
@@ -508,9 +599,16 @@ export function LiveMatchHUD({
                           "Need"
                         )}{" "}
                         <span className="font-bold tabular-nums">{runsNeeded}</span>{" "}
-                        {runsNeeded === 1 ? "run" : "runs"} from{" "}
-                        <span className="font-bold tabular-nums">{ballsRem}</span>{" "}
-                        {ballsRem === 1 ? "ball" : "balls"}
+                        {runsNeeded === 1 ? "run" : "runs"}{" "}
+                        {unlimited ? (
+                          "to win"
+                        ) : (
+                          <>
+                            from{" "}
+                            <span className="font-bold tabular-nums">{ballsRem}</span>{" "}
+                            {ballsRem === 1 ? "ball" : "balls"}
+                          </>
+                        )}
                       </>
                     ) : (
                       "Target reached"
@@ -577,6 +675,14 @@ export function LiveMatchHUD({
                 )}
               >
                 {phoneSide && <span className="sm:hidden">{phoneSide} · </span>}
+                {standing && (
+                  <span
+                    data-testid="hud-standing"
+                    className={sunlightMode ? "text-black" : "text-board-foreground"}
+                  >
+                    {standing} ·{" "}
+                  </span>
+                )}
                 Run rate{" "}
                 <span className={sunlightMode ? "text-black" : "text-board-good"}>
                   {crr}

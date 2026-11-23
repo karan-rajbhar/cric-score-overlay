@@ -432,6 +432,7 @@ export default async function TournamentLayout({
         tournament_format: tournament.tournament_format,
         match_format: tournament.match_format,
         overs_per_innings: tournament.overs_per_innings,
+        match_days: tournament.match_days,
         wickets_per_innings: tournament.wickets_per_innings,
         status: tournament.status,
         venue: tournament.venue,

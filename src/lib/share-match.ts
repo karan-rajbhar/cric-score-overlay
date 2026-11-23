@@ -13,6 +13,7 @@ import {
   sidesInBattingOrder,
 } from "./cricket";
 import { matchSituation } from "./match-report";
+import { inningsScoreText } from "./multi-innings";
 import type { Innings, Match } from "./match-types";
 
 export interface ShareScore {
@@ -73,10 +74,13 @@ function sideScore(
   name: string,
   inn: Innings | undefined,
   bpo: number,
+  earlier: readonly Innings[] = [],
 ): string | null {
   if (!inn) return null;
   const overs = oversFromBalls(inningsBalls(inn, bpo), bpo);
-  return `${name} ${inn.total_runs}/${inn.total_wickets} (${overs} ov)`;
+  // A Test: "Lions 245 & 180/4 (52.3 ov)".
+  const before = earlier.map((i) => `${inningsScoreText(i)} & `).join("");
+  return `${name} ${before}${inn.total_runs}/${inn.total_wickets}${inn.declared ? "d" : ""} (${overs} ov)`;
 }
 
 /** "Batting: …" and "Bowling: …" for the innings being played, if any. */
@@ -130,7 +134,7 @@ export function matchShareMessage(match: Match, url?: string): string {
   const vs = matchTitle({ team1: match.team1?.name, team2: match.team2?.name });
   lines.push(live ? `${vs} · Live` : vs);
   for (const side of sidesInBattingOrder(match)) {
-    const line = sideScore(side.team.name, side.innings, bpo);
+    const line = sideScore(side.team.name, side.innings, bpo, side.earlier);
     if (line) lines.push(line);
   }
   if (live || done) lines.push(matchSituation(match));

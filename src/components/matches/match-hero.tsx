@@ -10,6 +10,7 @@ import {
   HeroTime,
   InningsScore,
   MatchNote,
+  scoreFigures,
   ScoreHero,
   type HeroSideProps,
   type InningsRef,
@@ -28,8 +29,16 @@ import {
 import { playerHrefOf } from "~/lib/player-href";
 import type { Innings, Match, Team } from "~/lib/match-types";
 import { playerAwardOf } from "~/lib/player-award";
+import {
+  dayLine,
+  inningsScoreText,
+  isForfeited,
+  isTwoInningsMatch,
+  lastMainInningsOf,
+  standingLine,
+} from "~/lib/multi-innings";
 
-type Side = { team: Team; innings: Innings | undefined };
+type Side = { team: Team; innings: Innings | undefined; earlier?: Innings[] };
 
 /** A team as the crests want it (logo, short code). */
 export const teamRef = (
@@ -40,11 +49,22 @@ export const teamRef = (
   logoUrl: t.logo_url,
 });
 
-/** An innings as the score components want it ("18.2" overs). */
-export const ref = (inn: Innings, bpo: number): InningsRef => ({
+/**
+ * An innings as the score components want it ("18.2" overs), with the
+ * side's `earlier` innings in a two-innings match ("245 & ...").
+ */
+export const ref = (
+  inn: Innings,
+  bpo: number,
+  earlier: readonly Innings[] = [],
+): InningsRef => ({
   runs: inn.total_runs ?? 0,
   wickets: inn.total_wickets ?? 0,
   overs: oversFromBalls(inningsBalls(inn, bpo), bpo),
+  ...(earlier.length
+    ? { earlier: earlier.map((i) => inningsScoreText(i)).join(" & ") }
+    : {}),
+  ...(inn.declared && !isForfeited(inn) ? { declared: true } : {}),
 });
 
 /**
@@ -53,12 +73,25 @@ export const ref = (inn: Innings, bpo: number): InningsRef => ({
  * first ball.
  */
 export function liveLine(
-  match: Pick<Match, "overs_per_innings" | "dls_revision">,
+  match: Pick<Match, "overs_per_innings" | "dls_revision"> &
+    Partial<
+      Pick<
+        Match,
+        | "innings"
+        | "innings_per_side"
+        | "status"
+        | "current_day"
+        | "play_break"
+        | "match_format"
+        | "days"
+      >
+    >,
   batting: Side,
   bpo: number,
 ): string | null {
   const inn = batting.innings;
   if (!inn) return null;
+  if (isTwoInningsMatch(match)) return testLiveLine(match, inn, batting, bpo);
   if (inn.target_runs) return chaseLine(match, inn, batting.team.name, bpo);
   const balls = inningsBalls(inn, bpo);
   // Before the first ball a run rate of 0.00 says nothing.
@@ -69,22 +102,48 @@ export function liveLine(
 }
 
 /**
+ * A Test's line under the score: the day (and any break), then the lead,
+ * deficit or chase ("Day 2 · Lions trail by 120 runs").
+ */
+function testLiveLine(
+  match: Parameters<typeof liveLine>[0],
+  inn: Innings,
+  batting: Side,
+  bpo: number,
+): string | null {
+  const name = batting.team.name;
+  const fresh = inningsBalls(inn, bpo) === 0 && (inn.total_runs ?? 0) === 0;
+  const where = inn.target_runs
+    ? chaseLine(match, inn, name, bpo)
+    : fresh && inn.innings_number === 1
+      ? `${name} bat first`
+      : standingLine(match.innings ?? [], inn, name);
+  return [dayLine(match), where].filter(Boolean).join(" · ") || null;
+}
+
+/**
  * The match in one line (`ScoreLine`), for when the hero has scrolled away:
  * each side's code and score, quiet for the side not batting or that lost.
  */
 export function scoreLineSides(
-  match: Pick<Match, "status" | "winning_team_id" | "balls_per_over">,
+  match: Pick<Match, "status" | "winning_team_id" | "balls_per_over"> &
+    Partial<Pick<Match, "innings_per_side">>,
   sides: [Side, Side],
 ): [ScoreLineSide, ScoreLineSide] {
   const bpo =
     match.balls_per_over && match.balls_per_over > 0 ? match.balls_per_over : 6;
   const live = match.status === "live" || match.status === "innings_break";
+  const twoInnings = isTwoInningsMatch(match);
   const line = (s: Side): ScoreLineSide => {
     const inn = s.innings;
+    const r = inn ? ref(inn, bpo, s.earlier) : null;
     return {
       code: s.team.short_name || s.team.name,
-      score: inn
-        ? `${inn.total_runs ?? 0}/${inn.total_wickets ?? 0} (${ref(inn, bpo).overs})`
+      // A Test's "245 & 180/4" says enough without the overs.
+      score: r
+        ? twoInnings
+          ? scoreFigures(r)
+          : `${scoreFigures(r)} (${r.overs})`
         : null,
       dim: live
         ? !inn || inn.is_completed
@@ -103,14 +162,19 @@ const surname = (name?: string | null) =>
  * bowler, from the innings it bowled in ("Desai 1/24").
  */
 export function performerLines(
-  match: Pick<Match, "innings" | "team1_id" | "team2_id">,
+  match: Pick<Match, "innings" | "team1_id" | "team2_id"> &
+    Partial<Pick<Match, "innings_per_side">>,
   teamId: string,
 ): { text: string; href?: string }[] {
-  const main = (match.innings ?? []).filter((i) => i.innings_number <= 2);
-  const batted = main.find((i) => i.team_id === teamId);
-  const bowled = main.find((i) => i.team_id !== teamId);
+  // The match proper (a Test's four innings): the best single innings with
+  // the bat, and the best figures in an innings with the ball.
+  const main = (match.innings ?? []).filter(
+    (i) => i.innings_number <= lastMainInningsOf(match),
+  );
+  const batted = main.filter((i) => i.team_id === teamId);
+  const bowled = main.filter((i) => i.team_id !== teamId);
   const lines: { text: string; href?: string }[] = [];
-  const bat = [...(batted?.batting_performances ?? [])].sort(
+  const bat = batted.flatMap((i) => i.batting_performances ?? []).sort(
     (a, b) => b.runs_scored - a.runs_scored || a.balls_faced - b.balls_faced,
   )[0];
   if (bat && bat.runs_scored > 0 && surname(bat.user?.full_name)) {
@@ -119,7 +183,7 @@ export function performerLines(
       href: playerHrefOf(bat.user_id),
     });
   }
-  const bowl = [...(bowled?.bowling_performances ?? [])].sort(
+  const bowl = bowled.flatMap((i) => i.bowling_performances ?? []).sort(
     (a, b) =>
       b.wickets_taken - a.wickets_taken || a.runs_conceded - b.runs_conceded,
   )[0];
@@ -230,11 +294,14 @@ export function MatchHero({
   const side = (s: Side, i: number): HeroSideProps => {
     if (live) {
       if (i === battingIdx) return { team: teamRef(s.team), detail: "Batting" };
+      const r = s.innings ? ref(s.innings, bpo, s.earlier) : null;
       return {
         team: teamRef(s.team),
         dim: true,
-        detail: s.innings
-          ? `${s.innings.total_runs}/${s.innings.total_wickets} (${ref(s.innings, bpo).overs})`
+        detail: r
+          ? isTwoInningsMatch(match)
+            ? scoreFigures(r)
+            : `${scoreFigures(r)} (${r.overs})`
           : "Yet to bat",
       };
     }
@@ -250,7 +317,7 @@ export function MatchHero({
         dim: lost,
         detail: (
           <InningsScore
-            innings={ref(s.innings, bpo)}
+            innings={ref(s.innings, bpo, s.earlier)}
             dim={lost}
             inline={page}
             className={won ? "font-semibold" : undefined}
@@ -283,7 +350,7 @@ export function MatchHero({
   const late = isLateFixture(match);
   const award = page ? null : playerAwardOf(match);
   const centre = batting?.innings ? (
-    <HeroScore innings={ref(batting.innings, bpo)} />
+    <HeroScore innings={ref(batting.innings, bpo, batting.earlier)} />
   ) : match.status === "scheduled" && start ? (
     <HeroTime time={start.time} label={late ? "Not started" : "Upcoming"} />
   ) : undefined;

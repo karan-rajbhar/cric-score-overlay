@@ -6,6 +6,7 @@
  */
 import type { MatchFormat } from "../types";
 import { matchFormatLabel, namedFormat } from "~/lib/cricket";
+import { MATCH_DAYS } from "~/lib/multi-innings";
 
 export interface SetupTeam {
   id: string;
@@ -56,14 +57,22 @@ export const FORMAT_PRESETS: readonly FormatPreset[] = [
   { format: "T20", label: "T20", overs: 20 },
   { format: "T10", label: "T10", overs: 10 },
   { format: "ODI", label: "ODI", overs: 50 },
+  // Two innings a side, no overs limit, over the days chosen.
+  { format: "Test", label: "Test", overs: null },
   { format: "Custom", label: "Custom", overs: null },
 ];
 
 export const LIMITS = {
   overs: { min: 1, max: 50 },
+  /** An overs limit on each innings of a two-innings match. */
+  inningsOvers: { min: 1, max: 200 },
   wickets: { min: 1, max: 15 },
   ballsPerOver: { min: 2, max: 12 },
+  days: MATCH_DAYS,
 } as const;
+
+/** Days a Test is played over unless the form says otherwise. */
+export const TEST_DAYS_DEFAULT = 5;
 
 const inRange = (n: number, r: { min: number; max: number }) =>
   Number.isInteger(n) && n >= r.min && n <= r.max;
@@ -82,6 +91,8 @@ export interface TournamentRulesSource {
   /** Legacy field, read when `overs_per_innings` is not set. */
   custom_overs?: number | null;
   wickets_per_innings?: number | null;
+  /** Days of its matches when they are Tests. */
+  match_days?: number | null;
 }
 
 /**
@@ -90,6 +101,14 @@ export interface TournamentRulesSource {
  */
 export function tournamentFormatLabel(t: TournamentRulesSource): string | null {
   const rules = tournamentRules(t);
+  if (rules.format === "Test") {
+    return matchFormatLabel({
+      match_format: "Test",
+      innings_per_side: 2,
+      days: rules.days,
+      overs_per_innings: null,
+    });
+  }
   if (rules.overs === undefined) {
     return namedFormat({ match_format: t.match_format });
   }
@@ -107,11 +126,25 @@ export function tournamentRules(t: TournamentRulesSource): {
   format?: MatchFormat;
   overs?: number;
   wickets?: number;
+  /** A Test tournament's match days. */
+  days?: number;
 } {
   const preset = FORMAT_PRESETS.find((p) => p.format === t.match_format);
   const overs = t.overs_per_innings ?? preset?.overs ?? t.custom_overs ?? null;
-  const rules: { format?: MatchFormat; overs?: number; wickets?: number } = {};
-  if (overs !== null && inRange(overs, LIMITS.overs)) {
+  const rules: {
+    format?: MatchFormat;
+    overs?: number;
+    wickets?: number;
+    days?: number;
+  } = {};
+  if (t.match_format === "Test") {
+    // Two innings a side and no overs limit: the days are what it sets.
+    rules.format = "Test";
+    rules.days =
+      typeof t.match_days === "number" && inRange(t.match_days, LIMITS.days)
+        ? t.match_days
+        : TEST_DAYS_DEFAULT;
+  } else if (overs !== null && inRange(overs, LIMITS.overs)) {
     rules.overs = overs;
     rules.format = formatForOvers(overs);
   }
@@ -283,7 +316,12 @@ export function matchesTeamQuery(team: SetupTeam, query: string) {
 export interface SetupValues {
   team1Id: string;
   team2Id: string;
-  oversPerInnings: number;
+  /** Null: no overs limit (a two-innings match only). */
+  oversPerInnings: number | null;
+  /** 2: each side bats twice. Absent: 1. */
+  inningsPerSide?: 1 | 2;
+  /** Days of a two-innings match. */
+  days?: number;
   wicketsPerInnings: number;
   ballsPerOver: number;
   when: "now" | "later";
@@ -293,8 +331,10 @@ export interface SetupValues {
 
 const FIELD_NAMES = {
   overs: "Overs",
+  inningsOvers: "Overs",
   wickets: "Wickets",
   ballsPerOver: "Balls per over",
+  days: "Days",
 } as const;
 
 /** Inline message for a number field outside its range, or null. */
@@ -320,10 +360,18 @@ export function setupBlocker(
   if (!eligible1.has(v.team1Id)) return "You can't host a match for that team";
   if (!eligible2.has(v.team2Id))
     return "That opponent can't be picked for this match";
+  const twoInnings = v.inningsPerSide === 2;
+  const overs =
+    v.oversPerInnings === null
+      ? twoInnings
+        ? null
+        : "Set the overs per side"
+      : fieldError(twoInnings ? "inningsOvers" : "overs", v.oversPerInnings);
   const rules =
-    fieldError("overs", v.oversPerInnings) ??
+    overs ??
     fieldError("wickets", v.wicketsPerInnings) ??
-    fieldError("ballsPerOver", v.ballsPerOver);
+    fieldError("ballsPerOver", v.ballsPerOver) ??
+    (twoInnings ? fieldError("days", v.days ?? 0) : null);
   if (rules) return rules;
   if (v.when === "later" && !v.scheduledAt) return "Pick a date and time";
   return null;
@@ -339,6 +387,10 @@ const MAX_RECENT = 8;
 export interface StoredSetup {
   matchFormat: MatchFormat;
   oversPerInnings: number;
+  /** Innings a side (Custom two-innings matches; a Test is always 2). */
+  inningsPerSide: 1 | 2;
+  /** Days of a two-innings match. */
+  days: number;
   wicketsPerInnings: number;
   ballsPerOver: number;
   wideCountsAsBallFaced: boolean;
@@ -351,6 +403,8 @@ export interface StoredSetup {
 export const DEFAULT_SETUP: StoredSetup = {
   matchFormat: "T20",
   oversPerInnings: 20,
+  inningsPerSide: 1,
+  days: TEST_DAYS_DEFAULT,
   wicketsPerInnings: 10,
   ballsPerOver: 6,
   wideCountsAsBallFaced: false,
@@ -377,9 +431,11 @@ export function loadSetup(): StoredSetup {
           : DEFAULT_SETUP.matchFormat,
       oversPerInnings: num(
         parsed.oversPerInnings,
-        LIMITS.overs,
+        LIMITS.inningsOvers,
         DEFAULT_SETUP.oversPerInnings,
       ),
+      inningsPerSide: parsed.inningsPerSide === 2 ? 2 : 1,
+      days: num(parsed.days, LIMITS.days, DEFAULT_SETUP.days),
       wicketsPerInnings: num(
         parsed.wicketsPerInnings,
         LIMITS.wickets,

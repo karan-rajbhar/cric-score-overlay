@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  inningsHeading,
+  isTwoInningsMatch,
+  lastMainInningsOf,
+} from "~/lib/multi-innings";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { BallChip } from "~/components/ds/ball";
@@ -249,9 +254,11 @@ export function MatchBalls({ match }: MatchBallsProps) {
               key={innings.id}
               value={`innings-${innings.innings_number}`}
             >
-              {innings.innings_number > 2
+              {innings.innings_number > lastMainInningsOf(match)
                 ? "Super over"
-                : teamName(match, innings.team_id)}
+                : isTwoInningsMatch(match)
+                  ? `${teamName(match, innings.team_id)} ${inningsHeading(match, innings)}`
+                  : teamName(match, innings.team_id)}
             </TabsTrigger>
           ))}
         </TabsList>

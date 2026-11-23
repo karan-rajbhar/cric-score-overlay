@@ -77,8 +77,12 @@ export function teamNumberOf(
   return null;
 }
 
-/** "1st", "2nd", "Super over" for an innings number. */
-export function inningsShort(n: number | null | undefined): string {
+/** "1st", "2nd", "Super over" for an innings number (a Test's 3rd: a side's 2nd). */
+export function inningsShort(
+  n: number | null | undefined,
+  state?: Pick<LiveMatchState, "innings_per_side"> | null,
+): string {
+  if (state?.innings_per_side === 2) return (n ?? 1) <= 2 ? "1st inns" : "2nd inns";
   if ((n ?? 1) >= 3) return "Super over";
   return n === 2 ? "2nd inns" : "1st inns";
 }

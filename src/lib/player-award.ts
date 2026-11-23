@@ -1,5 +1,30 @@
 import { formatBowlerOvers } from "./cricket";
-import type { Match } from "./match-types";
+import type { BattingPerformance, BowlingPerformance, Match } from "./match-types";
+import { lastMainInningsOf } from "./multi-innings";
+
+/** One innings' figures, or several added up (a Test's two); out if out in the last. */
+function sumBatting(rows: BattingPerformance[]): BattingPerformance | undefined {
+  if (rows.length <= 1) return rows[0];
+  return rows.reduce((a, b) => ({
+    ...b,
+    runs_scored: (a.runs_scored ?? 0) + (b.runs_scored ?? 0),
+    balls_faced: (a.balls_faced ?? 0) + (b.balls_faced ?? 0),
+    fours: (a.fours ?? 0) + (b.fours ?? 0),
+    sixes: (a.sixes ?? 0) + (b.sixes ?? 0),
+  }));
+}
+
+function sumBowling(rows: BowlingPerformance[]): BowlingPerformance | undefined {
+  if (rows.length <= 1) return rows[0];
+  return rows.reduce((a, b) => ({
+    ...b,
+    balls_bowled: (a.balls_bowled ?? 0) + (b.balls_bowled ?? 0),
+    overs_bowled: 0,
+    runs_conceded: (a.runs_conceded ?? 0) + (b.runs_conceded ?? 0),
+    wickets_taken: (a.wickets_taken ?? 0) + (b.wickets_taken ?? 0),
+    maidens: (a.maidens ?? 0) + (b.maidens ?? 0),
+  }));
+}
 
 /** The player of the match with what they did, for the award card. */
 export interface PlayerAward {
@@ -42,12 +67,22 @@ export function playerAwardOf(match: Match): PlayerAward | null {
   const batInn = innings.find((i) =>
     i.batting_performances?.some((b) => b.user_id === potm.id),
   );
-  const bat = batInn?.batting_performances?.find((b) => b.user_id === potm.id);
   const bowlInn = innings.find((i) =>
     i.bowling_performances?.some((b) => b.user_id === potm.id),
   );
-  const bowl = bowlInn?.bowling_performances?.find(
-    (b) => b.user_id === potm.id,
+  // A Test: the player's figures over both innings of the match proper.
+  const main = innings.filter(
+    (i) => i.innings_number <= lastMainInningsOf(match),
+  );
+  const bat = sumBatting(
+    main.flatMap((i) =>
+      (i.batting_performances ?? []).filter((b) => b.user_id === potm.id),
+    ),
+  );
+  const bowl = sumBowling(
+    main.flatMap((i) =>
+      (i.bowling_performances ?? []).filter((b) => b.user_id === potm.id),
+    ),
   );
   const batted =
     bat && ((bat.runs_scored ?? 0) > 0 || (bat.balls_faced ?? 0) > 0);

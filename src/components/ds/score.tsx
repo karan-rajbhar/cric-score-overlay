@@ -16,7 +16,20 @@ export type InningsRef = {
   wickets: number;
   /** Already formatted: "18.2". */
   overs: string;
+  /**
+   * A two-innings match: the side's innings before this one as a scorecard
+   * writes them ("245", "450/7d"), shown first: "245 & 180/4".
+   */
+  earlier?: string;
+  /** Closed by a declaration: "450/7d". */
+  declared?: boolean;
 };
+
+/** "182/4", "450/7d", with any earlier innings first: "245 & 180/4". */
+export function scoreFigures(innings: InningsRef): string {
+  const own = `${innings.runs}/${innings.wickets}${innings.declared ? "d" : ""}`;
+  return innings.earlier ? `${innings.earlier} & ${own}` : own;
+}
 
 const SCORE_SIZE = {
   sm: "text-lg",
@@ -53,7 +66,7 @@ export function InningsScore({
           dim ? "text-muted-foreground" : "text-foreground",
         )}
       >
-        {innings.runs}/{innings.wickets}
+        {scoreFigures(innings)}
       </span>{" "}
       <span
         className={cn(
@@ -101,8 +114,14 @@ export function MatchNote({
 export function HeroScore({ innings }: { innings: InningsRef }) {
   return (
     <div className="flex flex-col items-center gap-2">
+      {innings.earlier && (
+        <span className="font-score text-sm font-semibold tabular-nums text-muted-foreground">
+          {innings.earlier} &amp;
+        </span>
+      )}
       <span className="font-score text-[2.5rem] font-semibold tabular-nums leading-none text-foreground sm:text-5xl">
         {innings.runs}/{innings.wickets}
+        {innings.declared ? "d" : ""}
       </span>
       <Chip tone="success" size="sm" className="font-score tabular-nums">
         {innings.overs} ov

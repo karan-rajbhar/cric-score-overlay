@@ -16,7 +16,17 @@ import { ensureUserProfile } from "~/lib/firebase/user-profile";
 import { teamSnapshot } from "~/lib/firebase/team-snapshot";
 import { isClubSide } from "~/lib/firebase/derive.mjs";
 import { isSuperOverInnings } from "~/lib/firebase/scoring/result";
-import type { ClubSide, DlsRevision } from "~/lib/firebase/types";
+import {
+  closeOfPlayOf,
+  isTwoInningsMatch,
+  MATCH_DAYS,
+} from "~/lib/multi-innings";
+import type {
+  ClubSide,
+  CloseOfPlay,
+  DlsRevision,
+  PlayBreak,
+} from "~/lib/firebase/types";
 import { refreshLiveMatchesFor } from "~/lib/firebase/live-sync";
 import { invalidateMatchCache } from "~/lib/match-cache";
 import { afterDeleteHref } from "~/lib/match-delete";
@@ -33,6 +43,32 @@ import { getMatch } from "./queries";
 import { calculatePlayerOfTheMatch } from "~/lib/cricket";
 import type { Match } from "~/lib/match-types";
 import type { ScoringDelta } from "~/lib/scoring-delta";
+
+/**
+ * The innings, overs and days a new match is made with: a Test always has
+ * two innings a side and may have no overs limit; a Custom match may have
+ * two innings; a two-innings match has 1 to 5 days. Or why not.
+ */
+function matchShapeOf(
+  formData: MatchFormData,
+):
+  | { twoInnings: boolean; overs: number | null; days: number | null }
+  | { error: string } {
+  const twoInnings =
+    formData.matchFormat === "Test" || formData.inningsPerSide === 2;
+  const overs = formData.oversPerInnings;
+  const oversOk =
+    overs === null ? twoInnings : Number.isInteger(overs) && overs >= 1;
+  if (!oversOk) return { error: "Overs per innings must be at least 1" };
+  if (!twoInnings) return { twoInnings, overs, days: null };
+  const days = formData.days ?? (formData.matchFormat === "Test" ? 5 : 1);
+  if (!Number.isInteger(days) || days < MATCH_DAYS.min || days > MATCH_DAYS.max) {
+    return {
+      error: `Days must be between ${MATCH_DAYS.min} and ${MATCH_DAYS.max}`,
+    };
+  }
+  return { twoInnings, overs, days };
+}
 
 export async function createMatch(formData: MatchFormData) {
   const db = await createServerClient();
@@ -52,12 +88,9 @@ export async function createMatch(formData: MatchFormData) {
   if (formData.team1Id === formData.team2Id) {
     return { data: null, error: "Team 1 and Team 2 must be different teams" };
   }
-  if (
-    !Number.isInteger(formData.oversPerInnings) ||
-    formData.oversPerInnings < 1
-  ) {
-    return { data: null, error: "Overs per innings must be at least 1" };
-  }
+  const shape = matchShapeOf(formData);
+  if ("error" in shape) return { data: null, error: shape.error };
+  const { twoInnings, overs, days } = shape;
   if (
     formData.ballsPerOver !== undefined &&
     (!Number.isInteger(formData.ballsPerOver) ||
@@ -286,7 +319,11 @@ export async function createMatch(formData: MatchFormData) {
     .insert({
       title: formData.title?.trim() || `${team1.name} vs ${team2.name}`,
       match_format: formData.matchFormat,
-      overs_per_innings: formData.oversPerInnings,
+      overs_per_innings: overs,
+      // Two innings a side (a Test): the days, and play starts on day 1.
+      innings_per_side: twoInnings ? 2 : null,
+      days,
+      current_day: twoInnings ? 1 : null,
       balls_per_over: formData.ballsPerOver ?? 6,
       max_balls_per_over: formData.maxBallsPerOver ?? null,
       wide_counts_as_ball_faced: formData.wideCountsAsBallFaced ?? false,
@@ -836,6 +873,8 @@ export async function endInnings(
   matchId: string,
   clientActionId?: string | null,
   inningsNumber?: number | null,
+  /** A two-innings match's batting side declared (Law 15). */
+  declared = false,
 ): Promise<{ data: ScoringState | null; error: string | null }> {
   try {
     const db = await createServerClient();
@@ -864,6 +903,7 @@ export async function endInnings(
       p_match_id: matchId,
       p_client_action_id: clientActionId ?? null,
       p_innings_number: inningsNumber ?? null,
+      p_declared: declared,
     });
     if (error) {
       console.error("end_innings failed:", error);
@@ -1312,6 +1352,193 @@ export async function startSuperOver(
   }
 }
 
+/**
+ * The follow-on in a two-innings match (`set_follow_on`): `enforce` makes
+ * the side that batted second bat again; false lets the side that batted
+ * first bat. Only before the third innings' first ball.
+ */
+export async function setFollowOn(
+  matchId: string,
+  enforce: boolean,
+  clientActionId?: string | null,
+): Promise<{ data: ScoringState | null; error: string | null }> {
+  return twoInningsAction(matchId, "set_follow_on", {
+    p_enforce: enforce,
+    p_client_action_id: clientActionId ?? null,
+  });
+}
+
+/**
+ * Ends a live two-innings match as a draw (`draw_match`): the innings in
+ * play closes where it stands and its figures join the players' records.
+ */
+export async function drawMatch(
+  matchId: string,
+  clientActionId?: string | null,
+): Promise<{ data: ScoringState | null; error: string | null }> {
+  const db = await createServerClient();
+  const res = await twoInningsAction(matchId, "draw_match", {
+    p_client_action_id: clientActionId ?? null,
+  });
+  if (!res.error) {
+    notifyFollowersAfter(matchId, "result", res.data);
+    await afterMatchCompleted(db, matchId);
+  }
+  return res;
+}
+
+/** A scoring procedure of a two-innings match, run for a match admin. */
+async function twoInningsAction(
+  matchId: string,
+  rpc: "set_follow_on" | "draw_match",
+  args: Record<string, unknown>,
+): Promise<{ data: ScoringState | null; error: string | null }> {
+  try {
+    const db = await createServerClient();
+    const {
+      data: { user },
+    } = await db.auth.getUser();
+    if (!user) return { data: null, error: "You must be signed in to score" };
+    if (!(await checkMatchAdminAuth(db, matchId, user.id))) {
+      return {
+        data: null,
+        error: "Only match administrators or designated scorers can do this",
+      };
+    }
+    const { data, error } = await db.rpc(rpc, { p_match_id: matchId, ...args });
+    if (error) {
+      console.error(`${rpc} failed:`, error);
+      return { data: null, error: friendlyError(error.message) };
+    }
+    invalidateMatchCache(matchId);
+    revalidatePath(`/matches/${matchId}`);
+    revalidatePath(`/matches/${matchId}/score`);
+    return { data: data as ScoringState, error: null };
+  } catch (err) {
+    console.error(`Unexpected error in ${rpc}:`, err);
+    return {
+      data: null,
+      error: friendlyError(err instanceof Error ? err.message : "Failed to save"),
+    };
+  }
+}
+
+/** What the scorer does with play in a two-innings match. */
+export type PlayAction = "lunch" | "tea" | "stumps" | "resume" | "next_day";
+
+/**
+ * A break in a two-innings match's play, or play again: lunch, tea and
+ * stumps (the end of the day, whose score is kept as its close of play)
+ * set the break; "resume" takes it off on the same day (a break called by
+ * mistake: stumps' close of play goes too), "next_day" starts the next
+ * day's play after stumps. Viewers see it through `live_state`.
+ */
+export async function setPlayBreak(
+  matchId: string,
+  action: PlayAction,
+): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const db = await createServerClient();
+    const {
+      data: { user },
+    } = await db.auth.getUser();
+    if (!user) return { success: false, error: "You must be signed in to score" };
+    if (!(await checkMatchAdminAuth(db, matchId, user.id))) {
+      return {
+        success: false,
+        error: "Only match administrators or designated scorers can do this",
+      };
+    }
+    const { data: match } = await db
+      .from("matches")
+      .select(
+        "status, innings_per_side, current_innings, current_day, play_break, close_of_play",
+      )
+      .eq("id", matchId)
+      .single();
+    if (!match) return { success: false, error: "Match not found" };
+    if (!isTwoInningsMatch(match)) {
+      return { success: false, error: "Breaks and days are for two-innings matches" };
+    }
+    if (match.status !== "live") {
+      return { success: false, error: "The match is not live" };
+    }
+    const patch = await playBreakPatch(db, matchId, match, action);
+    if ("error" in patch) return { success: false, error: patch.error };
+    const { error } = await db
+      .from("matches")
+      .update(patch.fields)
+      .eq("id", matchId);
+    if (error) return { success: false, error: friendlyError(error.message) };
+    await refreshLiveState(db, matchId);
+    invalidateMatchCache(matchId);
+    revalidatePath(`/matches/${matchId}`);
+    revalidatePath(`/matches/${matchId}/score`);
+    return { success: true, error: null };
+  } catch (err) {
+    console.error("Unexpected error in setPlayBreak:", err);
+    return {
+      success: false,
+      error: friendlyError(err instanceof Error ? err.message : "Failed to save"),
+    };
+  }
+}
+
+/** The match fields a play action writes, or why it cannot be taken now. */
+async function playBreakPatch(
+  db: Awaited<ReturnType<typeof createServerClient>>,
+  matchId: string,
+  match: {
+    current_innings?: number | null;
+    current_day?: number | null;
+    play_break?: PlayBreak | null;
+    close_of_play?: CloseOfPlay[] | null;
+  },
+  action: PlayAction,
+): Promise<{ fields: Record<string, unknown> } | { error: string }> {
+  const day = match.current_day && match.current_day > 0 ? match.current_day : 1;
+  const closes = (match.close_of_play ?? []).filter((c) => c.day !== day);
+  if (action === "next_day") {
+    if (match.play_break !== "stumps") {
+      return { error: "Call stumps before starting the next day" };
+    }
+    return { fields: { play_break: null, current_day: day + 1 } };
+  }
+  if (action === "resume") {
+    // Stumps called by mistake: the day goes on and its close goes.
+    return {
+      fields:
+        match.play_break === "stumps"
+          ? { play_break: null, close_of_play: closes }
+          : { play_break: null },
+    };
+  }
+  if (action !== "stumps") return { fields: { play_break: action } };
+  return { fields: await stumpsFields(db, matchId, match, day, closes) };
+}
+
+/** Stumps: the break, and the score of the innings in play as the day's close. */
+async function stumpsFields(
+  db: Awaited<ReturnType<typeof createServerClient>>,
+  matchId: string,
+  match: { current_innings?: number | null },
+  day: number,
+  closes: CloseOfPlay[],
+): Promise<Record<string, unknown>> {
+  const { data: innings } = await db
+    .from("innings")
+    .select("innings_number, team_id, total_runs, total_wickets, total_balls")
+    .eq("match_id", matchId)
+    .eq("innings_number", match.current_innings ?? 1)
+    .maybeSingle();
+  return {
+    play_break: "stumps",
+    close_of_play: innings
+      ? [...closes, closeOfPlayOf(day, innings)].sort((a, b) => a.day - b.day)
+      : closes,
+  };
+}
+
 export interface MatchSettingsUpdate {
   matchFormat?: string;
   oversPerInnings?: number;
@@ -1396,6 +1623,34 @@ interface SettingsMatch {
   overs_per_innings: number | null;
   balls_per_over: number | null;
   dls_revision: { innings_number: number } | null;
+  innings_per_side?: number | null;
+  match_format?: string | null;
+}
+
+/**
+ * Why the save cannot change the match's shape: a two-innings match keeps
+ * its format and, with no overs limit, gets none (its innings would end at
+ * the overs); a limited-overs match does not become a Test after it is made.
+ */
+function formatRefusal(
+  settings: MatchSettingsUpdate,
+  match: SettingsMatch,
+): string | null {
+  const twoInnings = isTwoInningsMatch(match);
+  if (
+    twoInnings &&
+    settings.matchFormat !== undefined &&
+    settings.matchFormat !== match.match_format
+  ) {
+    return "A two-innings match keeps the format it was created with";
+  }
+  if (twoInnings && !match.overs_per_innings && settings.oversPerInnings !== undefined) {
+    return "This match has no overs limit";
+  }
+  if (!twoInnings && settings.matchFormat === "Test") {
+    return "Choose Test when creating a match: it cannot become one later";
+  }
+  return null;
 }
 
 /**
@@ -1439,10 +1694,14 @@ function oversRefusal(
 /** The match's overs set the innings' length (not a super over or DLS). */
 function oversGovern(match: SettingsMatch, inningsNumber: number): boolean {
   return (
-    !isSuperOverInnings(inningsNumber) &&
+    !isSuperOverInnings(match, inningsNumber) &&
     match.dls_revision?.innings_number !== inningsNumber
   );
 }
+
+/** Why a two-innings match takes no target by hand. */
+const TWO_INNINGS_TARGET =
+  "In a two-innings match the target follows the innings totals";
 
 /**
  * A target counts only for the chase in play, and only when it changed:
@@ -1451,8 +1710,12 @@ function oversGovern(match: SettingsMatch, inningsNumber: number): boolean {
 function targetChange(
   targetRuns: number | null | undefined,
   open: SettingsInnings | null,
+  match: SettingsMatch,
 ): SettingsPlan["target"] | { error: string } {
   if (targetRuns == null) return null;
+  if (isTwoInningsMatch(match)) {
+    return open?.target_runs === targetRuns ? null : { error: TWO_INNINGS_TARGET };
+  }
   if (!open || open.innings_number % 2 !== 0) {
     return { error: "A target can be set only during a chase" };
   }
@@ -1474,7 +1737,7 @@ async function planSettingsSave(
     db
       .from("matches")
       .select(
-        "current_innings, overs_per_innings, balls_per_over, dls_revision, wide_runs_to_batsman, noball_extras_to_batsman, wide_counts_as_ball_faced, noball_counts_as_ball_faced",
+        "current_innings, match_format, overs_per_innings, balls_per_over, dls_revision, innings_per_side, wide_runs_to_batsman, noball_extras_to_batsman, wide_counts_as_ball_faced, noball_counts_as_ball_faced",
       )
       .eq("id", matchId)
       .single(),
@@ -1492,9 +1755,15 @@ async function planSettingsSave(
   );
   const open = current && !current.is_completed ? current : null;
 
+  const format = formatRefusal(settings, match as SettingsMatch);
+  if (format) return { error: format };
   const refusal = overRefusal(settings, match as SettingsMatch, innings, open);
   if (refusal) return { error: refusal };
-  const target = targetChange(settings.targetRuns, open);
+  const target = targetChange(
+    settings.targetRuns,
+    open,
+    match as SettingsMatch,
+  );
   if (target && "error" in target) return target;
 
   const stored = match as unknown as Record<string, boolean | null>;
@@ -2009,7 +2278,7 @@ async function planChaseRevision(
   }
   const { data: match } = await db
     .from("matches")
-    .select("current_innings, overs_per_innings, balls_per_over")
+    .select("current_innings, overs_per_innings, balls_per_over, innings_per_side")
     .eq("id", matchId)
     .single();
   const { data: chase } = await db
@@ -2018,7 +2287,10 @@ async function planChaseRevision(
     .eq("match_id", matchId)
     .eq("innings_number", match?.current_innings ?? 1)
     .maybeSingle();
-  const refusal = chaseRefusal(chase as SettingsInnings | null);
+  const refusal = chaseRefusal(
+    match as SettingsMatch | null,
+    chase as SettingsInnings | null,
+  );
   if (refusal || !match || !chase) {
     return { error: refusal ?? "A target can be set only during a chase" };
   }
@@ -2045,11 +2317,15 @@ function isTargetRuns(runs: number | null | undefined): runs is number {
   return runs != null && Number.isInteger(runs) && runs >= 1;
 }
 
-function chaseRefusal(chase: SettingsInnings | null): string | null {
+function chaseRefusal(
+  match: SettingsMatch | null,
+  chase: SettingsInnings | null,
+): string | null {
+  if (isTwoInningsMatch(match)) return TWO_INNINGS_TARGET;
   if (!chase || chase.is_completed || chase.innings_number % 2 !== 0) {
     return "A target can be set only during a chase";
   }
-  if (isSuperOverInnings(chase.innings_number)) {
+  if (isSuperOverInnings(match, chase.innings_number)) {
     return "A super over's target cannot be revised";
   }
   return null;

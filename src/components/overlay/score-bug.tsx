@@ -31,6 +31,7 @@ import {
   type OverlayThemeProps,
 } from "./overlay-kit";
 import type { LayoutMode, LiveMatchState } from "./types";
+import { playBreakName } from "~/lib/multi-innings";
 
 // ---- phases and sides -------------------------------------------------------
 
@@ -62,9 +63,18 @@ export function overlayPhaseOf(state: LiveMatchState): OverlayPhase {
   return "live";
 }
 
-export function inningsLabel(inningsNumber: number | null | undefined): string {
-  if ((inningsNumber ?? 1) >= 3) return "Super over";
-  return inningsNumber === 2 ? "2nd innings" : "1st innings";
+/**
+ * "1st innings", "2nd innings" (each side's own in a Test: its third and
+ * fourth innings are the 2nd), "Super over" after a limited-overs match.
+ */
+export function inningsLabel(
+  inningsNumber: number | null | undefined,
+  state?: Pick<LiveMatchState, "innings_per_side"> | null,
+): string {
+  const n = inningsNumber ?? 1;
+  if (state?.innings_per_side === 2) return n <= 2 ? "1st innings" : "2nd innings";
+  if (n >= 3) return "Super over";
+  return n === 2 ? "2nd innings" : "1st innings";
 }
 
 export interface Side {
@@ -118,6 +128,9 @@ const codeOfSide = (side: Side) => teamCode(side.short, side.name);
  * while it is the current innings, 1 in a super over.
  */
 export function oversLimitOf(state: LiveMatchState): number | null {
+  // A Test's third and fourth innings are not super overs; it has no
+  // limit unless it set one.
+  if (state.innings_per_side === 2) return state.overs_per_innings ?? null;
   if ((state.innings_number ?? 1) >= 3) return 1;
   return state.dls_overs ?? state.overs_per_innings ?? null;
 }
@@ -243,12 +256,36 @@ export function contextLine(
   phase: OverlayPhase = "live",
 ): ReactNode[] {
   const parts: ReactNode[] = [];
+  // A Test: its day and any break ("Stumps, day 1") lead the strip.
+  if (state.innings_per_side === 2 && state.status === "live") {
+    const day = state.day ?? 1;
+    parts.push(
+      <span key="day" className="font-semibold">
+        {state.play_break
+          ? `${playBreakName(state.play_break)}, day ${day}`
+          : `Day ${day}`}
+      </span>,
+    );
+  }
   const chasing =
     state.target_runs !== null &&
     state.runs_needed !== null &&
     state.balls_remaining !== null &&
     !state.innings_completed;
-  if (chasing && (state.runs_needed ?? 0) > 0) {
+  // A chase with no overs limit (a Test's fourth innings): runs alone.
+  const openChase =
+    state.target_runs !== null &&
+    state.runs_needed !== null &&
+    state.balls_remaining === null &&
+    !state.innings_completed;
+  if (openChase && (state.runs_needed ?? 0) > 0) {
+    parts.push(
+      <span key="need" className="font-semibold">
+        Need {state.runs_needed} to win
+      </span>,
+      <span key="target">Target {state.target_runs}</span>,
+    );
+  } else if (chasing && (state.runs_needed ?? 0) > 0) {
     parts.push(
       <span key="need" className="font-semibold">
         Need {state.runs_needed} from {state.balls_remaining}{" "}
@@ -394,7 +431,7 @@ function BottomBar({
           side={side}
           code={codeOfSide(batting)}
           logoUrl={logo}
-          detail={inningsLabel(state.innings_number)}
+          detail={inningsLabel(state.innings_number, state)}
           className="max-w-[16rem]"
         />
         <Score state={state} bpo={bpo} />

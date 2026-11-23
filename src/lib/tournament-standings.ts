@@ -8,10 +8,12 @@ import {
   isSuperOverInnings,
 } from "~/lib/firebase/scoring/result";
 import type { DlsRevision, MatchesRow } from "~/lib/firebase/types";
+import { isTwoInningsMatch } from "~/lib/multi-innings";
 
 /** What net run rate reads of a finished match. */
 export interface NrrMatch {
   overs_per_innings?: number | null;
+  innings_per_side?: number | null;
   balls_per_over?: number | null;
   wickets_per_innings?: number | null;
   dls_revision?: DlsRevision | null;
@@ -62,12 +64,15 @@ export function nrrFigures(
   match: NrrMatch,
   innings: readonly NrrInnings[],
 ): NrrFigure[] {
+  // No net run rate in a two-innings match: its innings have no overs
+  // quota to measure against (a Test league ranks on points).
+  if (isTwoInningsMatch(match)) return [];
   const limits = (n: number) => inningsLimits(match as MatchesRow, n);
   const revisedTarget = revisedTargetOf(match, innings);
   return innings.flatMap((inn): NrrFigure[] => {
     const n = inn.innings_number ?? 1;
     // A super over decides the points only.
-    if (!inn.team_id || isSuperOverInnings(n)) return [];
+    if (!inn.team_id || isSuperOverInnings(match, n)) return [];
     const { maxBalls, wicketsCap, ballsPerOver } = limits(n);
     if (revisedTarget !== null && n === 1) {
       const overs = limits(2).maxBalls / ballsPerOver;

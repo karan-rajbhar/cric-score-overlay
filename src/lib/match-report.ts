@@ -1,3 +1,12 @@
+import { isDecidingInnings } from "~/lib/firebase/scoring/result";
+import {
+  dayLine,
+  inningsHeading,
+  inningsScoreText,
+  isForfeited,
+  isTwoInningsMatch,
+  standingLine,
+} from "~/lib/multi-innings";
 import type { Match } from "./match-types";
 import { shortDate, timeOfDay } from "~/lib/dates";
 import {
@@ -99,12 +108,38 @@ export function buildExportSummary(
   // In batting order: the side that batted first is shown first.
   const [first, second] = sidesInBattingOrder(match);
   const inningsStats = (
-    { team, innings }: typeof first,
+    { team, innings: latest, earlier }: typeof first,
     bowling: typeof first,
-  ): ExportTeamStats => ({
+  ): ExportTeamStats => {
+    // A Test: the side's figures from both its innings, each player once
+    // with their best innings; its score "245 & 180/4 (52.3)".
+    const both = latest ? [...earlier, latest] : [];
+    const innings =
+      latest && earlier.length
+        ? {
+            ...latest,
+            batting_performances: bestOfEach(
+              both.flatMap((i) => i.batting_performances ?? []),
+              (a, b) => (b.runs_scored ?? 0) - (a.runs_scored ?? 0),
+            ),
+            bowling_performances: bestOfEach(
+              both.flatMap((i) => i.bowling_performances ?? []),
+              (a, b) =>
+                (b.wickets_taken ?? 0) - (a.wickets_taken ?? 0) ||
+                (a.runs_conceded ?? 0) - (b.runs_conceded ?? 0),
+            ),
+          }
+        : latest;
+    return {
     name: team.name,
     shortName: team.short_name ?? team.name.slice(0, 3).toUpperCase(),
-    scoreLine: scoreLine(innings),
+    scoreLine: [
+      ...earlier.map((i) => `${inningsScoreText(i)} & `),
+      // "450/7d (98.2)" for a declaration.
+      scoreLine(latest).replace(/^(\d+\/\d+)/, (s) =>
+        latest?.declared && !isForfeited(latest) ? `${s}d` : s,
+      ),
+    ].join(""),
     batters: topBatters(innings).map((b) => ({
       name: b.user?.full_name ?? "—",
       userId: b.user_id ?? null,
@@ -122,7 +157,8 @@ export function buildExportSummary(
       econ: bowlerEconomy(b),
     })),
     bowlingSide: bowling.team.name,
-  });
+    };
+  };
 
   return {
     title: match.title,
@@ -140,6 +176,19 @@ export function buildExportSummary(
   };
 }
 
+
+/** Each player's best row by `order` (a Test side's two innings). */
+function bestOfEach<T extends { user_id: string }>(
+  rows: T[],
+  order: (a: T, b: T) => number,
+): T[] {
+  const seen = new Set<string>();
+  return [...rows].sort(order).filter((r) => {
+    if (seen.has(r.user_id)) return false;
+    seen.add(r.user_id);
+    return true;
+  });
+}
 
 const isLive = (match: Pick<Match, "status">) =>
   match.status === "live" || match.status === "innings_break";
@@ -163,6 +212,13 @@ export function matchSituation(match: Match): string {
   const bpo = match.balls_per_over || 6;
   const batting = teamName(match, inn.team_id);
   const balls = inningsBalls(inn, bpo);
+  // A Test: the day, then the lead, deficit or chase.
+  if (isTwoInningsMatch(match) && (balls > 0 || inn.innings_number > 1)) {
+    const where = inn.target_runs
+      ? chaseLine(match, inn, batting, bpo)
+      : standingLine(match.innings ?? [], inn, batting);
+    return [dayLine(match), where].filter(Boolean).join(" · ") || "Live";
+  }
   // The chase over the overs it has (a DLS revision's included).
   const chase = chaseLine(match, inn, batting, bpo);
   if (displayStatusOf(match) === "innings_break") {
@@ -883,19 +939,27 @@ function reportInnings(
   inn: InningsRow,
   heading: string,
   team: Match["team1"] | Match["team2"],
-  rules: FacedRules & { balls_per_over?: number | null } = {},
+  rules: FacedRules & {
+    balls_per_over?: number | null;
+    innings_per_side?: number | null;
+  } = {},
 ): ReportInnings {
   const balls = inningsBalls(inn);
   return {
     id: inn.id,
     heading,
     team: teamRef(team),
-    score: `${inn.total_runs ?? 0}/${inn.total_wickets ?? 0}`,
+    score: isForfeited(inn)
+      ? "forfeited"
+      : `${inn.total_runs ?? 0}/${inn.total_wickets ?? 0}${inn.declared ? "d" : ""}`,
     overs: oversFromBalls(balls),
     runRate:
       balls > 0 ? ((inn.total_runs ?? 0) / (balls / 6)).toFixed(2) : "0.00",
+    // The chase's (a two-innings match's fourth innings; a pair's second).
     target:
-      inn.target_runs && inn.innings_number % 2 === 0 ? inn.target_runs : null,
+      inn.target_runs && isDecidingInnings(rules, inn.innings_number)
+        ? inn.target_runs
+        : null,
     inProgress: !inn.is_completed,
     batters: reportBatters(inn, rules.balls_per_over ?? 6),
     extras: extrasOf(inn),
@@ -908,8 +972,8 @@ function reportInnings(
 }
 
 /**
- * Every innings in order (the match's two, then any super overs) as the
- * report and the match page's Scorecard tab show them.
+ * Every innings in order (the match's two, or a Test's four, then any super
+ * overs) as the report and the match page's Scorecard tab show them.
  */
 export function allInnings(match: Match): ReportInnings[] {
   const teamOf = (inn: InningsRow) =>
@@ -917,17 +981,14 @@ export function allInnings(match: Match): ReportInnings[] {
   return (match.innings ?? [])
     .slice()
     .sort((a, b) => a.innings_number - b.innings_number)
-    .map((inn, i) =>
-      reportInnings(
-        inn,
-        i === 0 ? "1st innings" : i === 1 ? "2nd innings" : "Super over",
-        teamOf(inn),
-        match,
-      ),
+    .map((inn) =>
+      reportInnings(inn, inningsHeading(match, inn), teamOf(inn), match),
     );
 }
 
 function phasesOf(match: Match): MatchReportModel["phases"] {
+  // Powerplay and death overs need an overs limit: none in a Test.
+  if (isTwoInningsMatch(match) && !match.overs_per_innings) return null;
   const [inn1, inn2] = mainInningsInOrder(match);
   const maxOvers = match.overs_per_innings || 20;
   const bpo = match.balls_per_over || 6;

@@ -57,6 +57,20 @@ describe("setupBlocker", () => {
     );
     expect(setupBlocker(valid, both, new Set(["a"]))).toMatch(/opponent/);
   });
+
+  it("takes a Test with no overs, and checks its days", () => {
+    const test = { ...valid, oversPerInnings: null, inningsPerSide: 2 as const, days: 5 };
+    expect(setupBlocker(test, both, both)).toBeNull();
+    expect(setupBlocker({ ...test, days: 6 }, both, both)).toBe(
+      "Days must be between 1 and 5",
+    );
+    // Two innings with a limit per innings may go past a one-day match's 50.
+    expect(setupBlocker({ ...test, oversPerInnings: 80 }, both, both)).toBeNull();
+    // A limited-overs match needs its overs.
+    expect(setupBlocker({ ...valid, oversPerInnings: null }, both, both)).toBe(
+      "Set the overs per side",
+    );
+  });
 });
 
 describe("team search and order", () => {
@@ -106,11 +120,29 @@ describe("last-used setup", () => {
 
     window.localStorage.setItem(
       SETUP_STORAGE_KEY,
-      JSON.stringify({ matchFormat: "Test", oversPerInnings: 500 }),
+      JSON.stringify({ matchFormat: "Hundred", oversPerInnings: 500, days: 9 }),
     );
     expect(loadSetup()).toMatchObject({
       matchFormat: "T20",
       oversPerInnings: 20,
+      inningsPerSide: 1,
+      days: 5,
+    });
+
+    // A Test, and a two-innings Custom match, come back as they were.
+    window.localStorage.setItem(
+      SETUP_STORAGE_KEY,
+      JSON.stringify({ matchFormat: "Test", days: 2 }),
+    );
+    expect(loadSetup()).toMatchObject({ matchFormat: "Test", days: 2 });
+    window.localStorage.setItem(
+      SETUP_STORAGE_KEY,
+      JSON.stringify({ matchFormat: "Custom", inningsPerSide: 2, oversPerInnings: 80 }),
+    );
+    expect(loadSetup()).toMatchObject({
+      matchFormat: "Custom",
+      inningsPerSide: 2,
+      oversPerInnings: 80,
     });
 
     const spy = vi
@@ -144,6 +176,15 @@ describe("tournamentRules", () => {
     expect(tournamentRules({ match_format: "Custom", custom_overs: 12 })).toEqual({
       format: "Custom",
       overs: 12,
+    });
+    // A Test: no overs, its days (five when it sets none).
+    expect(tournamentRules({ match_format: "Test", match_days: 2 })).toEqual({
+      format: "Test",
+      days: 2,
+    });
+    expect(tournamentRules({ match_format: "Test" })).toEqual({
+      format: "Test",
+      days: 5,
     });
     expect(tournamentRules({ match_format: "Custom", overs_per_innings: 90 })).toEqual(
       {},

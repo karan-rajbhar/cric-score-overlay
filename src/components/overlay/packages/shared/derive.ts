@@ -40,10 +40,15 @@ export { strapText, type StrapText } from "../../strap-views";
 
 /** Legal balls in the innings (one over in a super over, DLS overs when revised); null when unknown. */
 export function inningsBalls(
-  state: Pick<LiveMatchState, "innings_number" | "overs_per_innings" | "dls_overs">,
+  state: Pick<
+    LiveMatchState,
+    "innings_number" | "overs_per_innings" | "dls_overs" | "innings_per_side"
+  >,
   ballsPerOver = 6,
 ): number | null {
-  if ((state.innings_number ?? 1) >= 3) return ballsPerOver;
+  if (state.innings_per_side !== 2 && (state.innings_number ?? 1) >= 3) {
+    return ballsPerOver;
+  }
   const overs = state.dls_overs ?? state.overs_per_innings;
   return overs && overs > 0 ? Math.round(overs * ballsPerOver) : null;
 }

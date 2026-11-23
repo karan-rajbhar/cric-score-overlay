@@ -79,7 +79,12 @@ import type {
   NoBallRuns,
 } from "../../types";
 import type { DeliveryToEdit } from "./components/EditBallDialog";
-import { isChaseInnings, OFFLINE_MATCH_OVER } from "./innings-notice";
+import {
+  isChaseInnings,
+  nextInningsOnDevice,
+  OFFLINE_MATCH_OVER,
+  type DeviceInningsMatch,
+} from "./innings-notice";
 import {
   applyLiveResync,
   applyScoringDelta,
@@ -203,7 +208,7 @@ function retireLocally(
 function penaltyLocally(
   ctx: LocalScoringContext,
   p: AwardPenaltyPayload,
-  match: Pick<Match, "innings"> | null,
+  match: DeviceInningsMatch | null,
 ): LocalScoringContext {
   const battingTeam = match?.innings?.find(
     (i) => i.innings_number === ctx.currentInnings,
@@ -214,12 +219,15 @@ function penaltyLocally(
 }
 
 /**
- * An innings ended on the local context (offline): the next one opens,
- * chasing this total plus one. The end of a chase decides the match, so
- * nothing opens after it.
+ * An innings ended on the local context (offline): `next` opens, with its
+ * target (`nextInningsOnDevice`). Null when that end decides the match (a
+ * chase, a win by an innings): nothing opens after it.
  */
-function endInningsLocally(ctx: LocalScoringContext): LocalScoringContext {
-  if (isChaseInnings(ctx.currentInnings)) return ctx;
+function endInningsLocally(
+  ctx: LocalScoringContext,
+  next: { target: number | null } | null,
+): LocalScoringContext {
+  if (!next) return ctx;
   return {
     ...ctx,
     currentInnings: (ctx.currentInnings ?? 1) + 1,
@@ -238,7 +246,7 @@ function endInningsLocally(ctx: LocalScoringContext): LocalScoringContext {
     bowlerRunsConceded: 0,
     bowlerBallsBowled: 0,
     bowlerWickets: 0,
-    targetRuns: (ctx.totalRuns ?? 0) + 1,
+    targetRuns: next.target,
     deliveriesInOver: 0,
   };
 }
@@ -252,19 +260,20 @@ function deliveriesThisOver(
 }
 
 /**
- * The match once its current innings has ended on this device (offline):
- * the next one opens, chasing this total plus one. The end of a chase
+ * The match once its current innings has ended on this device (offline),
+ * at `runs`: the next one opens as the server will open it
+ * (`nextInningsOnDevice`). The end of a chase or a win by an innings
  * decides the match, so nothing opens after it.
  */
-function matchWithInningsEnded(prev: Match): Match {
+function matchWithInningsEnded(prev: Match, runs: number): Match {
+  const n = prev.current_innings ?? 1;
+  const next = nextInningsOnDevice(prev, n, runs);
+  // Its total kept, for what the next innings' end works out on the device.
   const innings = (prev.innings ?? []).map((i) =>
-    i.innings_number === prev.current_innings ? { ...i, is_completed: true } : i,
+    i.innings_number === n ? { ...i, is_completed: true, total_runs: runs } : i,
   );
-  if (isChaseInnings(prev.current_innings)) return { ...prev, innings };
-  const currentInn = prev.innings?.find(
-    (i) => i.innings_number === prev.current_innings,
-  );
-  const newInningsNum = (prev.current_innings ?? 1) + 1;
+  if (!next) return { ...prev, innings };
+  const newInningsNum = n + 1;
   return {
     ...prev,
     current_innings: newInningsNum,
@@ -276,14 +285,13 @@ function matchWithInningsEnded(prev: Match): Match {
         id: `local-inn-${newInningsNum}`,
         match_id: prev.id,
         innings_number: newInningsNum,
-        team_id:
-          currentInn?.team_id === prev.team1_id ? prev.team2_id : prev.team1_id,
+        team_id: next.teamId,
         total_runs: 0,
         total_wickets: 0,
         total_balls: 0,
         total_overs: 0,
         is_completed: false,
-        target_runs: currentInn ? (currentInn.total_runs ?? 0) + 1 : null,
+        target_runs: next.target,
         extras_total: 0,
         extras_byes: 0,
         extras_leg_byes: 0,
@@ -338,7 +346,7 @@ const SETTLED: Partial<DeliveryResult> = {
 type ReplayStep<A extends QueuedAction = QueuedAction> = (
   ctx: ReplayedContext,
   action: A,
-  match: Pick<Match, "innings"> | null,
+  match: DeviceInningsMatch | null,
 ) => ReplayedContext;
 
 /** Each queued action on the local context, as the offline engine shows it. */
@@ -377,7 +385,17 @@ const REPLAY_STEPS: {
   },
   retireBatter: (ctx, { payload }) => retireLocally(ctx, payload),
   awardPenalty: (ctx, { payload }, match) => penaltyLocally(ctx, payload, match),
-  endInnings: (ctx) => ({ ...endInningsLocally(ctx), ...SETTLED }),
+  endInnings: (ctx, _action, match) => ({
+    ...endInningsLocally(
+      ctx,
+      match
+        ? nextInningsOnDevice(match, ctx.currentInnings, ctx.totalRuns)
+        : isChaseInnings(null, ctx.currentInnings)
+          ? null
+          : { target: ctx.totalRuns + 1 },
+    ),
+    ...SETTLED,
+  }),
   startSuperOver: (ctx) => ({
     ...ctx,
     ...SETTLED,
@@ -406,7 +424,7 @@ const REPLAY_STEPS: {
 function replayOnDevice(
   start: LocalScoringContext,
   actions: readonly QueuedAction[],
-  match: Pick<Match, "innings"> | null,
+  match: DeviceInningsMatch | null,
 ): ReplayedContext {
   let ctx: ReplayedContext = start;
   for (const action of withoutUndone(actions)) {
@@ -1934,7 +1952,7 @@ export function useScoring(
         // Offline nothing finishes the match: the server decides the
         // result once the queue reaches it.
         toast.error(
-          isChaseInnings(currentCtx.currentInnings)
+          isChaseInnings(match, currentCtx.currentInnings)
             ? OFFLINE_MATCH_OVER
             : "The innings is over. End the innings to start the next one.",
         );
@@ -2214,11 +2232,15 @@ export function useScoring(
 
   /** An End innings undone on this device: its next innings goes again. */
   const reopenOnDevice = (inningsNumber: number) => {
+    // The sides swapped when the next innings opened (not after a chase or
+    // a win by an innings): back again.
+    const opened = (match?.innings ?? []).some(
+      (i) => i.innings_number === inningsNumber + 1,
+    );
     setMatch((prev) =>
       prev ? matchWithInningsReopened(prev, inningsNumber) : prev,
     );
-    // The sides swapped when it opened (not after a chase): back again.
-    if (isChaseInnings(inningsNumber)) return;
+    if (!opened) return;
     setBattingTeamPlayers(bowlingTeamPlayers);
     setBowlingTeamPlayers(battingTeamPlayers);
     playersRef.current = {
@@ -3098,13 +3120,23 @@ export function useScoring(
     const said = (text: string) =>
       unconfirmed ? `${END_NOT_CONFIRMED} ${text}` : text;
 
-    setMatch((prev) => (prev ? matchWithInningsEnded(prev) : prev));
+    const endedNumber = match?.current_innings ?? 1;
+    const runs =
+      localCtxRef.current?.totalRuns ??
+      match?.innings?.find((i) => i.innings_number === endedNumber)
+        ?.total_runs ??
+      0;
+    const next = match
+      ? nextInningsOnDevice(match, endedNumber, runs)
+      : null;
+    setMatch((prev) => (prev ? matchWithInningsEnded(prev, runs) : prev));
     setStrikerId(null);
     setNonStrikerId(null);
     setCurrentBowlerId(null);
-    // The end of a chase decides the match: no next innings to open here,
-    // the server settles the result once it gets the queue.
-    if (isChaseInnings(match?.current_innings)) {
+    // The end of a chase (or a win by an innings) decides the match: no
+    // next innings to open here, the server settles the result once it gets
+    // the queue.
+    if (!next) {
       toast.info(said(OFFLINE_MATCH_OVER));
       setIsProcessing(false);
       return { data: null, error: null };
@@ -3121,7 +3153,7 @@ export function useScoring(
     };
 
     if (localCtxRef.current) {
-      localCtxRef.current = endInningsLocally(localCtxRef.current);
+      localCtxRef.current = endInningsLocally(localCtxRef.current, next);
     }
 
     toast.info(
@@ -3134,13 +3166,17 @@ export function useScoring(
     return { data: null, error: null };
   };
 
-  const handleEndInnings = async () => {
+  /** `declared`: a two-innings match's batting side declared (Law 15). */
+  const handleEndInnings = async (declared = false) => {
     clearUndone();
     setIsProcessing(true);
     // The innings meant: once the server has ended it (the last ball did,
     // before a queued End innings arrived), this End innings does nothing.
     const inningsNumber = match?.current_innings;
-    const payload = inningsNumber ? { inningsNumber } : {};
+    const payload = {
+      ...(inningsNumber ? { inningsNumber } : {}),
+      ...(declared ? { declared: true } : {}),
+    };
 
     if (isOfflineNow() || !(await drainQueue())) {
       enqueueAction(matchId, "endInnings", payload);
@@ -3162,6 +3198,52 @@ export function useScoring(
     setIsProcessing(false);
     return { data: null, error: res.error };
   };
+
+  /**
+   * A two-innings match's follow-on or draw: sent at once, online only (the
+   * device cannot work out what either leads to), then the screen shows
+   * what the server committed. Refused offline with a note to try again.
+   */
+  const sendTwoInningsAction = async (
+    type: "setFollowOn" | "drawMatch",
+    payload: { enforce: boolean } | Record<string, never>,
+  ): Promise<{ error: string | null }> => {
+    clearUndone();
+    const offlineNote =
+      "This needs a connection: try again once you're back online.";
+    if (isOfflineNow()) {
+      toast.error(offlineNote);
+      return { error: offlineNote };
+    }
+    setIsProcessing(true);
+    try {
+      if (!(await drainQueue())) {
+        const note = "Earlier actions are still being saved: try again in a moment.";
+        toast.error(note);
+        return { error: note };
+      }
+      const res = await sendNow(type, payload as QueuedAction["payload"]);
+      if (res.offline) {
+        toast.error(offlineNote);
+        return { error: offlineNote };
+      }
+      if (res.error) {
+        toast.error(res.error);
+        return { error: res.error };
+      }
+      await confirmChange(null);
+      return { error: null };
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  /** The follow-on: `enforce` makes the side that batted second bat again. */
+  const handleSetFollowOn = (enforce: boolean) =>
+    sendTwoInningsAction("setFollowOn", { enforce });
+
+  /** A two-innings match ended as a draw (time ran out). */
+  const handleDrawMatch = () => sendTwoInningsAction("drawMatch", {});
 
   /**
    * Discard the action at the head of the queue, which the server refused
@@ -3262,6 +3344,8 @@ export function useScoring(
     handleConfirmBowler,
     handleAddPlayerInline,
     handleEndInnings,
+    handleSetFollowOn,
+    handleDrawMatch,
     setLastBalls,
   };
 }

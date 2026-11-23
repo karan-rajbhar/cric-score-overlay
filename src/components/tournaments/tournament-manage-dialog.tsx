@@ -39,6 +39,7 @@ import { NETWORK_ERROR_MESSAGE } from "~/lib/network-error";
 import {
   FORMAT_PRESETS,
   formatForOvers,
+  TEST_DAYS_DEFAULT,
 } from "~/app/matches/create/match-setup";
 
 const STATUSES = [
@@ -63,6 +64,7 @@ export interface TournamentManageData {
   tournament_format?: string | null;
   match_format?: string | null;
   overs_per_innings?: number | null;
+  match_days?: number | null;
   wickets_per_innings?: number | null;
   status?: string | null;
   venue?: string | null;
@@ -104,6 +106,9 @@ export function TournamentManageDialog({
     tournament.match_format ?? "T20",
   );
   const [overs, setOvers] = useState(String(oversOf(tournament)));
+  const [matchDays, setMatchDays] = useState(
+    String(tournament.match_days ?? TEST_DAYS_DEFAULT),
+  );
   const [wickets, setWickets] = useState(
     String(tournament.wickets_per_innings ?? 10),
   );
@@ -126,6 +131,7 @@ export function TournamentManageDialog({
       setTournamentFormat(tournament.tournament_format ?? "league");
       setMatchFormat(tournament.match_format ?? "T20");
       setOvers(String(oversOf(tournament)));
+      setMatchDays(String(tournament.match_days ?? TEST_DAYS_DEFAULT));
       setWickets(String(tournament.wickets_per_innings ?? 10));
       setStatus(tournament.status ?? "upcoming");
       setVenue(tournament.venue ?? "");
@@ -150,7 +156,9 @@ export function TournamentManageDialog({
     formData.set("description", description.trim());
     formData.set("tournament_format", tournamentFormat);
     formData.set("match_format", matchFormat);
-    formData.set("overs_per_innings", overs);
+    // A Test has days, not overs.
+    if (matchFormat === "Test") formData.set("match_days", matchDays);
+    else formData.set("overs_per_innings", overs);
     formData.set("wickets_per_innings", wickets);
     formData.set("status", status);
     formData.set("venue", venue.trim());
@@ -327,6 +335,25 @@ export function TournamentManageDialog({
               </div>
 
               <div className="grid grid-cols-2 gap-3">
+                {matchFormat === "Test" ? (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="tourn-days" className="text-xs font-semibold">
+                      Days per match
+                    </Label>
+                    <Select value={matchDays} onValueChange={setMatchDays}>
+                      <SelectTrigger id="tourn-days">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[1, 2, 3, 4, 5].map((d) => (
+                          <SelectItem key={d} value={String(d)}>
+                            {d} {d === 1 ? "day" : "days"}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : (
                 <div className="space-y-1.5">
                   <Label htmlFor="tourn-overs" className="text-xs font-semibold">
                     Overs per innings
@@ -348,6 +375,7 @@ export function TournamentManageDialog({
                     className="tabular-nums"
                   />
                 </div>
+                )}
 
                 <div className="space-y-1.5">
                   <Label htmlFor="tourn-wickets" className="text-xs font-semibold">

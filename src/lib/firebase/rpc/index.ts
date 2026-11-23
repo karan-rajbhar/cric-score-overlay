@@ -37,6 +37,7 @@ import {
 import {
   awardPenaltyRuns,
   correctOverBowler,
+  drawMatch,
   endInnings,
   reassignOverBowler,
   replaceBatter,
@@ -46,6 +47,7 @@ import {
   retireBatter,
   setCurrentBatsmen,
   setCurrentBowler,
+  setFollowOn,
   startSuperOver,
   swapBatters,
   undoLastBall,
@@ -157,6 +159,15 @@ export async function callRpc(
         scoring,
         str(args, "p_match_id"),
         optNum(args, "p_innings_number"),
+        args.p_declared === true,
+      );
+    case "draw_match":
+      return drawMatch(scoring, str(args, "p_match_id"));
+    case "set_follow_on":
+      return setFollowOn(
+        scoring,
+        str(args, "p_match_id"),
+        args.p_enforce === true,
       );
     case "start_super_over":
       return startSuperOver(scoring, str(args, "p_match_id"));

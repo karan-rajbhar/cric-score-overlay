@@ -154,11 +154,14 @@ export function MatchStats({ match }: MatchStatsProps) {
             const table = tables[ii]?.table ?? [];
             const best = bestOver(table);
             const last5 = lastNOvers(table, 5);
-            const phases = phaseSplits(
-              inningsBalls(innings, ballLog),
-              match.overs_per_innings,
-              innings,
-            );
+            // No phases without an overs limit (a Test).
+            const phases = match.overs_per_innings
+              ? phaseSplits(
+                  inningsBalls(innings, ballLog),
+                  match.overs_per_innings,
+                  innings,
+                )
+              : null;
             return (
               <Disclosure
                 key={innings.id}
@@ -209,6 +212,7 @@ export function MatchStats({ match }: MatchStatsProps) {
                       </span>
                     </div>
                   </div>
+                  {phases && (
                   <div className="space-y-2 border-t border-border/50 pt-3">
                     <span className="text-xs font-medium text-muted-foreground block">
                       Phase analysis
@@ -239,6 +243,7 @@ export function MatchStats({ match }: MatchStatsProps) {
                       );
                     })}
                   </div>
+                  )}
                 </div>
               </Disclosure>
             );

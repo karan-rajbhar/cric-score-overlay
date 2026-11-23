@@ -4,7 +4,7 @@
  *
  * Supports all scoring actions (recordBall, setBatsmen, setBowler, endInnings, undoLastBall,
  * startSuperOver, retireBatter, awardPenalty, reassignOverBowler, updateBall, swapBatters,
- * correctOverBowler) and ensures
+ * correctOverBowler, setFollowOn, drawMatch) and ensures
  * strict sequential replay on reconnect to preserve cricket delivery order.
  *
  * The queue replays through `POST /api/scoring/replay` (a stable, versioned route; see
@@ -63,7 +63,9 @@ export type QueuedActionType =
   | "replaceBatter"
   | "updateBall"
   | "swapBatters"
-  | "correctOverBowler";
+  | "correctOverBowler"
+  | "setFollowOn"
+  | "drawMatch";
 
 export interface QueuedActionBase {
   queueId: string;
@@ -107,8 +109,9 @@ export interface QueuedEndInnings extends QueuedActionBase {
    * `inningsNumber`: the innings the scorer ended. Once that innings has
    * ended (the last ball closed it) the server does nothing, so a queued
    * End innings never ends the next one. Absent in older queues.
+   * `declared`: a two-innings match's batting side declared (Law 15).
    */
-  payload: { inningsNumber?: number };
+  payload: { inningsNumber?: number; declared?: boolean };
 }
 
 export interface QueuedUndoLastBall extends QueuedActionBase {
@@ -212,6 +215,18 @@ export interface QueuedCorrectOverBowler extends QueuedActionBase {
   payload: CorrectOverBowlerPayload;
 }
 
+/** The follow-on decided (two-innings matches, before the third innings). */
+export interface QueuedSetFollowOn extends QueuedActionBase {
+  type: "setFollowOn";
+  payload: { enforce: boolean };
+}
+
+/** A two-innings match ended as a draw. */
+export interface QueuedDrawMatch extends QueuedActionBase {
+  type: "drawMatch";
+  payload: Record<string, never>;
+}
+
 export type QueuedAction =
   | QueuedRecordBall
   | QueuedSetBatsmen
@@ -225,7 +240,9 @@ export type QueuedAction =
   | QueuedReplaceBatter
   | QueuedUpdateBall
   | QueuedSwapBatters
-  | QueuedCorrectOverBowler;
+  | QueuedCorrectOverBowler
+  | QueuedSetFollowOn
+  | QueuedDrawMatch;
 
 // ---------------------------------------------------------------------------
 // Storage helpers

@@ -2,7 +2,13 @@
 
 import { ScreenBar } from "~/components/ds/screen";
 import { SignInRequired } from "~/components/ui/sign-in-required";
-import { useId, useMemo, useState, Suspense } from "react";
+import {
+  useId,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+  Suspense,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, ChevronDown, Loader2, RotateCcw } from "lucide-react";
@@ -45,10 +51,12 @@ import {
   saveSetup,
   setupBlocker,
   teamGroups,
+  TEST_DAYS_DEFAULT,
   tournamentRules,
   type SetupTeam,
   type TournamentRulesSource,
 } from "./match-setup";
+import { followOnLeadFor, MATCH_DAYS } from "~/lib/multi-innings";
 import { TeamPicker, type CreateTeamResult } from "./team-picker";
 import { QuickPlayers } from "./quick-players";
 
@@ -99,6 +107,11 @@ function MatchSetupForm({ userId }: { userId: string }) {
     stored.matchFormat,
   );
   const [overs, setOvers] = useState(String(stored.oversPerInnings));
+  // Custom matches may give each side two innings; a Test always does.
+  const [customInnings, setCustomInnings] = useState<1 | 2>(
+    stored.inningsPerSide,
+  );
+  const [days, setDays] = useState(stored.days);
   const [wickets, setWickets] = useState(String(stored.wicketsPerInnings));
   const [ballsPerOver, setBallsPerOver] = useState(String(stored.ballsPerOver));
   const [wideCountsAsBallFaced, setWideCountsAsBallFaced] = useState(
@@ -192,7 +205,10 @@ function MatchSetupForm({ userId }: { userId: string }) {
   /** The tournament's own format, overs and wickets, where it sets them. */
   const applyTournamentRules = (t: TournamentOption) => {
     const rules = tournamentRules(t);
-    if (rules.format && rules.overs) {
+    if (rules.format === "Test") {
+      setMatchFormat("Test");
+      if (rules.days) setDays(rules.days);
+    } else if (rules.format && rules.overs) {
       setMatchFormat(rules.format);
       setOvers(String(rules.overs));
     }
@@ -308,7 +324,14 @@ function MatchSetupForm({ userId }: { userId: string }) {
   const clubSide: ClubSide =
     sideChoice?.key === sideKey ? sideChoice.side : guessedSide;
 
+  // A Test: two innings a side, no overs limit; Custom may have two too.
+  const isTest = matchFormat === "Test";
+  const inningsPerSide: 1 | 2 =
+    isTest ? 2 : matchFormat === "Custom" ? customInnings : 1;
+  const twoInnings = inningsPerSide === 2;
   const oversNum = Number(overs);
+  /** Null: no overs limit (a Test). */
+  const oversLimit = isTest ? null : oversNum;
   const wicketsNum = Number(wickets);
   const ballsNum = Number(ballsPerOver);
   const teamsLoading = wizardLoading && teams.length === 0;
@@ -323,7 +346,9 @@ function MatchSetupForm({ userId }: { userId: string }) {
         {
           team1Id: effectiveTeam1,
           team2Id,
-          oversPerInnings: oversNum,
+          oversPerInnings: oversLimit,
+          inningsPerSide,
+          days,
           wicketsPerInnings: wicketsNum,
           ballsPerOver: ballsNum,
           when,
@@ -345,12 +370,17 @@ function MatchSetupForm({ userId }: { userId: string }) {
     setMatchFormat(format);
     const preset = FORMAT_PRESETS.find((p) => p.format === format);
     if (preset?.overs) setOvers(String(preset.overs));
+    // A Test is played over days: five unless chosen before.
+    if (format === "Test" && !twoInnings) setDays(TEST_DAYS_DEFAULT);
   };
 
   const changeOvers = (value: string) => {
     setOvers(value);
     const n = Number(value);
-    if (Number.isInteger(n) && n > 0) setMatchFormat(formatForOvers(n));
+    // A two-innings Custom match keeps its name whatever its overs.
+    if (Number.isInteger(n) && n > 0 && !twoInnings) {
+      setMatchFormat(formatForOvers(n));
+    }
   };
 
   const pickTeam = (side: 1 | 2, id: string) => {
@@ -399,7 +429,9 @@ function MatchSetupForm({ userId }: { userId: string }) {
       result = await createMatch({
         title: title.trim() || defaultTitle(team1, team2),
         matchFormat,
-        oversPerInnings: oversNum,
+        oversPerInnings: oversLimit,
+        inningsPerSide,
+        ...(twoInnings ? { days } : {}),
         wicketsPerInnings: wicketsNum,
         ballsPerOver: ballsNum,
         wideCountsAsBallFaced,
@@ -431,7 +463,10 @@ function MatchSetupForm({ userId }: { userId: string }) {
     saveSetup(
       {
         matchFormat,
-        oversPerInnings: oversNum,
+        // A Test sends no overs: keep the last figure for the next match.
+        oversPerInnings: isTest ? stored.oversPerInnings : oversNum,
+        inningsPerSide: customInnings,
+        days,
         wicketsPerInnings: wicketsNum,
         ballsPerOver: ballsNum,
         wideCountsAsBallFaced,
@@ -605,16 +640,42 @@ function MatchSetupForm({ userId }: { userId: string }) {
                 </button>
               ))}
             </div>
-            <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
-              <NumberField
-                id={ids.overs}
-                label="Overs per side"
-                field="overs"
-                value={overs}
-                onChange={changeOvers}
+            {matchFormat === "Custom" && (
+              <SegmentedChoice
+                label="Innings per side"
+                value={customInnings}
+                options={[
+                  [1, "One"],
+                  [2, "Two"],
+                ]}
+                onChange={setCustomInnings}
               />
+            )}
+            {twoInnings && (
+              <SegmentedChoice
+                label="Days"
+                value={days}
+                options={Array.from(
+                  { length: MATCH_DAYS.max - MATCH_DAYS.min + 1 },
+                  (_, i) => [MATCH_DAYS.min + i, String(MATCH_DAYS.min + i)] as const,
+                )}
+                onChange={setDays}
+              />
+            )}
+            <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
+              {!isTest && (
+                <NumberField
+                  id={ids.overs}
+                  label={twoInnings ? "Overs per innings" : "Overs per side"}
+                  field={twoInnings ? "inningsOvers" : "overs"}
+                  value={overs}
+                  onChange={changeOvers}
+                />
+              )}
               <p className="pb-2 text-sm text-muted-foreground">
-                {rulesSummary}
+                {twoInnings
+                  ? `Two innings a side${isTest ? ", no overs limit" : ""} · follow-on at ${followOnLeadFor(days)} · ${rulesSummary}`
+                  : rulesSummary}
                 <span className="sr-only">. Change these under more options.</span>
               </p>
             </div>
@@ -867,6 +928,46 @@ function MatchSetupForm({ userId }: { userId: string }) {
   );
 }
 
+/** A labelled row of choices (a radio group), as the format's. */
+function SegmentedChoice<T extends number>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: T;
+  options: readonly (readonly [T, string])[];
+  onChange: (value: T) => void;
+}) {
+  const id = useId();
+  return (
+    <div className="space-y-1.5">
+      <p id={id} className="text-sm font-medium">
+        {label}
+      </p>
+      <div
+        role="radiogroup"
+        aria-labelledby={id}
+        className={cn(segmentedTrack, "sm:flex sm:w-full")}
+      >
+        {options.map(([v, text]) => (
+          <button
+            key={v}
+            type="button"
+            role="radio"
+            aria-checked={value === v}
+            onClick={() => onChange(v)}
+            className={segmentedItem(value === v, "min-h-11 sm:min-h-10 sm:flex-1")}
+          >
+            {text}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /** Number input with its range error shown as soon as it is out of range. */
 function NumberField({
   id,
@@ -906,9 +1007,20 @@ function NumberField({
   );
 }
 
+/** Never changes: the form only asks whether it runs in the browser. */
+const subscribeNever = () => () => {};
+
 function CreateMatchGate() {
   const { user, loading } = useAuth();
-  if (loading) {
+  // The form reads the last setup from localStorage as it mounts, so it is
+  // drawn in the browser only: a signed-in visitor's page is rendered on the
+  // server too, which knows no last setup (a Test there would not match).
+  const inBrowser = useSyncExternalStore(
+    subscribeNever,
+    () => true,
+    () => false,
+  );
+  if (loading || (user && !inBrowser)) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center" role="status">
         <Loader2 className="h-8 w-8 shrink-0 animate-spin text-primary" aria-hidden="true" />

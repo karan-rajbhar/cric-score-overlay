@@ -30,6 +30,8 @@ vi.mock("~/app/matches/mutations", () => ({
   undoLastBall: vi.fn(),
   endInnings: vi.fn(),
   startSuperOver: vi.fn(),
+  setFollowOn: vi.fn(),
+  drawMatch: vi.fn(),
   setCurrentBatsmen: vi.fn(),
   setCurrentBowler: vi.fn(),
   retirePlayer: vi.fn(),
@@ -122,6 +124,14 @@ describe("POST /api/scoring/replay", () => {
       error: null,
     });
     vi.mocked(mutations.startSuperOver).mockResolvedValue({
+      data: null,
+      error: null,
+    });
+    vi.mocked(mutations.setFollowOn).mockResolvedValue({
+      data: null,
+      error: null,
+    });
+    vi.mocked(mutations.drawMatch).mockResolvedValue({
       data: null,
       error: null,
     });
@@ -257,6 +267,13 @@ describe("POST /api/scoring/replay", () => {
       },
       { id: "9", type: "endInnings", payload: { inningsNumber: 1 } },
       { id: "10", type: "startSuperOver", payload: {} },
+      {
+        id: "11",
+        type: "endInnings",
+        payload: { inningsNumber: 2, declared: true },
+      },
+      { id: "12", type: "setFollowOn", payload: { enforce: true } },
+      { id: "13", type: "drawMatch", payload: {} },
     ];
     const res = await POST(request(batch(actions)));
     expect(res.status).toBe(200);
@@ -310,8 +327,12 @@ describe("POST /api/scoring/replay", () => {
         clientActionId: "8",
       }),
     );
-    expect(mutations.endInnings).toHaveBeenCalledWith(M, "9", 1);
+    expect(mutations.endInnings).toHaveBeenCalledWith(M, "9", 1, false);
     expect(mutations.startSuperOver).toHaveBeenCalledWith(M, "10");
+    // A two-innings match's declaration, follow-on and draw.
+    expect(mutations.endInnings).toHaveBeenCalledWith(M, "11", 2, true);
+    expect(mutations.setFollowOn).toHaveBeenCalledWith(M, true, "12");
+    expect(mutations.drawMatch).toHaveBeenCalledWith(M, "13");
     const callOrder = allMutations()
       .flatMap((fn) => fn.mock.invocationCallOrder.map((n) => [n, fn] as const))
       .sort((a, b) => a[0] - b[0])
@@ -327,6 +348,9 @@ describe("POST /api/scoring/replay", () => {
       mutations.updateBall,
       mutations.endInnings,
       mutations.startSuperOver,
+      mutations.endInnings,
+      mutations.setFollowOn,
+      mutations.drawMatch,
     ]);
   });
 
@@ -547,7 +571,7 @@ describe("POST /api/scoring/replay", () => {
       { id: "x2", status: "applied" },
       { id: "x3", status: "applied" },
     ]);
-    expect(mutations.endInnings).toHaveBeenCalledWith(M, "x3", null);
+    expect(mutations.endInnings).toHaveBeenCalledWith(M, "x3", null, false);
     const event = vi.mocked(mutations.recordBall).mock.calls[0]![0].event;
     expect(event).toMatchObject({
       runsScored: 0,

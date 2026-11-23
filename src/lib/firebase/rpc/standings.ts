@@ -112,11 +112,13 @@ export async function recalculateTournamentStandings(
         m.result_type === "win",
     ).length;
     const ties = played.filter((m) => m.result_type === "tie").length;
+    // A drawn two-innings match shares the points, as a tie does.
+    const draws = played.filter((m) => m.result_type === "draw").length;
     const noResults = played.filter(
       (m) => m.result_type === "no_result" || m.result_type === "abandoned",
     ).length;
 
-    const basePoints = wins * 2 + ties + noResults;
+    const basePoints = wins * 2 + ties + draws + noResults;
     const finalPoints = basePoints + adjustment;
 
     let runsScored = 0;
@@ -151,6 +153,8 @@ export async function recalculateTournamentStandings(
       losses,
       ties,
       no_results: noResults,
+      // Only where a match was drawn, so other tables' rows stay as they were.
+      ...(draws || existing?.draws ? { draws } : {}),
       points: finalPoints,
       points_adjustment: adjustment,
       adjustment_reason: existing?.adjustment_reason ?? null,

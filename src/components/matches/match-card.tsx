@@ -48,9 +48,12 @@ function playedAt(iso: string | null | undefined, zone?: string): string {
   return day && time ? `${day}, ${time}` : day;
 }
 
-/** "158 for 9 (20.0 overs)": a score as it is read aloud. */
+/**
+ * "158 for 9 (20.0 overs)": a score as it is read aloud; a Test's side
+ * with its first innings: "245 and 180 for 4 (52.3 overs)".
+ */
 const spokenScore = (inn: InningsRef) =>
-  `${inn.runs} for ${inn.wickets} (${inn.overs} overs)`;
+  `${inn.earlier ? `${inn.earlier.replace(/&/g, "and")} and ` : ""}${inn.runs} for ${inn.wickets}${inn.declared ? " declared" : ""} (${inn.overs} overs)`;
 
 /**
  * What a screen reader hears for a card, which replaces what it shows: the
@@ -154,7 +157,7 @@ export function MatchCard({
     winnerId ? teamId !== winnerId : !!batting && batting.team.id !== teamId;
   const side = (s: (typeof sides)[number]) => ({
     team: teamRef(s.team),
-    innings: s.innings ? ref(s.innings, bpo) : undefined,
+    innings: s.innings ? ref(s.innings, bpo, s.earlier) : undefined,
     dim: dim(s.team.id),
   });
 

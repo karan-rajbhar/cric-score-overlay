@@ -41,6 +41,7 @@ export interface WizardTournament {
   overs_per_innings?: number | null;
   wickets_per_innings?: number | null;
   custom_overs?: number | null;
+  match_days?: number | null;
   created_by?: string | null;
   club_id?: string | null;
 }
@@ -68,7 +69,7 @@ interface WizardClient {
 const TEAM_COLUMNS =
   "id, name, short_name, club_id, created_by, captain_id, vice_captain_id, roster";
 const TOURNAMENT_COLUMNS =
-  "id, name, match_format, overs_per_innings, wickets_per_innings, custom_overs, created_by, club_id, created_at";
+  "id, name, match_format, overs_per_innings, wickets_per_innings, custom_overs, match_days, created_by, club_id, created_at";
 const CLUB_COLUMNS = "id, name, short_name, owner_id";
 
 type Row = Record<string, unknown> & { id: string };

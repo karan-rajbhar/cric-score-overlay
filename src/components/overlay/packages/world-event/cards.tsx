@@ -188,7 +188,7 @@ export function WorldEventScorecard(p: OverlayElementProps["scorecard"]) {
     <CardFrame
       state={p.state}
       testId="we-scorecard"
-      eyebrow={eyebrow(p.state, inningsLabel(p.innings.innings_number))}
+      eyebrow={eyebrow(p.state, inningsLabel(p.innings.innings_number, p.state))}
       crest={<Crest n={team.n} logo={team.logo} code={team.code} name={team.name} size={76} className="we-a-pop" style={delay(200)} />}
       title={<InningsHeader team={team} other={other} label="batting" />}
       width={p.full ? 1728 : 1440}
@@ -229,7 +229,7 @@ export function WorldEventBowlingCard(p: OverlayElementProps["bowlingCard"]) {
     <CardFrame
       state={p.state}
       testId="we-bowling-card"
-      eyebrow={eyebrow(p.state, inningsLabel(p.innings.innings_number))}
+      eyebrow={eyebrow(p.state, inningsLabel(p.innings.innings_number, p.state))}
       crest={<Crest n={team.n} logo={team.logo} code={team.code} name={team.name} size={76} className="we-a-pop" style={delay(200)} />}
       title={<InningsHeader team={team} other={batting} label="bowling" />}
       width={1240}
@@ -259,7 +259,7 @@ export function WorldEventFallOfWickets(p: OverlayElementProps["fallOfWickets"])
     <CardFrame
       state={p.state}
       testId="we-fow"
-      eyebrow={eyebrow(p.state, inningsLabel(p.innings.innings_number))}
+      eyebrow={eyebrow(p.state, inningsLabel(p.innings.innings_number, p.state))}
       crest={<Crest n={team.n} logo={team.logo} code={team.code} name={team.name} size={76} className="we-a-pop" style={delay(200)} />}
       title={<span className="we-trunc">Fall of wickets</span>}
       aside={

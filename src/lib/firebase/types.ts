@@ -272,6 +272,8 @@ export interface TournamentsRow {
   match_format: string | null;
   custom_overs: number | null;
   overs_per_innings: number | null;
+  /** Days of each match when the format is Test (1 to 5). */
+  match_days?: number | null;
   start_date: string | null;
   end_date: string | null;
   registration_deadline: string | null;
@@ -318,6 +320,8 @@ export interface TournamentStandingsRow {
   wins: number | null;
   losses: number | null;
   ties: number | null;
+  /** Drawn two-innings matches; absent where none was drawn. */
+  draws?: number | null;
   no_results: number | null;
   points: number | null;
   points_adjustment: number | null;
@@ -379,6 +383,26 @@ export interface MatchesRow {
   result_description: string | null;
   /** The chase target revised by DLS, if any (cleared by a manual target). */
   dls_revision?: DlsRevision | null;
+  /**
+   * Innings each side may bat: 2 in a Test or another two-innings match
+   * (`~/lib/multi-innings`), whose third and fourth innings are real
+   * innings, not super overs. Null or absent: 1 (every older match).
+   */
+  innings_per_side?: number | null;
+  /**
+   * Days a two-innings match is scheduled for (1 to 5): the follow-on lead
+   * it needs follows them (Law 14.1.1). Null in a limited-overs match.
+   */
+  days?: number | null;
+  /** The day of play a two-innings match is on (absent: 1). */
+  current_day?: number | null;
+  /**
+   * A break in a two-innings match's play: lunch, tea, or the end of the
+   * day's play (stumps). Null or absent: play is on, or about to be.
+   */
+  play_break?: PlayBreak | null;
+  /** The score at each close of play, in day order (two-innings matches). */
+  close_of_play?: CloseOfPlay[] | null;
   umpire1_name: string | null;
   umpire2_name: string | null;
   third_umpire_name: string | null;
@@ -469,7 +493,22 @@ export type InningsSummaryEntry = Pick<
   | "extras_total"
   | "is_completed"
   | "target_runs"
->;
+> &
+  // Only when true, so older summaries stay as they were.
+  Partial<Pick<InningsRow, "declared" | "follow_on">>;
+
+/** A break in a two-innings match's play. */
+export type PlayBreak = "lunch" | "tea" | "stumps";
+
+/** The score when a day's play ended ("Stumps, day 1: 245/6"). */
+export interface CloseOfPlay {
+  day: number;
+  innings_number: number;
+  team_id: string;
+  runs: number;
+  wickets: number;
+  balls: number;
+}
 
 export interface InningsRow {
   id: string;
@@ -489,6 +528,13 @@ export interface InningsRow {
   extras_bonuses: number | null;
   is_completed: boolean | null;
   target_runs: number | null;
+  /**
+   * Closed by a declaration (Law 15.1); with no ball bowled, a forfeit
+   * (Law 15.2). Absent: not declared.
+   */
+  declared?: boolean | null;
+  /** This side is following on (Law 14): a third innings only. */
+  follow_on?: boolean | null;
   created_at: string | null;
   updated_at: string | null;
   // Scorecard and caches (schema stage 2, see `scorecard.ts`).
@@ -810,6 +856,13 @@ export interface LiveMatchStateRow {
    * `target_runs`); absent when the innings has none.
    */
   dls_overs?: number | null;
+  /**
+   * A two-innings match (absent otherwise): 2, the day of play and any
+   * break in it (lunch, tea, stumps).
+   */
+  innings_per_side?: number | null;
+  day?: number | null;
+  play_break?: PlayBreak | null;
   // Overlay fields (optional: documents written before they existed).
   /** The next delivery is a free hit (`~/lib/free-hit`). */
   free_hit?: boolean | null;

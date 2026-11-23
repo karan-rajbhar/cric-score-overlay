@@ -40,6 +40,10 @@ export const ERROR_MESSAGES: Record<string, string> = {
   super_over_needs_tie:
     "A super over starts only after a tied match. It may have started already: reload to see the latest score.",
   no_open_innings: "No open innings found.",
+  draw_needs_two_innings:
+    "Only a two-innings match (a Test) can be drawn. End a limited-overs match early instead.",
+  follow_on_unavailable:
+    "The follow-on can be decided only before the third innings' first ball, when the side batting first leads by enough. Reload to see the latest score.",
   nothing_to_undo: "Nothing to undo.",
   innings_not_migrated:
     "This innings is still in the old storage format. Run the stage 2 migration, then retry.",

@@ -185,12 +185,12 @@ export default async function PlayerPage({
     new Set(teams.map((tp) => tp.team?.id).filter(Boolean)),
   ) as string[];
   const matchColumns = `
-        id, title, match_format, overs_per_innings, balls_per_over, status, venue, scheduled_at,
+        id, title, match_format, overs_per_innings, innings_per_side, days, current_day, play_break, balls_per_over, status, venue, scheduled_at,
         result_type, win_margin, win_margin_type, result_description, winning_team_id,
         tournament_id,
         tournament:tournaments(id, name),
         ${MATCH_TEAM_COLUMNS},
-        innings(id, team_id, innings_number, total_runs, total_wickets, total_balls, total_overs, is_completed)
+        innings(id, team_id, innings_number, total_runs, total_wickets, total_balls, total_overs, is_completed, declared, follow_on)
       `;
   const byMatchId = new Map<string, Record<string, unknown>>();
   const fixtureTeams = teamIds.slice(0, IN_LIMIT);

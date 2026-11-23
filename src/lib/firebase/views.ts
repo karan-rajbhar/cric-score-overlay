@@ -34,6 +34,7 @@ import {
   type OversRow,
 } from "./scorecard";
 import { inningsLimits, isSuperOverInnings } from "./scoring/result";
+import { isTwoInningsMatch } from "../multi-innings";
 import type { DocReader } from "./scoring/tx";
 import type {
   BallByBallRow,
@@ -201,6 +202,15 @@ function matchFields(parts: LiveStateParts) {
     team2_short_name: t2?.short_name ?? null,
     team2_logo_url: t2?.logo_url ?? null,
     winning_team_name: winner?.name ?? null,
+    // A Test's day and break; nothing for other matches, whose rows stay
+    // as they were.
+    ...(isTwoInningsMatch(match)
+      ? {
+          innings_per_side: 2,
+          day: match.current_day ?? 1,
+          play_break: match.play_break ?? null,
+        }
+      : {}),
   };
 }
 
@@ -358,7 +368,9 @@ function powerplayOf(
   parts: LiveStateParts,
   ci: InningsRow,
 ): LivePowerplay | null {
-  if (isSuperOverInnings(ci.innings_number) || ci.is_completed) return null;
+  if (isSuperOverInnings(parts.match, ci.innings_number) || ci.is_completed) {
+    return null;
+  }
   const maxOvers = parts.match.overs_per_innings;
   if (!maxOvers) return null;
   const bounds = phaseBoundaries(maxOvers);
@@ -376,9 +388,11 @@ function rateFields(parts: LiveStateParts, ci: InningsRow) {
   const totalRuns = ci.total_runs ?? 0;
   const chasing =
     ci.target_runs !== null && ci.target_runs !== undefined && !ci.is_completed;
-  const ballsRemaining = chasing
-    ? Math.max(limits.maxBalls - totalBalls, 0)
-    : null;
+  // No balls left to count without an overs limit (a Test's chase).
+  const ballsRemaining =
+    chasing && Number.isFinite(limits.maxBalls)
+      ? Math.max(limits.maxBalls - totalBalls, 0)
+      : null;
   const runsNeeded = chasing ? (ci.target_runs ?? 0) - totalRuns : null;
   return {
     current_run_rate:

@@ -30,7 +30,7 @@ const GRACE_MS = 3 * 60 * 60 * 1000;
 
 const COLUMNS = `
   *,
-  innings(id, team_id, innings_number, total_runs, total_wickets, total_overs, is_completed)
+  innings(id, team_id, innings_number, total_runs, total_wickets, total_overs, is_completed, declared, follow_on)
 `;
 
 type Row = Record<string, unknown> & { id: string };

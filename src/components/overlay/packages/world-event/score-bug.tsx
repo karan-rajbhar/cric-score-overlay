@@ -155,7 +155,10 @@ function PowerplayTab({ on }: { on: boolean }) {
 }
 
 function Overs({ state, bpo, size = 30 }: { state: LiveMatchState; bpo: number; size?: number }) {
-  const limit = (state.innings_number ?? 1) >= 3 ? 1 : (state.dls_overs ?? state.overs_per_innings);
+  const limit =
+    state.innings_per_side !== 2 && (state.innings_number ?? 1) >= 3
+      ? 1
+      : (state.dls_overs ?? state.overs_per_innings);
   return (
     <span className="flex shrink-0 items-baseline gap-1.5">
       <Fig value={oversText(state.total_balls, bpo)} className="we-fig" />

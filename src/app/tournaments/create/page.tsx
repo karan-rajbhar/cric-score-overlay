@@ -27,6 +27,7 @@ import {
   FORMAT_PRESETS,
   formatForOvers,
   LIMITS,
+  TEST_DAYS_DEFAULT,
 } from "~/app/matches/create/match-setup";
 import type { MatchFormat } from "~/app/matches/types";
 
@@ -46,6 +47,8 @@ function CreateTournamentForm() {
   const [selectedClubId, setSelectedClubId] = useState<string>(prefilledClubId);
   const [matchFormat, setMatchFormat] = useState<MatchFormat>("T20");
   const [overs, setOvers] = useState("20");
+  const [matchDays, setMatchDays] = useState(String(TEST_DAYS_DEFAULT));
+  const isTest = matchFormat === "Test";
 
   const pickFormat = (format: MatchFormat) => {
     setMatchFormat(format);
@@ -68,7 +71,9 @@ function CreateTournamentForm() {
       found.name = "Enter the tournament's name.";
     }
     const n = Number(overs);
+    // A Test has no overs limit: its days are a choice from a list.
     if (
+      !isTest &&
       !(Number.isInteger(n) && n >= LIMITS.overs.min && n <= LIMITS.overs.max)
     ) {
       found.overs = `Enter a number from ${LIMITS.overs.min} to ${LIMITS.overs.max}.`;
@@ -215,25 +220,55 @@ function CreateTournamentForm() {
             </Field>
           </div>
 
-          <Field
-            label="Overs per side"
-            error={errors.overs}
-            hint="New matches in the tournament start with these overs."
-          >
-            {(p) => (
-              <Input
-                {...p}
-                name="overs_per_innings"
-                type="number"
-                inputMode="numeric"
-                min={LIMITS.overs.min}
-                max={LIMITS.overs.max}
-                value={overs}
-                onChange={(e) => changeOvers(e.target.value)}
-                className="w-28 tabular-nums"
-              />
-            )}
-          </Field>
+          {isTest ? (
+            <Field
+              label="Days per match"
+              hint="Two innings a side with no overs limit. The days set the follow-on lead."
+            >
+              {(p) => (
+                <Select
+                  name="match_days"
+                  value={matchDays}
+                  onValueChange={setMatchDays}
+                >
+                  <SelectTrigger
+                    id={p.id}
+                    aria-describedby={p["aria-describedby"]}
+                    className="w-40"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[1, 2, 3, 4, 5].map((d) => (
+                      <SelectItem key={d} value={String(d)}>
+                        {d} {d === 1 ? "day" : "days"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </Field>
+          ) : (
+            <Field
+              label="Overs per side"
+              error={errors.overs}
+              hint="New matches in the tournament start with these overs."
+            >
+              {(p) => (
+                <Input
+                  {...p}
+                  name="overs_per_innings"
+                  type="number"
+                  inputMode="numeric"
+                  min={LIMITS.overs.min}
+                  max={LIMITS.overs.max}
+                  value={overs}
+                  onChange={(e) => changeOvers(e.target.value)}
+                  className="w-28 tabular-nums"
+                />
+              )}
+            </Field>
+          )}
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Start date" optional>

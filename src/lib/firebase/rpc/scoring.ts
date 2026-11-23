@@ -119,9 +119,17 @@ import {
 } from "../scoring/recompute";
 import {
   advanceAfterInnings,
+  expectedTarget,
   inningsLimits,
+  isDecidingInnings,
+  isSuperOverInnings,
   type AdvanceOutput,
 } from "../scoring/result";
+import {
+  followOnOf,
+  isTwoInningsMatch,
+  type FollowOnOption,
+} from "../../multi-innings";
 import { sameRow } from "../scoring/rows";
 import { syncMatchRecords } from "../stats-sync";
 import {
@@ -633,9 +641,10 @@ async function carriedPenaltyBalls(
  */
 async function chaseSquadSizeOf(
   t: ScoringTx,
+  match: MatchesRow,
   completed: InningsRow,
 ): Promise<number | null> {
-  if (completed.innings_number % 2 !== 0) return null;
+  if (!isDecidingInnings(match, completed.innings_number)) return null;
   return (
     (await t.doc<TeamsRow>("teams", completed.team_id))?.roster?.length ?? null
   );
@@ -650,7 +659,7 @@ async function applyAdvance(
   now: string,
   completedBalls?: readonly BallByBallRow[],
 ): Promise<AppliedAdvance> {
-  const chaseSquadSize = await chaseSquadSizeOf(t, completed);
+  const chaseSquadSize = await chaseSquadSizeOf(t, match, completed);
   const out = advanceAfterInnings(
     { match, completed, allInnings, teamNames, now, chaseSquadSize },
     newId(),
@@ -811,7 +820,8 @@ async function closeInnings(
 /**
  * The chase `after` (a completed innings that sets one) sets, with its
  * target moved to the new total: null when the total did not change, or
- * the target no longer follows it (revised by DLS or by hand).
+ * the target no longer follows it (revised by DLS or by hand). In a
+ * two-innings match every earlier innings sets the fourth innings' target.
  */
 function movedChase(
   match: MatchesRow,
@@ -820,12 +830,28 @@ function movedChase(
   all: readonly WithId<InningsRow>[],
   now: string,
 ): WithId<InningsRow> | null {
-  if (after.innings_number % 2 !== 1) return null;
   if (after.total_runs === before.total_runs) return null;
-  const next = all.find((i) => i.innings_number === after.innings_number + 1);
-  if (!next || next.target_runs !== (before.total_runs ?? 0) + 1) return null;
+  const chaseNumber = chaseSetBy(match, after.innings_number);
+  if (chaseNumber === null) return null;
+  const next = all.find((i) => i.innings_number === chaseNumber);
+  if (!next) return null;
+  const stored = all.map((i) => (i.id === after.id ? before : i));
+  if (next.target_runs !== expectedTarget(match, stored, next)) return null;
   if (match.dls_revision?.innings_number === next.innings_number) return null;
-  return { ...next, target_runs: (after.total_runs ?? 0) + 1, updated_at: now };
+  const target = expectedTarget(match, all, next);
+  return { ...next, target_runs: target, updated_at: now };
+}
+
+/**
+ * The chase whose target innings `inningsNumber` sets: the next innings of
+ * a pair (a limited-overs match, a super over), or a two-innings match's
+ * fourth innings for any innings before it. Null when it sets none.
+ */
+function chaseSetBy(match: MatchesRow, inningsNumber: number): number | null {
+  if (isTwoInningsMatch(match) && !isSuperOverInnings(match, inningsNumber)) {
+    return inningsNumber < 4 ? 4 : null;
+  }
+  return inningsNumber % 2 === 1 ? inningsNumber + 1 : null;
 }
 
 /**
@@ -845,23 +871,29 @@ async function settleResult(
   const last = all.reduce((m, i) => (i.innings_number > m.innings_number ? i : m));
   const lastBefore = stored.find((i) => i.id === last.id);
   if (match.status !== "completed" || !last.is_completed) return all;
-  if (!lastBefore || !changed.includes(last.id)) return all;
+  // In a two-innings match every innings counts towards the result (a win
+  // by an innings is decided on all three).
+  const counts = changed.includes(last.id) || isTwoInningsMatch(match);
+  if (!lastBefore || !counts) return all;
   if (inningsComplete(match, lastBefore) && !inningsComplete(match, last)) {
     t.patch("matches", match.id, reopenedMatchPatch(now));
     t.patch("innings", last.id, { is_completed: false, updated_at: now });
     return replaceInnings(all, [{ ...last, is_completed: false }]);
   }
-  const { matchPatch } = advanceAfterInnings(
+  const { matchPatch, nextInnings } = advanceAfterInnings(
     {
       match,
       completed: last,
       allInnings: all,
       teamNames: await teamNamesOf(t, match),
       now,
-      chaseSquadSize: await chaseSquadSizeOf(t, last),
+      chaseSquadSize: await chaseSquadSizeOf(t, match, last),
     },
     newId(),
   );
+  if (nextInnings) {
+    return continueMatch(t, match, all, matchPatch, nextInnings, now);
+  }
   const result = (k: (typeof RESULT_FIELDS)[number]) => matchPatch[k] ?? null;
   if (RESULT_FIELDS.some((k) => result(k) !== (match[k] ?? null))) {
     const patch: Partial<MatchesRow> = { updated_at: now };
@@ -869,6 +901,30 @@ async function settleResult(
     t.patch("matches", match.id, patch);
   }
   return all;
+}
+
+/**
+ * A win by an innings an edit took away: the match goes on, as after an
+ * undo, with the innings that follows. Returns `all` with it.
+ */
+function continueMatch(
+  t: ScoringTx,
+  match: WithId<MatchesRow>,
+  all: WithId<InningsRow>[],
+  matchPatch: Partial<MatchesRow>,
+  next: InningsRow,
+  now: string,
+): WithId<InningsRow>[] {
+  t.patch("matches", match.id, { ...reopenedMatchPatch(now), ...matchPatch });
+  const opened = openNextInnings(
+    t,
+    match,
+    next,
+    [],
+    seqCounterOf(match, ...all) ?? 0,
+    now,
+  );
+  return replaceInnings(all, [opened.doc]);
 }
 
 async function requireAdmin(
@@ -1493,6 +1549,8 @@ async function undoInTransaction(
   // that innings so scoring can resume from it.
   if (crossingBoundary || target.is_completed) {
     out.inningsPatch.is_completed = false;
+    // Back in play: a declaration that closed it no longer stands.
+    if (target.declared) out.inningsPatch.declared = null;
   }
   // The innings holding the match's last ball is (or becomes) current, and
   // with it the holder of the seq counter.
@@ -1967,11 +2025,14 @@ function inLogOrder(
  * End innings arrived) or is not the current one, nothing is done and the
  * current state is returned, so a replayed End innings never ends the next
  * innings. Without it (actions queued by older clients), as before.
+ * `declared`: in a two-innings match, the batting side declared (Law 15;
+ * before a ball, a forfeit), which the scorecard marks; ignored otherwise.
  */
 export async function endInnings(
   ctx: ScoringContext,
   matchId: string,
   inningsNumber?: number | null,
+  declared = false,
 ): Promise<ScoringState> {
   await requireAdmin(ctx, matchId);
   const now = new Date().toISOString();
@@ -1990,14 +2051,163 @@ export async function endInnings(
     }
     if (!current || current.is_completed)
       throw new DbQueryError("no_open_innings", "22000");
+    const declares = declared && isTwoInningsMatch(match);
+    if (declares) t.patch("innings", current.id, { declared: true });
     await applyAdvance(
       t,
       match,
-      current,
+      declares ? { ...current, declared: true } : current,
       all,
       await teamNamesOf(t, match),
       now,
     );
+    return match;
+  });
+  if (!tracked) return recordState(ctx.ds, matchId);
+  const [before, overs] = tracked;
+
+  return finishWithState(ctx, matchId, before, overs);
+}
+
+// ---------------------------------------------------------------------------
+// draw_match
+// ---------------------------------------------------------------------------
+
+/**
+ * Ends a two-innings match as a draw (Law 16.3: not won or tied when time
+ * ran out). The innings in play closes where it stands, so its batters'
+ * and bowlers' figures join their records as any finished innings does; an
+ * innings opened but not started (no ball, no event) is dropped, as it was
+ * never played. Only a live two-innings match.
+ */
+export async function drawMatch(
+  ctx: ScoringContext,
+  matchId: string,
+): Promise<ScoringState> {
+  await requireAdmin(ctx, matchId);
+  const now = new Date().toISOString();
+
+  const tracked = await runOnce(ctx, async (t) => {
+    const match = await t.doc<MatchesRow>("matches", matchId);
+    if (!match) throw new DbQueryError("match_not_found", "22000");
+    const { all, current } = await currentInningsOf(t, match);
+    await guardClientAction(t, ctx, match, current);
+    if (!isTwoInningsMatch(match)) {
+      throw new DbQueryError("draw_needs_two_innings", "22000");
+    }
+    if (match.status !== "live") {
+      throw new DbQueryError("match_not_live", "22000");
+    }
+    const { innings, currentNumber } = closeForDraw(t, match, all, current, now);
+    t.patch("matches", matchId, {
+      status: "completed",
+      current_innings: currentNumber,
+      actual_end_time: now,
+      result_type: "draw",
+      winning_team_id: null,
+      win_margin_type: null,
+      win_margin: null,
+      result_description: "Match drawn",
+      play_break: null,
+      updated_at: now,
+    });
+    await syncMatchRecords(t, match.id, match, innings, now);
+    return match;
+  });
+  if (!tracked) return recordState(ctx.ds, matchId);
+  const [before, overs] = tracked;
+
+  return finishWithState(ctx, matchId, before, overs);
+}
+
+/**
+ * The third innings and the follow-on it can still take: it is the
+ * innings in play of a live match and has no ball yet. Refused otherwise.
+ */
+function followOnInPlay(
+  match: MatchesRow,
+  all: WithId<InningsRow>[],
+  current: WithId<InningsRow> | null,
+): { third: WithId<InningsRow>; option: FollowOnOption } {
+  const third = all.find((i) => i.innings_number === 3);
+  const started =
+    !!third && ((third.total_balls ?? 0) > 0 || !!third.last_ball);
+  const option = followOnOf(match, all, started);
+  const inPlay = match.status === "live" && !!third && current?.id === third.id;
+  if (!option || !third || !inPlay) {
+    throw new DbQueryError("follow_on_unavailable", "22000");
+  }
+  return { third, option };
+}
+
+/**
+ * The innings in play when a match is drawn: closed where it stands, or
+ * dropped when opened but not started (never the first). The innings as
+ * they will be stored, and the match's current innings after.
+ */
+function closeForDraw(
+  t: ScoringTx,
+  match: MatchesRow,
+  all: WithId<InningsRow>[],
+  current: WithId<InningsRow> | null,
+  now: string,
+): { innings: WithId<InningsRow>[]; currentNumber: number } {
+  if (!current || current.is_completed) {
+    return { innings: all, currentNumber: match.current_innings ?? 1 };
+  }
+  const untouched =
+    (current.total_balls ?? 0) === 0 &&
+    !current.last_ball &&
+    current.innings_number > 1;
+  if (untouched) {
+    t.delete("innings", current.id);
+    return {
+      innings: all.filter((i) => i.id !== current.id),
+      currentNumber: current.innings_number - 1,
+    };
+  }
+  t.patch("innings", current.id, { is_completed: true, updated_at: now });
+  return {
+    innings: replaceInnings(all, [{ ...current, is_completed: true }]),
+    currentNumber: current.innings_number,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// set_follow_on
+// ---------------------------------------------------------------------------
+
+/**
+ * The follow-on (Law 14) in a two-innings match: the side that batted
+ * first, ahead by at least the lead the match's days need, makes the other
+ * side bat again (`enforce`), or bats itself (the third innings as opened).
+ * Only before the third innings' first ball, which is still to be decided
+ * then; a crease picked for the side that no longer bats is cleared.
+ */
+export async function setFollowOn(
+  ctx: ScoringContext,
+  matchId: string,
+  enforce: boolean,
+): Promise<ScoringState> {
+  await requireAdmin(ctx, matchId);
+  const now = new Date().toISOString();
+
+  const tracked = await runOnce(ctx, async (t) => {
+    const match = await t.doc<MatchesRow>("matches", matchId);
+    if (!match) throw new DbQueryError("match_not_found", "22000");
+    const { all, current } = await currentInningsOf(t, match);
+    await guardClientAction(t, ctx, match, current);
+    const { third, option } = followOnInPlay(match, all, current);
+    const teamId = enforce ? option.trailerId : option.leaderId;
+    if (third.team_id === teamId && Boolean(third.follow_on) === enforce) {
+      throw new ActionAlreadyApplied();
+    }
+    t.patch("innings", third.id, {
+      team_id: teamId,
+      follow_on: enforce ? true : null,
+      ...(third.team_id === teamId ? {} : EMPTY_SCORECARD),
+      updated_at: now,
+    });
     return match;
   });
   if (!tracked) return recordState(ctx.ds, matchId);
@@ -2025,7 +2235,11 @@ export async function startSuperOver(
     if (all.length === 0) throw new DbQueryError("no_innings_found", "22000");
     // Only from a tie: not again once one has started (a second scorer, a
     // queued start replayed), nor while an innings is in play.
-    if (match.status !== "completed" || match.result_type !== "tie")
+    if (
+      match.status !== "completed" ||
+      match.result_type !== "tie" ||
+      isTwoInningsMatch(match)
+    )
       throw new DbQueryError("super_over_needs_tie", "22000");
 
     const last = all.reduce(
@@ -2201,11 +2415,14 @@ async function awardToFieldingSide(
       throw new DbQueryError("invalid_input", "22000");
 
     // Their innings in the same pair (the match, or this super over): a
-    // super over's runs never reach the main match's innings.
+    // super over's runs never reach the main match's innings. A two-innings
+    // match is one pair: their latest innings takes them (Law 41.17).
     const pairStart =
-      current.innings_number % 2 === 1
-        ? current.innings_number
-        : current.innings_number - 1;
+      isTwoInningsMatch(match) && !isSuperOverInnings(match, current.innings_number)
+        ? 1
+        : current.innings_number % 2 === 1
+          ? current.innings_number
+          : current.innings_number - 1;
     const theirs = all
       .filter(
         (i) =>

@@ -167,6 +167,8 @@ export function winPredictor(input: WinPredictorInput): WinEstimate | null {
 /** The fields of a `live_state` row it needs. */
 export interface WinPredictorLiveRow {
   status?: string | null;
+  /** 2: a two-innings match, which gets no estimate. */
+  innings_per_side?: number | null;
   innings_number?: number | null;
   innings_completed?: boolean | null;
   overs_per_innings?: number | null;
@@ -187,6 +189,8 @@ export function winPredictorFromLive(
   options: { ballsPerOver?: number; wicketsPerInnings?: number } = {},
 ): WinEstimate | null {
   if (row.status !== "live" || row.innings_completed) return null;
+  // The resource tables model one innings a side: none for a Test.
+  if (row.innings_per_side === 2) return null;
   const overs = row.dls_overs ?? row.overs_per_innings;
   if (!row.innings_number || !overs) return null;
   return winPredictor({
