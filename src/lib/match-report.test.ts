@@ -5,7 +5,7 @@ import {
   phaseBoundaries,
 } from "./match-report";
 import { rankPlayersByImpact } from "./cricket";
-import { makeMatch } from "~/test/factories";
+import { makeInnings, makeMatch } from "~/test/factories";
 import type { Innings, Match } from "./match-types";
 
 describe("match-report export helpers", () => {
@@ -764,5 +764,91 @@ describe("match-report export helpers", () => {
       expect(overs[0]!.balls.map((b) => b.text)).not.toContain("p5");
       expect(r.phases!.rows[0]!.sides[0]!.score).toBe("12/0");
     });
+  });
+});
+
+
+describe("a Test's report", () => {
+  const URL_ = "https://cricket.app/matches/test-1";
+  const inn = (
+    n: number,
+    team: "t1" | "t2",
+    runs: number,
+    extra: Partial<Innings> = {},
+  ) =>
+    makeInnings({
+      id: `i${n}`,
+      innings_number: n,
+      team_id: team,
+      total_runs: runs,
+      total_wickets: 10,
+      total_balls: 300,
+      is_completed: true,
+      ...extra,
+    });
+  const test = makeMatch({
+    status: "completed",
+    match_format: "Test",
+    innings_per_side: 2,
+    overs_per_innings: null,
+    days: 5,
+    result_description: "Royal Tigers won by 50 runs",
+    innings: [
+      inn(1, "t1", 300, { total_wickets: 7, declared: true }),
+      inn(2, "t2", 250),
+      inn(3, "t1", 150),
+      inn(4, "t2", 150, { target_runs: 201 }),
+    ],
+  });
+
+  it("names each side's innings, marks the declaration, and gives only the chase a target", () => {
+    const r = buildMatchReport(test, URL_);
+    expect(r.innings.map((i) => i.heading)).toEqual([
+      "1st innings",
+      "1st innings",
+      "2nd innings",
+      "2nd innings",
+    ]);
+    expect(r.innings[0]).toMatchObject({
+      score: "300/7d",
+      runs: 300,
+      wickets: 7,
+      declared: true,
+    });
+    expect(r.innings.map((i) => i.target)).toEqual([null, null, null, 201]);
+  });
+
+  it("says the days and no overs limit, and leaves out the over-by-over comparison", () => {
+    const r = buildMatchReport(test, URL_);
+    const info = Object.fromEntries(r.info.map((row) => [row.label, row.value]));
+    expect(info).toMatchObject({
+      Format: "Test",
+      Innings: "Two a side",
+      Days: "5 days",
+      Overs: "No overs limit",
+    });
+    expect(r.overs).toBeNull();
+    expect(r.phases).toBeNull();
+  });
+
+  it("puts both innings in each side's summary", () => {
+    const r = buildMatchReport(test, URL_);
+    expect(r.summary[0]!.scoreLine).toMatch(/^300\/7d & 150\/10/);
+    expect(r.summary[1]!.scoreLine).toMatch(/^250 & 150\/10/);
+  });
+
+  it("marks a follow-on on the innings that follows on", () => {
+    const r = buildMatchReport(
+      {
+        ...test,
+        innings: [
+          inn(1, "t1", 400),
+          inn(2, "t2", 150),
+          inn(3, "t2", 200, { follow_on: true }),
+        ],
+      },
+      URL_,
+    );
+    expect(r.innings[2]!.heading).toBe("2nd innings (f/o)");
   });
 });

@@ -29,6 +29,7 @@ import {
 } from "~/components/ds/button";
 import { ScreenWash } from "~/components/ds/screen";
 import type { FixInnings } from "./components/FixMistakeDialog";
+import type { Innings, Match } from "~/lib/match-types";
 import { isAtInningsBreak } from "./innings-break";
 import {
   ScoringBalls,
@@ -54,6 +55,7 @@ import { isSuperOverInnings } from "~/lib/firebase/scoring/result";
 import {
   daysOf,
   followOnOf,
+  inningsHeading,
   isTwoInningsMatch,
   playBreakName,
   standingLine,
@@ -296,13 +298,19 @@ async function callServer<T extends { error?: string | null }>(
  * The scoring screen's state, handlers and derived values (everything the
  * page renders reads them from here).
  */
-/** "1st innings", "2nd innings", "Super over 1" (as the overlays name them). */
-function inningsName(n: number): string {
-  return n === 1
-    ? "1st innings"
-    : n === 2
-      ? "2nd innings"
-      : `Super over ${Math.ceil((n - 2) / 2)}`;
+/**
+ * "1st innings", "2nd innings", "Super over 1" (as the overlays name them);
+ * a Test's third and fourth innings are each side's 2nd, "(f/o)" marked.
+ */
+function inningsName(
+  match: Pick<Match, "innings_per_side">,
+  innings: Pick<Innings, "innings_number" | "follow_on">,
+): string {
+  const n = innings.innings_number;
+  if (isSuperOverInnings(match, n) && !isTwoInningsMatch(match)) {
+    return `Super over ${Math.ceil((n - 2) / 2)}`;
+  }
+  return inningsHeading(match, innings);
 }
 
 function useScoringScreen() {
@@ -2146,7 +2154,7 @@ function MatchNotices({ s }: { s: LoadedScreen }) {
     .sort((a, b) => a.innings_number - b.innings_number)
     .map((inn) => {
       const team = inn.team_id === match.team2_id ? match.team2 : match.team1;
-      return `${team.short_name || team.name} ${inn.total_runs ?? 0}/${inn.total_wickets ?? 0} (${oversFromBalls(inn.total_balls ?? 0, bpo)})`;
+      return `${team.short_name || team.name} ${inn.total_runs ?? 0}/${inn.total_wickets ?? 0}${inn.declared ? "d" : ""} (${oversFromBalls(inn.total_balls ?? 0, bpo)})`;
     })
     .join(" · ");
   const potmName = match.player_of_the_match_id
@@ -3166,7 +3174,7 @@ function matchSidesOf(s: LoadedScreen): {
       id: i.id,
       number: i.innings_number,
       teamId: i.team_id,
-      label: `${inningsName(i.innings_number)} · ${teamName(i.team_id)}`,
+      label: `${inningsName(match, i)} · ${teamName(i.team_id)}`,
     }));
   return { sides, innings };
 }

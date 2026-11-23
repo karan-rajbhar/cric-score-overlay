@@ -80,7 +80,9 @@ On the local emulators, in Chrome, signed in as a seeded scorer:
 - **Ravi**: the overlay of a Test.
 - **Coach Dev**: Custom with two innings a side and an overs limit in the wizard (the engine rules are covered by tests).
 
-It caught, and these were fixed before release: the break card and the list cards left the "d" off a declared total; the Summary listed a player twice when they batted in both innings (and React warned about it); the player of the match showed one innings of figures; the overlay called the fourth innings "of 1 over"; the wizard did not hydrate when it remembered a Test.
+A second round went through every view of two finished Tests (one won by wickets after a declaration and a chase, one won by an innings after the follow-on): the scoring screen's Scorecard and Balls views, the match page's Scorecard (each innings), Balls and Stats tabs, the share image, and the match report with its downloaded PDF (6 and 5 pages). It found the report's total reading "NaN wkts" for a declared innings, "null overs a side" in its match information, the second, third and fourth innings drawn as one PDF page (too tall for an iPhone), a side-by-side over grid that a real Test would run to pages, the scoring screen calling a Test's third and fourth innings "Super over 1", and a player of the match "41*" when out in one of the two innings. All fixed, with tests.
+
+The first round caught, and these were fixed before release: the break card and the list cards left the "d" off a declared total; the Summary listed a player twice when they batted in both innings (and React warned about it); the player of the match showed one innings of figures; the overlay called the fourth innings "of 1 over"; the wizard did not hydrate when it remembered a Test.
 
 ## Not built yet
 

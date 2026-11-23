@@ -69,15 +69,16 @@ function InningsHead({ inn }: { inn: ReportInnings }) {
   );
 }
 
-/** "66/7" as runs and wickets. */
-function scoreParts(score: string) {
-  const [runs, wickets] = score.split("/");
-  return { runs: runs ?? score, wickets: Number(wickets ?? 0) };
+/** "all out", "7 wkts", "7 wkts dec", "forfeited". */
+function wicketsWord(inn: ReportInnings): string {
+  if (inn.forfeited) return "forfeited";
+  if (inn.wickets >= 10 && !inn.declared) return "all out";
+  return `${inn.wickets} wkts${inn.declared ? " dec" : ""}`;
 }
 
 /** Extras, then the total on a band: wickets, overs, runs, run rate. */
 function BattingTotals({ inn }: { inn: ReportInnings }) {
-  const { runs, wickets } = scoreParts(inn.score);
+  const runs = inn.runs;
   return (
     <>
       <tr className={ROW}>
@@ -102,7 +103,7 @@ function BattingTotals({ inn }: { inn: ReportInnings }) {
         >
           Total{" "}
           <span className="text-xs font-normal text-muted-foreground">
-            {wickets >= 10 ? "all out" : `${wickets} wkts`}, {inn.overs} ov
+            {wicketsWord(inn)}, {inn.overs} ov
           </span>
         </th>
         <td className={cn(FIG, "text-sm font-bold")}>{runs}</td>
