@@ -1,5 +1,6 @@
 "use client";
 
+import { lastMainInningsOf } from "~/lib/multi-innings";
 import { useMemo, useState } from "react";
 import type * as React from "react";
 import { Coins, Flag, Target, TrendingUp, XCircle } from "lucide-react";
@@ -273,11 +274,23 @@ function InningsSummaries({ match }: { match: Match }) {
   );
 }
 
+/** A filter keeping each player's first row (rows sorted best first). */
+function firstOfEachPlayer() {
+  const seen = new Set<string>();
+  return ({ b }: { b: { user_id: string } }) => {
+    if (seen.has(b.user_id)) return false;
+    seen.add(b.user_id);
+    return true;
+  };
+}
+
 /** The match's three best batters and bowlers across the main innings. */
 function BestPerformers({ match }: { match: Match }) {
   const bpo =
     match.balls_per_over && match.balls_per_over > 0 ? match.balls_per_over : 6;
-  const main = (match.innings ?? []).filter((i) => i.innings_number <= 2);
+  const main = (match.innings ?? []).filter(
+    (i) => i.innings_number <= lastMainInningsOf(match),
+  );
   const teamName = (id: string) =>
     id === match.team1_id ? match.team1.name : match.team2.name;
   const other = (id: string) =>
@@ -289,6 +302,8 @@ function BestPerformers({ match }: { match: Match }) {
     )
     .filter(({ b }) => b.runs_scored > 0)
     .sort((x, y) => y.b.runs_scored - x.b.runs_scored)
+    // A Test's player once, with their best innings.
+    .filter(firstOfEachPlayer())
     .slice(0, 3)
     .map(({ b, team }) => ({
       name: b.user?.full_name ?? "Batter",
@@ -311,6 +326,7 @@ function BestPerformers({ match }: { match: Match }) {
         y.b.wickets_taken - x.b.wickets_taken ||
         x.b.runs_conceded - y.b.runs_conceded,
     )
+    .filter(firstOfEachPlayer())
     .slice(0, 3)
     .map(({ b, team }) => ({
       name: b.user?.full_name ?? "Bowler",
@@ -411,7 +427,7 @@ export function MatchSummary({ match }: MatchSummaryProps) {
     match.status === "live" &&
     (match.innings ?? []).some((i) => !i.is_completed);
   const innings = [...(match.innings ?? [])]
-    .filter((i) => i.innings_number <= 2)
+    .filter((i) => i.innings_number <= lastMainInningsOf(match))
     .sort((a, b) => a.innings_number - b.innings_number);
   const award = match.status === "completed" ? playerAwardOf(match) : null;
 

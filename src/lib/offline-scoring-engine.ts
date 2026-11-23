@@ -7,6 +7,12 @@
 
 import type { ScoringState } from "~/app/matches/types";
 import { NON_BOWLER_DISMISSALS } from "~/lib/firebase/scoring/recompute";
+import {
+  inningsLimits,
+  isDecidingInnings,
+} from "~/lib/firebase/scoring/result";
+import type { MatchesRow } from "~/lib/firebase/types";
+import { inningsPerSideOf } from "~/lib/multi-innings";
 import type { TeamPlayer } from "~/lib/match-types";
 
 /**
@@ -46,6 +52,19 @@ export interface LocalScoringContext {
    */
   maxBallsPerOver?: number | null;
   deliveriesInOver?: number;
+  /**
+   * Innings each side bats (`innings_per_side`): 2 in a two-innings match,
+   * whose 4th innings, not its 2nd, decides it. Absent: 1.
+   */
+  inningsPerSide?: 1 | 2;
+}
+
+/** Whether the context's innings decides the match when it ends. */
+function decidesMatch(ctx: LocalScoringContext): boolean {
+  return isDecidingInnings(
+    { innings_per_side: ctx.inningsPerSide ?? 1 },
+    ctx.currentInnings,
+  );
 }
 
 /**
@@ -81,8 +100,12 @@ export interface MatchLike {
   current_innings: number;
   current_over: number;
   current_ball: number;
-  overs_per_innings: number;
+  /** Null in a two-innings match with no overs limit (a Test). */
+  overs_per_innings: number | null;
   balls_per_over?: number | null;
+  innings_per_side?: number | null;
+  match_format?: string | null;
+  dls_revision?: MatchesRow["dls_revision"];
   max_balls_per_over?: number | null;
   wickets_per_innings?: number | null;
   noball_counts_as_ball_faced?: boolean | null;
@@ -149,7 +172,7 @@ export function processDeliveryLocally(ctx: LocalScoringContext, ball: BallInput
 
   if (isAllOut || isOversExhausted || isTargetChased) {
     const inningsCompleted = true;
-    const matchCompleted = ctx.currentInnings >= 2;
+    const matchCompleted = decidesMatch(ctx);
     let resultDescription = null;
     if (matchCompleted && ctx.targetRuns !== null) {
       if (ctx.totalRuns >= ctx.targetRuns) {
@@ -335,7 +358,7 @@ export function processDeliveryLocally(ctx: LocalScoringContext, ball: BallInput
   let matchCompleted = false;
   let resultDescription = null;
 
-  if (inningsCompleted && newCtx.currentInnings >= 2) {
+  if (inningsCompleted && decidesMatch(newCtx)) {
     matchCompleted = true;
     if (newCtx.targetRuns !== null) {
       if (newCtx.totalRuns >= newCtx.targetRuns) {
@@ -379,6 +402,17 @@ export function buildContextFromMatch(
   deliveriesInOver = 0,
 ): LocalScoringContext {
   const innings = match.innings?.find((i) => i.innings_number === match.current_innings);
+  const limits = inningsLimits(
+    {
+      balls_per_over: match.balls_per_over ?? null,
+      overs_per_innings: match.overs_per_innings,
+      wickets_per_innings: match.wickets_per_innings ?? null,
+      dls_revision: match.dls_revision ?? null,
+      innings_per_side: match.innings_per_side ?? null,
+      match_format: match.match_format ?? null,
+    },
+    match.current_innings ?? 1,
+  );
 
   let strikerRuns = 0;
   let strikerBalls = 0;
@@ -429,14 +463,13 @@ export function buildContextFromMatch(
     bowlerBallsBowled: bowlerBalls,
     bowlerWickets,
     ballsPerOver: match.balls_per_over || 6,
-    oversPerInnings:
-      match.current_innings && match.current_innings > 2
-        ? 1
-        : (match.overs_per_innings ?? 20),
-    wicketsPerInnings:
-      match.current_innings && match.current_innings > 2
-        ? 2
-        : (match.wickets_per_innings || 10),
+    // The engine's limits (a super over: one over, two wickets); 0 overs
+    // for an innings with no limit (a Test).
+    oversPerInnings: Number.isFinite(limits.maxBalls)
+      ? limits.maxBalls / limits.ballsPerOver
+      : 0,
+    wicketsPerInnings: limits.wicketsCap,
+    inningsPerSide: inningsPerSideOf(match),
     noBallCountsAsFaced: match.noball_counts_as_ball_faced !== false,
     wideCountsAsFaced: Boolean(match.wide_counts_as_ball_faced),
     targetRuns: innings?.target_runs || null,

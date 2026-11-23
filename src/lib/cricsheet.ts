@@ -8,6 +8,8 @@
 import type { Match, BallEvent } from "./match-types";
 import { fieldingCreditOf, inningsOvers } from "./cricket";
 import { noBallByesOf } from "./firebase/scoring/recompute";
+import { isSuperOverInnings } from "./firebase/scoring/result";
+import { isForfeited, isTwoInningsMatch } from "./multi-innings";
 
 export interface CricsheetDelivery {
   batter: string;
@@ -41,6 +43,10 @@ export interface CricsheetOver {
 export interface CricsheetInnings {
   team: string;
   super_over?: boolean;
+  /** Closed by a declaration (two-innings matches). */
+  declared?: boolean;
+  /** Forfeited: declared before a ball (Law 15.2). */
+  forfeited?: boolean;
   target?: {
     runs: number;
     overs?: number;
@@ -76,7 +82,8 @@ export interface CricsheetMatch {
       match_referees?: string[];
       reserve_umpires?: string[];
     };
-    overs: number;
+    /** Absent for a match with no overs limit (a Test). */
+    overs?: number;
     team_type?: "club" | "international";
     teams: [string, string];
     /** Absent when no toss was recorded. */
@@ -87,6 +94,8 @@ export interface CricsheetMatch {
     outcome?: {
       winner?: string;
       by?: {
+        /** 1 for a win by an innings (with `runs`). */
+        innings?: number;
         runs?: number;
         wickets?: number;
       };
@@ -282,13 +291,27 @@ function sideName(
 /** The winning margin, as the engine stored it. */
 function marginOf(
   match: Match,
-): { runs?: number; wickets?: number } | undefined {
+): { innings?: number; runs?: number; wickets?: number } | undefined {
   if (!match.win_margin) return undefined;
+  if (match.win_margin_type === "innings") {
+    return { innings: 1, runs: match.win_margin };
+  }
   if (match.win_margin_type === "runs") return { runs: match.win_margin };
   if (match.win_margin_type === "wickets") {
     return { wickets: match.win_margin };
   }
   return undefined;
+}
+
+/**
+ * Cricsheet's match type: a two-innings match is a "Test" when named so,
+ * otherwise a multi-day match ("MDM"); limited overs keep their format.
+ */
+function matchTypeOf(match: Match): string {
+  if (isTwoInningsMatch(match)) {
+    return match.match_format === "Test" ? "Test" : "MDM";
+  }
+  return match.match_format ? match.match_format.toUpperCase() : "T20";
 }
 
 /**
@@ -321,9 +344,12 @@ function completedOutcome(
   const dls = match.dls_revision && !match.dls_revision.by_hand;
   const method = dls ? { method: "D/L" } : {};
   if (match.result_type === "tie") return { result: "tie", ...method };
+  if (match.result_type === "draw") return { result: "draw" };
   if (!winner) return undefined;
   // Settled by a super over: a tie with an eliminator, in Cricsheet's terms.
-  if ((match.innings ?? []).some((i) => i.innings_number > 2)) {
+  if (
+    (match.innings ?? []).some((i) => isSuperOverInnings(match, i.innings_number))
+  ) {
     return { result: "tie", eliminator: winner };
   }
   const by = marginOf(match);
@@ -551,8 +577,9 @@ function oversAndPenaltiesOf(
 /** The chase's target: a super over has one over, a DLS revision its own. */
 function targetOf(match: Match, inn: Innings): CricsheetInnings["target"] {
   if (!inn.target_runs) return undefined;
-  const overs =
-    inn.innings_number > 2 ? 1 : inningsOvers(match, inn.innings_number);
+  const overs = isSuperOverInnings(match, inn.innings_number)
+    ? 1
+    : inningsOvers(match, inn.innings_number);
   return { runs: inn.target_runs, ...(overs > 0 ? { overs } : {}) };
 }
 
@@ -581,7 +608,12 @@ function inningsOf(
   const penaltyRuns = penaltyRunsOf(penalties);
   return {
     team: side.batting,
-    ...(inn.innings_number > 2 ? { super_over: true } : {}),
+    ...(isSuperOverInnings(match, inn.innings_number) ? { super_over: true } : {}),
+    ...(inn.declared
+      ? isForfeited(inn)
+        ? { forfeited: true }
+        : { declared: true }
+      : {}),
     ...(target ? { target } : {}),
     ...(penaltyRuns ? { penalty_runs: penaltyRuns } : {}),
     overs,
@@ -660,9 +692,10 @@ export function buildCricsheetJson(
       dates: [days.played],
       event: eventOf(match),
       gender: "male",
-      match_type: match.match_format ? match.match_format.toUpperCase() : "T20",
+      match_type: matchTypeOf(match),
       officials,
-      overs: match.overs_per_innings,
+      // A Test has no overs limit: Cricsheet leaves the key out.
+      ...(match.overs_per_innings ? { overs: match.overs_per_innings } : {}),
       outcome: outcomeOf(match, sides),
       player_of_match: potm?.full_name ? [potm.full_name] : undefined,
       players: people.playersByTeam,

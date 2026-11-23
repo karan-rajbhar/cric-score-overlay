@@ -119,7 +119,7 @@ async function load(
   const { data: tournament } = await db
     .from("tournaments")
     .select(
-      "id, name, status, tournament_format, match_format, overs_per_innings, custom_overs, venue, start_date, club_id, season_id, wickets_per_innings, last_man_stands, golden_ball, created_by",
+      "id, name, status, tournament_format, match_format, overs_per_innings, custom_overs, match_days, venue, start_date, club_id, season_id, wickets_per_innings, last_man_stands, golden_ball, created_by",
     )
     .eq("id", tournamentId)
     .maybeSingle();

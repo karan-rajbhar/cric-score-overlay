@@ -1,5 +1,7 @@
 "use client";
 
+import { isTwoInningsMatch } from "~/lib/multi-innings";
+import { matchFormatLabel } from "~/lib/cricket";
 import { useState } from "react";
 import {
   Dialog,
@@ -50,9 +52,14 @@ function MatchSettingsForm({
   const currentInnings = match.innings?.find(
     (i) => i.innings_number === (match.current_innings ?? 1),
   );
+  // A Test keeps its format and has no overs limit unless it set one; its
+  // fourth innings' target follows the totals.
+  const twoInnings = isTwoInningsMatch(match);
+  const noOversLimit = twoInnings && !match.overs_per_innings;
   // Only a chase in play (innings 2, a super over's 4, ...) has a target.
   const isChase = Boolean(
-    currentInnings &&
+    !twoInnings &&
+      currentInnings &&
       currentInnings.innings_number % 2 === 0 &&
       !currentInnings.is_completed,
   );
@@ -113,8 +120,10 @@ function MatchSettingsForm({
     e.preventDefault();
     const updatePayload: MatchSettingsUpdate = {
       title: title.trim() || undefined,
-      matchFormat,
-      oversPerInnings: Number(oversPerInnings) || 20,
+      ...(twoInnings ? {} : { matchFormat }),
+      ...(noOversLimit
+        ? {}
+        : { oversPerInnings: Number(oversPerInnings) || 20 }),
       ballsPerOver: Number(ballsPerOver) || 6,
       maxBallsPerOver:
         maxBallsPerOver !== "unlimited" && maxBallsPerOver.trim() !== ""
@@ -162,7 +171,15 @@ function MatchSettingsForm({
           />
         </div>
 
-        {/* Match Format */}
+        {/* Match Format (a two-innings match keeps the one it was made with) */}
+        {twoInnings ? (
+          <div className="space-y-1">
+            <p className="text-sm font-medium">Match format</p>
+            <p className="text-sm text-muted-foreground">
+              {matchFormatLabel(match)}. Set when the match was created.
+            </p>
+          </div>
+        ) : (
         <div className="space-y-1.5">
           <Label htmlFor="match-format" className="text-sm font-medium">
             Match format
@@ -181,8 +198,10 @@ function MatchSettingsForm({
             </SelectContent>
           </Select>
         </div>
+        )}
 
-        {/* Overs Per Innings */}
+        {/* Overs Per Innings (none in a Test) */}
+        {!noOversLimit && (
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <Label
@@ -222,6 +241,7 @@ function MatchSettingsForm({
             </div>
           </div>
         </div>
+        )}
 
         {/* Balls Per Over */}
         <div className="space-y-1.5">

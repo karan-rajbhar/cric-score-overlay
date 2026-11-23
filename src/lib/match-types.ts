@@ -8,7 +8,13 @@
  * caused the is_out/is_not_out and runs_at_fall/runs_at_wicket bugs.
  */
 
-import type { ClubSide, DlsRevision, Tables } from "~/lib/firebase/types";
+import type {
+  ClubSide,
+  CloseOfPlay,
+  DlsRevision,
+  PlayBreak,
+  Tables,
+} from "~/lib/firebase/types";
 
 export type DbMatch = Tables<"matches">;
 export type DbInnings = Tables<"innings">;
@@ -153,6 +159,10 @@ export interface Innings {
   total_overs: number;
   is_completed: boolean;
   target_runs?: number | null;
+  /** Closed by a declaration (with no ball: forfeited). */
+  declared?: boolean | null;
+  /** The side is following on (a two-innings match's third innings). */
+  follow_on?: boolean | null;
   extras_total: number;
   extras_byes: number;
   extras_leg_byes: number;
@@ -172,7 +182,21 @@ export interface Match {
   id: string;
   title: string;
   match_format: string;
-  overs_per_innings: number;
+  /**
+   * Null in a two-innings match with no overs limit (a Test): read it
+   * through `oversLimitOf` / `inningsLimits`, never as a number.
+   */
+  overs_per_innings: number | null;
+  /** 2 in a Test or another two-innings match (`~/lib/multi-innings`). */
+  innings_per_side?: number | null;
+  /** Days a two-innings match is scheduled for. */
+  days?: number | null;
+  /** The day of play a two-innings match is on (absent: 1). */
+  current_day?: number | null;
+  /** Lunch, tea or stumps in a two-innings match. */
+  play_break?: PlayBreak | null;
+  /** The score at each close of play (two-innings matches). */
+  close_of_play?: CloseOfPlay[] | null;
   balls_per_over?: number | null;
   max_balls_per_over?: number | null;
   wide_counts_as_ball_faced?: boolean | null;

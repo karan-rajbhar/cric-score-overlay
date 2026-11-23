@@ -4,12 +4,17 @@
  */
 import type { ClubSide } from "~/lib/firebase/types";
 
-export type MatchFormat = "T20" | "T10" | "ODI" | "Custom";
+export type MatchFormat = "T20" | "T10" | "ODI" | "Test" | "Custom";
 
 export interface MatchFormData {
   title: string;
   matchFormat: MatchFormat;
-  oversPerInnings: number;
+  /** Null: no overs limit, only in a two-innings match (a Test). */
+  oversPerInnings: number | null;
+  /** 2: each side bats twice (a Test is always 2). Absent: 1. */
+  inningsPerSide?: 1 | 2;
+  /** Days a two-innings match is scheduled for (1 to 5). */
+  days?: number;
   team1Id: string;
   team2Id: string;
   venue?: string;

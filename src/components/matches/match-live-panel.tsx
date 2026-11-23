@@ -23,6 +23,7 @@ import {
 import { playerHrefOf } from "~/lib/player-href";
 import { useLiveState } from "~/lib/hooks/useLiveState";
 import { winPredictorFromLive } from "~/lib/win-predictor";
+import { isTwoInningsMatch, leadOf } from "~/lib/multi-innings";
 import type { Innings, Match } from "~/lib/match-types";
 
 /** A ball of `live_state.this_over_balls` ("1", "W+3", "wd", "rh") as a chip. */
@@ -125,6 +126,17 @@ export function MatchLivePanel({ match }: { match: Match }) {
   const batting = teamName(match, inn.team_id);
   // Nobody out yet and no ball bowled: before the start, or between innings.
   const waiting = balls === 0 && runs === 0 && batters.length === 0 && !bowler;
+  // A Test's second and third innings: the batting side's lead or deficit.
+  const lead =
+    isTwoInningsMatch(match) && !target && inn.innings_number > 1
+      ? leadOf(
+          (match.innings ?? []).map((i) =>
+            i.innings_number === inn.innings_number ? { ...i, total_runs: runs } : i,
+          ),
+          inn.team_id,
+          inn.innings_number,
+        )
+      : null;
 
   const lastWicket =
     live?.last_ball_is_wicket && live.last_ball_dismissed_player
@@ -149,11 +161,21 @@ export function MatchLivePanel({ match }: { match: Match }) {
       <Figure key="rr" label="Run rate" value={runRate(runs, balls, bpo)} />
     ),
     target && <Figure key="target" label="Target" value={target} />,
-    target && (
+    target && maxBalls > 0 && (
       <Figure
         key="rrr"
         label="Required rate"
         value={requiredRunRate(need, left, bpo)}
+      />
+    ),
+    target && maxBalls === 0 && (
+      <Figure key="need" label="To win" value={need} />
+    ),
+    lead !== null && (
+      <Figure
+        key="lead"
+        label={lead > 0 ? "Lead" : lead < 0 ? "Trail" : "Scores level"}
+        value={Math.abs(lead)}
       />
     ),
     !target && maxBalls > 0 && balls > 0 && (
@@ -182,6 +204,16 @@ export function MatchLivePanel({ match }: { match: Match }) {
               <span className="font-semibold">Innings break.</span> {batting}{" "}
               need {target} {target === 1 ? "run" : "runs"} to win
               {dls ? ` in ${dls.overs} overs` : ""}.
+            </p>
+          ) : inn.innings_number > 1 ? (
+            <p>
+              <span className="font-semibold">Innings break.</span> {batting}{" "}
+              bat next
+              {inn.follow_on ? ", following on" : ""}
+              {lead !== null && lead !== 0
+                ? `, ${lead > 0 ? "ahead" : "behind"} by ${Math.abs(lead)} ${Math.abs(lead) === 1 ? "run" : "runs"}`
+                : ""}
+              .
             </p>
           ) : (
             <p>

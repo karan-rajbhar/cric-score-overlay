@@ -1,4 +1,5 @@
 import type { DlsRevision } from "./firebase/types";
+import { daysOf, isTwoInningsMatch, lastMainInningsOf } from "./multi-innings";
 import type {
   BattingPerformance,
   BowlingPerformance,
@@ -385,11 +386,15 @@ const FORMAT_OVERS: Record<string, number> = { T10: 10, T20: 20, ODI: 50 };
 type MatchFormatFields = {
   match_format?: string | null;
   overs_per_innings?: number | null;
+  /** 2: each side bats twice (`~/lib/multi-innings`). */
+  innings_per_side?: number | null;
+  /** Days of a two-innings match. */
+  days?: number | null;
 };
 
 /**
- * The format's name, when it says something true: "T20". Null for "Custom",
- * and for a format the overs contradict (a "T10" of 8 overs).
+ * The format's name, when it says something true: "T20", "Test". Null for
+ * "Custom", and for a format the overs contradict (a "T10" of 8 overs).
  */
 export function namedFormat(match: MatchFormatFields): string | null {
   const { match_format: format, overs_per_innings: overs } = match;
@@ -400,19 +405,34 @@ export function namedFormat(match: MatchFormatFields): string | null {
   return format;
 }
 
-/** What to call the format in a few characters: "T20", or "8 overs". */
+/** What to call the format in a few characters: "T20", "Test", or "8 overs". */
 export function matchFormatName(match: MatchFormatFields): string {
   const { overs_per_innings: overs } = match;
+  if (isTwoInningsMatch(match)) return namedFormat(match) ?? "Two innings";
   return namedFormat(match) ?? (overs ? `${overs} overs` : "Match");
 }
 
-/** The format with its length: "T20 · 20 overs", or just "8 overs". */
+/**
+ * The format with its length: "T20 · 20 overs", or just "8 overs"; a
+ * two-innings match by its days: "Test · 5 days", "Two innings · 1 day ·
+ * 20 overs".
+ */
 export function matchFormatLabel(
   match: MatchFormatFields,
   oversWord = "overs",
 ): string {
   const { overs_per_innings: overs } = match;
   const named = namedFormat(match);
+  if (isTwoInningsMatch(match)) {
+    const days = daysOf(match);
+    return [
+      named ?? "Two innings",
+      days ? `${days} ${days === 1 ? "day" : "days"}` : null,
+      overs ? `${overs} ${oversWord}` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  }
   if (!overs) return named ?? "Match";
   return [named, `${overs} ${oversWord}`].filter(Boolean).join(" · ");
 }
@@ -632,7 +652,9 @@ export const inningsForTeam = (
 /**
  * The two sides in batting order, as official scorecards list them: the
  * side that batted first, then the chasing side (team 1 first until
- * someone has batted). Each with its main innings (not a super over).
+ * someone has batted). Each with its latest innings of the match proper
+ * (not a super over) and, in a two-innings match, the innings it batted
+ * before that (`earlier`, in order; empty otherwise).
  */
 export function sidesInBattingOrder<
   T,
@@ -643,12 +665,21 @@ export function sidesInBattingOrder<
   team1: T;
   team2: T;
   innings?: I[] | null;
-}): [{ team: T; innings: I | undefined }, { team: T; innings: I | undefined }] {
-  const main = (match.innings ?? []).filter((i) => i.innings_number <= 2);
-  const inningsOf = (teamId?: string | null) =>
-    main.find((i) => i.team_id === teamId);
-  const side1 = { team: match.team1, innings: inningsOf(match.team1_id) };
-  const side2 = { team: match.team2, innings: inningsOf(match.team2_id) };
+  innings_per_side?: number | null;
+}): [
+  { team: T; innings: I | undefined; earlier: I[] },
+  { team: T; innings: I | undefined; earlier: I[] },
+] {
+  const last = lastMainInningsOf(match);
+  const main = (match.innings ?? []).filter((i) => i.innings_number <= last);
+  const sideOf = (team: T, teamId?: string | null) => {
+    const own = main
+      .filter((i) => i.team_id === teamId)
+      .sort((a, b) => a.innings_number - b.innings_number);
+    return { team, innings: own.at(-1), earlier: own.slice(0, -1) };
+  };
+  const side1 = sideOf(match.team1, match.team1_id);
+  const side2 = sideOf(match.team2, match.team2_id);
   const firstBatting = main.find((i) => i.innings_number === 1)?.team_id;
   return firstBatting && firstBatting === match.team2_id
     ? [side2, side1]

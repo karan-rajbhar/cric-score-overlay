@@ -510,7 +510,7 @@ function BottomLive({ state, bpo, sponsor }: BugProps) {
         </Seg>
       </div>
       <Ribbon
-        tag={inningsLabel(state.innings_number)}
+        tag={inningsLabel(state.innings_number, state)}
         tagSide={battingKey(state)}
         left={
           <>

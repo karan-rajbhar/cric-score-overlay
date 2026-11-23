@@ -36,8 +36,12 @@ export function inningsTeamName(
     : (state.bowling_team_name ?? "");
 }
 
-/** "Batting · 1st innings". */
-export function inningsLabel(n: number): string {
+/** "Batting · 1st innings" (a Test's third and fourth: each side's 2nd). */
+export function inningsLabel(
+  n: number,
+  state?: Pick<LiveMatchState, "innings_per_side"> | null,
+): string {
+  if (state?.innings_per_side === 2) return n <= 2 ? "1st innings" : "2nd innings";
   return n === 1 ? "1st innings" : n === 2 ? "2nd innings" : `Super over ${Math.ceil((n - 2) / 2)}`;
 }
 
@@ -225,7 +229,7 @@ export function InningsCard({
   return (
     <CardShell
       className={kind === "full" ? "max-w-[100rem]" : "max-w-[64rem]"}
-      eyebrow={eyebrowOf(state, inningsLabel(innings.innings_number))}
+      eyebrow={eyebrowOf(state, inningsLabel(innings.innings_number, state))}
       title={title}
       aside={
         <span className="leading-tight">
@@ -281,7 +285,7 @@ export function FallOfWicketsCard({
   return (
     <CardShell
       className="max-w-[56rem]"
-      eyebrow={eyebrowOf(state, inningsLabel(innings.innings_number))}
+      eyebrow={eyebrowOf(state, inningsLabel(innings.innings_number, state))}
       title={`${teamName} fall of wickets`}
       aside={
         <span className="text-[2.5rem] font-bold tabular-nums">

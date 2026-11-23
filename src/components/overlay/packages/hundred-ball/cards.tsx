@@ -240,8 +240,19 @@ function otherSide(state: LiveMatchState, side: BoardSide): BoardSide {
   return { tone: o.tone, logo: o.logo, code: o.code };
 }
 
-const inningsWord = (n: number) =>
-  n >= 3 ? "Super over" : n === 2 ? "2nd innings" : "1st innings";
+const inningsWord = (
+  n: number,
+  state?: Pick<LiveMatchState, "innings_per_side"> | null,
+) =>
+  state?.innings_per_side === 2
+    ? n <= 2
+      ? "1st innings"
+      : "2nd innings"
+    : n >= 3
+      ? "Super over"
+      : n === 2
+        ? "2nd innings"
+        : "1st innings";
 
 // ---- scorecards ---------------------------------------------------------------
 
@@ -337,7 +348,7 @@ export function HundredScorecard(p: OverlayElementProps["scorecard"]) {
       testId="hb-scorecard"
       width={full ? 1700 : 1240}
       side={side}
-      eyebrow={inningsWord(innings.innings_number)}
+      eyebrow={inningsWord(innings.innings_number, state)}
       title={`${teamName} batting`}
       hero={inningsHero(innings)}
       heroLabel={ballsLabel(innings)}
@@ -359,7 +370,7 @@ export function HundredBowlingCard(p: OverlayElementProps["bowlingCard"]) {
       testId="hb-bowling"
       width={1100}
       side={side}
-      eyebrow={inningsWord(innings.innings_number)}
+      eyebrow={inningsWord(innings.innings_number, state)}
       title={`${teamName} bowling`}
       hero={inningsHero(innings)}
       heroLabel={ballsLabel(innings)}
@@ -383,7 +394,7 @@ export function HundredFallOfWickets(p: OverlayElementProps["fallOfWickets"]) {
       testId="hb-fow"
       width={1320}
       side={side}
-      eyebrow={`Fall of wickets · ${inningsWord(innings.innings_number)}`}
+      eyebrow={`Fall of wickets · ${inningsWord(innings.innings_number, state)}`}
       title={teamName}
       hero={inningsHero(innings)}
       heroLabel={ballsLabel(innings)}

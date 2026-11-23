@@ -132,6 +132,24 @@ describe("payloads older queues hold", () => {
     });
   });
 
+  it("keeps a declaration (a two-innings match), and an End innings without one", () => {
+    expect(accepted("endInnings", { inningsNumber: 1, declared: true })).toEqual({
+      inningsNumber: 1,
+      declared: true,
+    });
+    expect(accepted("endInnings", { inningsNumber: 1, declared: null })).toEqual({
+      inningsNumber: 1,
+    });
+  });
+
+  it("takes the follow-on and a draw", () => {
+    expect(accepted("setFollowOn", { enforce: true })).toEqual({ enforce: true });
+    expect(accepted("setFollowOn", { enforce: false })).toEqual({ enforce: false });
+    accepted("drawMatch", {});
+    refused("setFollowOn", {});
+    refused("setFollowOn", { enforce: "yes" });
+  });
+
   it("takes each simple action", () => {
     accepted("setBatsmen", { strikerId: "s", nonStrikerId: "n" });
     accepted("setBowler", { bowlerId: "b" });

@@ -50,7 +50,11 @@ export function describeQueuedAction(
     case "reassignOverBowler":
       return `This over's balls given to ${name(action.payload.bowlerId, "another bowler")}`;
     case "endInnings":
-      return "End of the innings";
+      return action.payload.declared ? "Declaration" : "End of the innings";
+    case "setFollowOn":
+      return action.payload.enforce ? "Follow-on enforced" : "Follow-on not enforced";
+    case "drawMatch":
+      return "Match drawn";
     case "undoLastBall":
       return "Undo of the last ball";
     case "startSuperOver":

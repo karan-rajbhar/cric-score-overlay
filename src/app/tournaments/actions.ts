@@ -74,6 +74,7 @@ export async function createTournament(formData: FormData) {
       ...shape,
       match_format: rules.match_format,
       overs_per_innings: rules.overs_per_innings,
+      match_days: rules.match_days,
       ...(rules.wickets_per_innings !== null
         ? { wickets_per_innings: rules.wickets_per_innings }
         : {}),
@@ -487,7 +488,7 @@ export async function generateTournamentFixtures(
   const { data: tournament, error: tourError } = await db
     .from("tournaments")
     .select(
-      "id, name, status, match_format, overs_per_innings, custom_overs, venue, start_date, club_id, wickets_per_innings, last_man_stands, golden_ball, season_id",
+      "id, name, status, match_format, overs_per_innings, custom_overs, match_days, venue, start_date, club_id, wickets_per_innings, last_man_stands, golden_ball, season_id",
     )
     .eq("id", tournamentId)
     .single();
@@ -617,7 +618,8 @@ export async function updateTournament(
 
   const rules = tournamentRulesFrom(formData);
   if ("error" in rules) return { error: rules.error };
-  const { match_format, overs_per_innings, wickets_per_innings } = rules;
+  const { match_format, overs_per_innings, wickets_per_innings, match_days } =
+    rules;
 
   const rawStatus = (formData.get("status") as string | null) || null;
   if (rawStatus && !TOURNAMENT_STATUSES.has(rawStatus)) {
@@ -647,6 +649,7 @@ export async function updateTournament(
       ...shape,
       match_format,
       overs_per_innings,
+      match_days,
       ...(wickets_per_innings !== null ? { wickets_per_innings } : {}),
       ...(rawStatus ? { status: rawStatus } : {}),
       ...(last_man_stands !== undefined ? { last_man_stands } : {}),

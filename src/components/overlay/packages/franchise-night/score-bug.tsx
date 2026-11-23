@@ -76,7 +76,11 @@ function useStartTime(iso: string | null | undefined): string | null {
   return text;
 }
 
-function inningsShort(n: number | null | undefined): string {
+function inningsShort(
+  n: number | null | undefined,
+  state?: Pick<LiveMatchState, "innings_per_side"> | null,
+): string {
+  if (state?.innings_per_side === 2) return (n ?? 1) <= 2 ? "1st innings" : "2nd innings";
   if ((n ?? 1) >= 3) return "Super over";
   return n === 2 ? "2nd innings" : "1st innings";
 }
@@ -504,7 +508,7 @@ function LiveBar({
         />
       }
     >
-      <TeamWedge side={batting} tone={tones.bat} detail={inningsShort(state.innings_number)} width={262} />
+      <TeamWedge side={batting} tone={tones.bat} detail={inningsShort(state.innings_number, state)} width={262} />
       <div
         className="relative flex w-[300px] shrink-0 items-center gap-4 pl-3 pr-5"
         style={glass({ tone: tones.bat, from: "0% 50%", strength: 0.38 })}

@@ -363,6 +363,15 @@ export const INNINGS_SUMMARY_FIELDS = /** @type {const} */ ([
 ]);
 
 /**
+ * Flags a summary entry carries only when true (a two-innings match's
+ * declaration or follow-on), so other matches' summaries stay as they were.
+ */
+export const INNINGS_SUMMARY_FLAGS = /** @type {const} */ ([
+  "declared",
+  "follow_on",
+]);
+
+/**
  * @param {Record<string, any>} innings
  * @returns {Record<string, unknown>}
  */
@@ -370,6 +379,10 @@ export function inningsSummaryEntry(innings) {
   /** @type {Record<string, unknown>} */
   const out = {};
   for (const f of INNINGS_SUMMARY_FIELDS) out[f] = innings[f] ?? null;
+  // A declaration or a follow-on (two-innings matches) only when it
+  // happened, so the summaries of every other match stay as they were.
+  if (innings.declared === true) out.declared = true;
+  if (innings.follow_on === true) out.follow_on = true;
   return out;
 }
 

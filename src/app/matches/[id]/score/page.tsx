@@ -51,6 +51,13 @@ import { freeHitsOn, nextIsFreeHit } from "~/lib/free-hit";
 import { describeQueuedAction } from "./describe-action";
 import { overBowlingOf } from "~/lib/firebase/scoring/ball-docs";
 import { isSuperOverInnings } from "~/lib/firebase/scoring/result";
+import {
+  daysOf,
+  followOnOf,
+  isTwoInningsMatch,
+  playBreakName,
+  standingLine,
+} from "~/lib/multi-innings";
 import { OtherScorerNotice } from "./components/OtherScorerNotice";
 import { useLiveResync } from "./useLiveResync";
 import type { LiveChanges } from "~/lib/scoring-delta";
@@ -94,6 +101,10 @@ const MatchSettingsDialog = dynamic(
 const PenaltyBonusDialog = dynamic(
   () =>
     import("./components/PenaltyBonusDialog").then((m) => m.PenaltyBonusDialog),
+  { ssr: false },
+);
+const PlayBreakDialog = dynamic(
+  () => import("./components/PlayBreakDialog").then((m) => m.PlayBreakDialog),
   { ssr: false },
 );
 const AbandonMatchDialog = dynamic(
@@ -201,7 +212,9 @@ import { cn } from "~/lib/utils";
 import {
   updateMatchSettings,
   abandonMatch,
+  setPlayBreak,
   updateTargetRuns,
+  type PlayAction,
 } from "../../mutations";
 import type { ExtraType, NoBallRuns } from "../../types";
 import { toast } from "sonner";
@@ -239,6 +252,8 @@ import {
   Flag,
   Pencil,
   Wrench,
+  Coffee,
+  Handshake,
 } from "lucide-react";
 import {
   deliveryKind,
@@ -424,6 +439,8 @@ function useScoringScreen() {
     handleConfirmBowler,
     handleAddPlayerInline,
     handleEndInnings,
+    handleSetFollowOn,
+    handleDrawMatch,
     loadPlayers,
     syncFromDb,
     syncFromLive,
@@ -557,6 +574,10 @@ function useScoringScreen() {
   const [confirmSkip, setConfirmSkip] = useState(false);
   /** Asking before a super over starts (it reopens a finished match). */
   const [confirmSuperOver, setConfirmSuperOver] = useState(false);
+  /** Asking before a two-innings match is drawn (it ends the match). */
+  const [confirmDraw, setConfirmDraw] = useState(false);
+  /** Lunch, tea or stumps, or play again (a two-innings match). */
+  const [showPlayBreak, setShowPlayBreak] = useState(false);
   /** What a run out's completed runs were (the wicket dialog's toggle). */
   const [wicketRunsKind, setWicketRunsKind] = useState<RunsKind>("bat");
 
@@ -571,7 +592,7 @@ function useScoringScreen() {
   // The ball after a no-ball, while the match plays free hits; it carries
   // on through a wide or another no-ball.
   const isFreeHit = nextIsFreeHit(rawDeliveries, freeHitsOn(match));
-  const isChase = isChaseInnings(match?.current_innings);
+  const isChase = isChaseInnings(match, match?.current_innings);
   /** The innings the scorer started from the break card (its openers). */
   const [startedInningsId, setStartedInningsId] = useState<string | null>(null);
   // Between innings: the next one is open with no ball and no batters, and
@@ -938,7 +959,7 @@ function useScoringScreen() {
     if (
       limits.maxBalls > 0 &&
       ((inn.total_balls ?? 0) >= limits.maxBalls ||
-        (!isSuperOverInnings(innings) &&
+        (!isSuperOverInnings(match, innings) &&
           (match.current_over ?? 0) >= oversLimit &&
           (match.current_ball ?? 0) === 0))
     ) {
@@ -963,6 +984,8 @@ function useScoringScreen() {
       !isScorer ||
       isProcessing ||
       match?.status !== "live" ||
+      // A two-innings match at lunch, tea or stumps: play resumes first.
+      Boolean(match?.play_break) ||
       !currentBowlerId ||
       !strikerId ||
       !nonStrikerId ||
@@ -972,6 +995,7 @@ function useScoringScreen() {
     isScorer,
     isProcessing,
     match?.status,
+    match?.play_break,
     currentBowlerId,
     strikerId,
     nonStrikerId,
@@ -1219,6 +1243,17 @@ function useScoringScreen() {
     return true;
   };
 
+  /** Lunch, tea, stumps or play again (a two-innings match). */
+  const handlePlayBreak = async (action: PlayAction) => {
+    if (!match) return;
+    const res = await callServer(() => setPlayBreak(match.id, action));
+    if (res.error) {
+      toast.error(res.error);
+      return;
+    }
+    await syncFromDb();
+  };
+
   /** Revise the chase's target; a refusal is shown in the dialog. */
   const handleReviseTargetConfirm = async (params: {
     targetRuns: number | null;
@@ -1301,6 +1336,13 @@ function useScoringScreen() {
     awaitingServer,
     confirmSkip,
     confirmSuperOver,
+    confirmDraw,
+    setConfirmDraw,
+    showPlayBreak,
+    setShowPlayBreak,
+    handlePlayBreak,
+    handleSetFollowOn,
+    handleDrawMatch,
     handleCorrectBall,
     handleDiscardDeadLetter,
     handleResendDeadLetters,
@@ -1629,8 +1671,11 @@ function MatchToolsMenu({ s }: { s: LoadedScreen }) {
     setShowClubDialog,
     setShowAddPlayerDialog,
     setShowFixMistake,
+    setShowPlayBreak,
+    setConfirmDraw,
     matchShare,
   } = s;
+  const twoInnings = isTwoInningsMatch(match);
   const club = useMatchClubChoices(
     match,
     user?.id,
@@ -1708,11 +1753,13 @@ function MatchToolsMenu({ s }: { s: LoadedScreen }) {
                 icon: UserCog,
                 href: `/matches/${match.id}/players`,
               },
-              // The main match's chase only (updateTargetRuns refuses others).
+              // The main match's chase only (updateTargetRuns refuses others,
+              // and a two-innings match's target follows its totals).
               live &&
                 isScorer &&
                 isChase &&
-                !isSuperOverInnings(match.current_innings ?? 1) && {
+                !isTwoInningsMatch(match) &&
+                !isSuperOverInnings(match, match.current_innings ?? 1) && {
                   key: "target",
                   label: "Revise target / overs",
                   icon: Crosshair,
@@ -1754,12 +1801,34 @@ function MatchToolsMenu({ s }: { s: LoadedScreen }) {
                 isScorer &&
                 !isInningsComplete && {
                   key: "end-innings",
-                  label: "End innings",
+                  label: twoInnings ? "Declare or end innings" : "End innings",
                   icon: Flag,
                   onSelect: () => setShowEndInnings(true),
                 },
+              // A two-innings match: its breaks and days, and a draw when
+              // time runs out.
               live &&
-                isScorer && {
+                isScorer &&
+                twoInnings && {
+                  key: "play-break",
+                  label: match.play_break
+                    ? `${playBreakName(match.play_break)}: resume play`
+                    : "Lunch, tea or stumps",
+                  icon: Coffee,
+                  onSelect: () => setShowPlayBreak(true),
+                },
+              live &&
+                isScorer &&
+                twoInnings && {
+                  key: "draw",
+                  label: "Draw the match (time is up)",
+                  icon: Handshake,
+                  destructive: true,
+                  onSelect: () => setConfirmDraw(true),
+                },
+              live &&
+                isScorer &&
+                !twoInnings && {
                   key: "dls",
                   label: "DLS calculator",
                   icon: CloudRain,
@@ -2263,7 +2332,7 @@ function Scoreboard({ s }: { s: LoadedScreen }) {
         onEndInnings={
           // Once the innings is over, its banner says what happens next.
           isScorer && !s.isInningsComplete
-            ? () => void handleEndInnings()
+            ? (options) => void handleEndInnings(options?.declared)
             : undefined
         }
         endInningsOpen={s.showEndInnings}
@@ -2347,8 +2416,17 @@ function ConsoleBanners({ s }: { s: LoadedScreen }) {
     atInningsBreak,
     startNextInnings,
     setView,
+    handleSetFollowOn,
+    setShowPlayBreak,
   } = s;
   const notice = inningsOverNotice({ isChase, isOffline, awaitingServer });
+  const twoInnings = isTwoInningsMatch(match);
+  // A two-innings match: the follow-on while it can be decided (before the
+  // third innings' first ball), and where the side about to bat stands.
+  const followOn =
+    atInningsBreak && currentInnings
+      ? followOnOf(match, match.innings ?? [], false)
+      : null;
   // The innings just closed, for the break card: its side and total.
   const closed = atInningsBreak
     ? (match.innings ?? []).find(
@@ -2357,12 +2435,54 @@ function ConsoleBanners({ s }: { s: LoadedScreen }) {
     : undefined;
   const nameOfSide = (teamId: string | null | undefined) =>
     (teamId === match.team2_id ? match.team2 : match.team1)?.name ?? "";
-  const superOver = (currentInnings?.innings_number ?? 1) >= 3;
+  const superOver = isSuperOverInnings(
+    match,
+    currentInnings?.innings_number ?? 1,
+  );
+  const standing =
+    twoInnings && !superOver && currentInnings && !isChase
+      ? standingLine(
+          match.innings ?? [],
+          currentInnings,
+          nameOfSide(currentInnings.team_id),
+        )
+      : null;
   // Nothing bowled yet: the openers and the opening bowler come first.
   const inningsStart = (currentInnings?.total_balls ?? 0) === 0;
   const oneEmpty = Boolean(strikerId) !== Boolean(nonStrikerId);
   return (
     <>
+      {/* A two-innings match at lunch, tea or stumps: scoring waits. */}
+      {match.status === "live" && match.play_break && (
+        <div
+          role="status"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-3 sm:p-4"
+        >
+          <div className="space-y-0.5">
+            <p className="text-sm font-semibold">
+              {playBreakName(match.play_break)}, day {match.current_day ?? 1}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {match.play_break === "stumps"
+                ? "Play has ended for the day."
+                : "Scoring resumes when play does."}
+            </p>
+          </div>
+          {isScorer && (
+            <Button
+              size="sm"
+              onClick={() => setShowPlayBreak(true)}
+              disabled={isProcessing}
+              className="h-10"
+            >
+              {match.play_break === "stumps"
+                ? `Start day ${(match.current_day ?? 1) + 1}`
+                : "Resume play"}
+            </Button>
+          )}
+        </div>
+      )}
+
       {/* Innings Complete Banner */}
       {isInningsComplete && (
         <div
@@ -2402,7 +2522,8 @@ function ConsoleBanners({ s }: { s: LoadedScreen }) {
             <p className="text-sm font-semibold">Innings break</p>
             <p className="font-score text-base font-semibold tabular-nums">
               {nameOfSide(closed.team_id)} {closed.total_runs ?? 0}/
-              {closed.total_wickets ?? 0}{" "}
+              {closed.total_wickets ?? 0}
+              {closed.declared ? "d" : ""}{" "}
               <span className="text-sm text-muted-foreground">
                 ({oversFromBalls(closed.total_balls ?? 0, match.balls_per_over ?? 6)} ov)
               </span>
@@ -2412,8 +2533,49 @@ function ConsoleBanners({ s }: { s: LoadedScreen }) {
                 {nameOfSide(currentInnings.team_id)} need{" "}
                 {currentInnings.target_runs} to win.
               </p>
+            ) : standing ? (
+              <p className="text-xs text-muted-foreground">
+                {standing}. {nameOfSide(currentInnings?.team_id)} bat next
+                {currentInnings?.follow_on ? ", following on" : ""}.
+              </p>
             ) : null}
           </div>
+          {followOn && isScorer && (
+            <div className="space-y-2 rounded-lg border border-border p-3">
+              <p className="text-sm">
+                {nameOfSide(followOn.leaderId)} lead by{" "}
+                <span className="font-semibold tabular-nums">{followOn.lead}</span>{" "}
+                (the follow-on needs {followOn.needed}). Their captain decides
+                whether {nameOfSide(followOn.trailerId)} bat again.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant={followOn.enforced ? "default" : "outline"}
+                  aria-pressed={followOn.enforced}
+                  onClick={() => {
+                    if (!followOn.enforced) void handleSetFollowOn(true);
+                  }}
+                  disabled={isProcessing}
+                  className="max-sm:min-h-11"
+                >
+                  Enforce: {nameOfSide(followOn.trailerId)} bat
+                </Button>
+                <Button
+                  size="sm"
+                  variant={followOn.enforced ? "outline" : "default"}
+                  aria-pressed={!followOn.enforced}
+                  onClick={() => {
+                    if (followOn.enforced) void handleSetFollowOn(false);
+                  }}
+                  disabled={isProcessing}
+                  className="max-sm:min-h-11"
+                >
+                  Don&apos;t enforce: {nameOfSide(followOn.leaderId)} bat
+                </Button>
+              </div>
+            </div>
+          )}
           {isScorer && (
             <div className="flex flex-wrap gap-2">
               <Button
@@ -2757,7 +2919,8 @@ function TieActions({ s }: { s: LoadedScreen }) {
     Boolean(match.result_description?.toLowerCase().includes("tie"));
   return (
     <>
-      {match.status === "completed" && tied && isScorer && (
+      {/* A tied Test stays tied: no super over in a two-innings match. */}
+      {match.status === "completed" && tied && isScorer && !isTwoInningsMatch(match) && (
         <div className="rounded-xl border border-warning/40 bg-warning/10 p-4 text-center">
           <h4 className="text-base font-semibold text-warning">Match tied</h4>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -3086,6 +3249,12 @@ function MatchViews({ s }: { s: LoadedScreen }) {
 
 function ScoringDialogs({ s }: { s: LoadedScreen }) {
   const {
+    showPlayBreak,
+    setShowPlayBreak,
+    handlePlayBreak,
+    confirmDraw,
+    setConfirmDraw,
+    handleDrawMatch,
     showTossDialog,
     setTossDialogDismissed,
     match,
@@ -3622,6 +3791,32 @@ function ScoringDialogs({ s }: { s: LoadedScreen }) {
         onConfirm={handleAbandonMatchConfirm}
         isProcessing={isProcessing}
       />
+      {isTwoInningsMatch(match) && (
+        <>
+          <PlayBreakDialog
+            open={showPlayBreak}
+            onOpenChange={setShowPlayBreak}
+            playBreak={match.play_break}
+            day={match.current_day ?? 1}
+            days={daysOf(match)}
+            onChoose={(action) => void handlePlayBreak(action)}
+            isProcessing={isProcessing}
+          />
+          <ConfirmDialog
+            open={confirmDraw}
+            onOpenChange={setConfirmDraw}
+            title="Draw the match?"
+            description="Time is up and neither side has won. The innings in play closes where it stands, its figures count, and the match ends as a draw."
+            confirmLabel="Draw the match"
+            cancelLabel="Keep scoring"
+            busy={isProcessing}
+            onConfirm={() => {
+              setConfirmDraw(false);
+              void handleDrawMatch();
+            }}
+          />
+        </>
+      )}
 
       <RetirePlayerDialog
         open={Boolean(retireTarget)}

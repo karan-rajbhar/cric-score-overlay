@@ -235,12 +235,12 @@ export default async function TeamDetailsPage({
   // hundreds of matches costs a few dozen reads.
   const matchLimit = latestCount(resolvedSearchParams?.matches);
   const columns = `
-      id, title, match_format, overs_per_innings, status, venue, scheduled_at,
+      id, title, match_format, overs_per_innings, innings_per_side, days, current_day, play_break, status, venue, scheduled_at,
       result_type, win_margin, win_margin_type, result_description, winning_team_id,
       tournament_id,
       tournament:tournaments(id, name),
       ${MATCH_TEAM_COLUMNS},
-      innings(id, team_id, innings_number, total_runs, total_wickets, total_balls, total_overs, is_completed)
+      innings(id, team_id, innings_number, total_runs, total_wickets, total_balls, total_overs, is_completed, declared, follow_on)
     `;
   const SIDES = ["team1_id", "team2_id"] as const;
   const countQuery = (side: (typeof SIDES)[number]) =>

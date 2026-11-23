@@ -613,6 +613,12 @@ export function applyLiveState(
     result_type: live.result_type ?? match.result_type,
     result_description: live.result_description ?? match.result_description,
   };
+  // A Test's day and break (lists may not carry the fields).
+  if (live.innings_per_side === 2) {
+    patched.innings_per_side = 2;
+    patched.current_day = live.day ?? match.current_day;
+    patched.play_break = live.play_break ?? null;
+  }
   // A DLS revision of the innings in play (lists may not carry the field).
   if (
     live.dls_overs != null &&

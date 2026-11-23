@@ -53,10 +53,10 @@ import {
 export const dynamic = "force-dynamic";
 
 const MATCH_COLUMNS = `
-                id, title, match_format, overs_per_innings, status, venue, scheduled_at,
+                id, title, match_format, overs_per_innings, innings_per_side, days, current_day, play_break, status, venue, scheduled_at,
                 result_type, win_margin, win_margin_type, result_description, season_id, club_side,
                 ${MATCH_TEAM_COLUMNS},
-                innings(id, team_id, innings_number, total_runs, total_wickets, total_balls, total_overs, is_completed)
+                innings(id, team_id, innings_number, total_runs, total_wickets, total_balls, total_overs, is_completed, declared, follow_on)
             `;
 
 /**

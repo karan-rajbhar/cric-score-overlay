@@ -37,7 +37,11 @@ import {
 } from "./datasource";
 import { DbQueryError, type EmbeddedRows } from "./query-builder";
 import type { Selection } from "./select-parser";
-import { INNINGS_SUMMARY_FIELDS, ROSTER_USER_FIELDS } from "./derive.mjs";
+import {
+  INNINGS_SUMMARY_FIELDS,
+  INNINGS_SUMMARY_FLAGS,
+  ROSTER_USER_FIELDS,
+} from "./derive.mjs";
 import {
   ballRowsOf,
   battingRowsOf,
@@ -148,7 +152,10 @@ export function expandEmbedded(
       !columns ||
       selection!.relations.length ||
       !columns.every(
-        (c) => c === "match_id" || INNINGS_SUMMARY_FIELDS.includes(c as never),
+        (c) =>
+          c === "match_id" ||
+          INNINGS_SUMMARY_FIELDS.includes(c as never) ||
+          INNINGS_SUMMARY_FLAGS.includes(c as never),
       )
     ) {
       return null;
@@ -161,7 +168,7 @@ export function expandEmbedded(
     );
     return {
       rows: rows.sort(byDocId),
-      partial: [...INNINGS_SUMMARY_FIELDS, "match_id"],
+      partial: [...INNINGS_SUMMARY_FIELDS, ...INNINGS_SUMMARY_FLAGS, "match_id"],
     };
   }
   if (source !== "innings") return null;

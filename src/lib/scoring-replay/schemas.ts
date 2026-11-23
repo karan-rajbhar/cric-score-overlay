@@ -71,6 +71,8 @@ export const replayPayloadSchemasV1 = {
   // Optional (v1 still): the innings meant; absent ends the current one.
   endInnings: z.object({
     inningsNumber: opt(z.number().int().min(1).max(99)),
+    // Optional (v1 still): a two-innings match's declaration.
+    declared: opt(z.boolean()),
   }),
   startSuperOver: empty,
   setBatsmen: z.object({ strikerId: id, nonStrikerId: id }),
@@ -115,6 +117,8 @@ export const replayPayloadSchemasV1 = {
     overNumber: z.number().int().min(0).max(999),
     bowlerId: id,
   }),
+  setFollowOn: z.object({ enforce: z.boolean() }),
+  drawMatch: empty,
   // Exactly the queue's types: adding one to the queue fails to compile here.
 } as const satisfies Record<QueuedActionType, z.ZodTypeAny>;
 

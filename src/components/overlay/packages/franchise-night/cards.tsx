@@ -266,7 +266,7 @@ export function FranchiseScorecard(p: OverlayElementProps["scorecard"]) {
   return (
     <CardFrame
       label={`${p.teamName} batting`}
-      kicker={kickerOf(p.state, inningsLabel(p.innings.innings_number))}
+      kicker={kickerOf(p.state, inningsLabel(p.innings.innings_number, p.state))}
       title={`${p.teamName} batting`}
       tone={tone}
       crest={{ logo: side.logo, code, name: side.name }}
@@ -305,7 +305,7 @@ export function FranchiseBowlingCard(p: OverlayElementProps["bowlingCard"]) {
   return (
     <CardFrame
       label={`${p.teamName} bowling`}
-      kicker={kickerOf(p.state, inningsLabel(p.innings.innings_number))}
+      kicker={kickerOf(p.state, inningsLabel(p.innings.innings_number, p.state))}
       title={`${p.teamName} bowling`}
       tone={tone}
       crest={{ logo: side.logo, code: codeOf(side), name: side.name }}
@@ -326,7 +326,7 @@ export function FranchiseFallOfWickets(p: OverlayElementProps["fallOfWickets"]) 
   return (
     <CardFrame
       label={`${p.teamName} fall of wickets`}
-      kicker={kickerOf(p.state, inningsLabel(p.innings.innings_number))}
+      kicker={kickerOf(p.state, inningsLabel(p.innings.innings_number, p.state))}
       title="Fall of wickets"
       tone={tone}
       crest={{ logo: side.logo, code, name: side.name }}

@@ -5,6 +5,8 @@
  * their innings already).
  */
 
+import { lastMainInningsOf } from "./multi-innings";
+
 interface StatsInnings {
   team_id: string;
   innings_number: number;
@@ -12,11 +14,14 @@ interface StatsInnings {
   total_wickets: number;
   total_overs?: number | null;
   is_completed?: boolean | null;
+  declared?: boolean | null;
 }
 
 interface StatsMatch {
   id: string;
   status: string;
+  /** 2: a Test, whose four innings are all totals. */
+  innings_per_side?: number | null;
   winning_team_id?: string | null;
   win_margin?: number | null;
   win_margin_type?: string | null;
@@ -71,14 +76,21 @@ export function teamStatsOf(
     // A side can be missing (a team deleted since): never fail the page.
     const opponent =
       (m.team1?.id === teamId ? m.team2 : m.team1)?.name ?? "another team";
-    // The main match only: a super over is not a total.
-    const main = (m.innings ?? []).filter((i) => i.innings_number <= 2);
-    const own = main.find((i) => i.team_id === teamId);
+    // The main match only: a super over is not a total. A Test's side has
+    // two innings, each a total.
+    const last = lastMainInningsOf(m);
+    const main = (m.innings ?? []).filter((i) => i.innings_number <= last);
+    const owned = main
+      .filter((i) => i.team_id === teamId)
+      .sort((a, b) => a.innings_number - b.innings_number);
     const won = m.winning_team_id === teamId;
-    if (own) {
-      const side = own.innings_number === 1 ? stats.battingFirst : stats.chasing;
+    if (owned[0]) {
+      const side =
+        owned[0].innings_number === 1 ? stats.battingFirst : stats.chasing;
       side.played += 1;
       if (won) side.won += 1;
+    }
+    for (const own of owned) {
       const total: TeamTotal = {
         matchId: m.id,
         runs: own.total_runs ?? 0,
@@ -89,8 +101,12 @@ export function teamStatsOf(
       runs += total.runs;
       innings += 1;
       if (!stats.highest || total.runs > stats.highest.runs) stats.highest = total;
-      // A chase that won was not over its overs: not a low total.
-      const ended = own.is_completed !== false && !(own.innings_number === 2 && won);
+      // A chase that won was not over its overs, nor a declaration a low
+      // total.
+      const ended =
+        own.is_completed !== false &&
+        !(own.innings_number === last && won) &&
+        !own.declared;
       if (ended && (!stats.lowest || total.runs < stats.lowest.runs)) {
         stats.lowest = total;
       }

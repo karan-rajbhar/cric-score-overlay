@@ -19,7 +19,7 @@ export const LOOKBACK_DAYS = 30;
 export const MAX_MATCHES = 150;
 
 const COLUMNS = `
-  id, title, status, match_format, overs_per_innings, venue, scheduled_at,
+  id, title, status, match_format, overs_per_innings, innings_per_side, days, current_day, play_break, venue, scheduled_at,
   actual_start_time, actual_end_time, result_description, updated_at,
   team1_snapshot, team2_snapshot
 `;

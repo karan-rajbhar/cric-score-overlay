@@ -35,6 +35,7 @@ export interface ClubTournamentItem {
   venue?: string | null;
   season_id?: string | null;
   overs_per_innings?: number | null;
+  match_days?: number | null;
   wickets_per_innings?: number | null;
 }
 

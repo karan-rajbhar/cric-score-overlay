@@ -1,17 +1,68 @@
-import { inningsLimits } from "~/lib/firebase/scoring/result";
+import {
+  inningsLimits,
+  isDecidingInnings,
+  isSuperOverInnings,
+} from "~/lib/firebase/scoring/result";
 import type { MatchesRow } from "~/lib/firebase/types";
 import type { Match } from "~/lib/match-types";
+import {
+  isTwoInningsMatch,
+  nextAfterInnings,
+  type MultiInningsMatch,
+} from "~/lib/multi-innings";
 
 /** Offline, the chase is over: only the server can settle the result. */
 export const OFFLINE_MATCH_OVER =
   "The match is over. The result is saved when you're back online.";
 
 /**
- * Whether an innings is a chase (the match's 2nd, or a super over's 2nd):
- * the one whose end decides the match rather than opening another.
+ * Whether an innings is a chase (the match's last innings: the 2nd, a
+ * two-innings match's 4th, or a super over's 2nd): the one whose end
+ * decides the match rather than opening another.
  */
-export function isChaseInnings(inningsNumber: number | null | undefined) {
-  return (inningsNumber ?? 1) % 2 === 0;
+export function isChaseInnings(
+  match: MultiInningsMatch | null | undefined,
+  inningsNumber: number | null | undefined,
+) {
+  return isDecidingInnings(match, inningsNumber ?? 1);
+}
+
+/** The match fields {@link nextInningsOnDevice} reads. */
+export type DeviceInningsMatch = MultiInningsMatch &
+  Pick<Match, "team1_id" | "team2_id"> &
+  Partial<Pick<Match, "innings" | "current_innings">>;
+
+/**
+ * The innings this device opens when innings `inningsNumber` ends offline,
+ * as the server will (`advanceAfterInnings`): its batting side and target.
+ * Null when that end decides the match (a chase, a win by an innings),
+ * which only the server settles. `runs`: the ending innings' total.
+ */
+export function nextInningsOnDevice(
+  match: DeviceInningsMatch,
+  inningsNumber: number,
+  runs: number,
+): { teamId: string; target: number | null } | null {
+  if (isChaseInnings(match, inningsNumber)) return null;
+  const innings = match.innings ?? [];
+  const other = (id: string) =>
+    id === match.team1_id ? match.team2_id : match.team1_id;
+  const current = innings.find((i) => i.innings_number === inningsNumber);
+  const before = innings.find((i) => i.innings_number === inningsNumber - 1);
+  const teamId =
+    current?.team_id ??
+    (before?.team_id ? other(before.team_id) : match.team1_id);
+  if (isTwoInningsMatch(match) && !isSuperOverInnings(match, inningsNumber)) {
+    const next = nextAfterInnings(
+      { team_id: teamId, innings_number: inningsNumber, total_runs: runs },
+      innings,
+      other,
+    );
+    return next.kind === "next"
+      ? { teamId: next.teamId, target: next.target }
+      : null;
+  }
+  return { teamId: other(teamId), target: runs + 1 };
 }
 
 /**

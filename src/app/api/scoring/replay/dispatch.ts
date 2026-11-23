@@ -10,6 +10,7 @@ import "server-only";
 import {
   awardTeamPenalty,
   correctOverBowler,
+  drawMatch,
   endInnings,
   reassignCurrentOverBowler,
   recordBall,
@@ -17,6 +18,7 @@ import {
   retirePlayer,
   setCurrentBatsmen,
   setCurrentBowler,
+  setFollowOn,
   startSuperOver,
   swapBatters,
   undoLastBall,
@@ -78,8 +80,19 @@ async function run(
       return withDelta(await undoLastBall(matchId, id));
     case "endInnings":
       return withoutDelta(
-        await endInnings(matchId, id, action.payload.inningsNumber ?? null),
+        await endInnings(
+          matchId,
+          id,
+          action.payload.inningsNumber ?? null,
+          action.payload.declared === true,
+        ),
       );
+    case "setFollowOn":
+      return withoutDelta(
+        await setFollowOn(matchId, action.payload.enforce, id),
+      );
+    case "drawMatch":
+      return withoutDelta(await drawMatch(matchId, id));
     case "startSuperOver":
       return withoutDelta(await startSuperOver(matchId, id));
     case "setBatsmen":

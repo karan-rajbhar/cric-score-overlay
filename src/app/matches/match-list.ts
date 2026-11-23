@@ -25,7 +25,7 @@ const COLUMNS = `
   *,
   tournament_snapshot,
   club_snapshot,
-  innings(id, team_id, innings_number, total_runs, total_wickets, total_overs, is_completed)
+  innings(id, team_id, innings_number, total_runs, total_wickets, total_overs, is_completed, declared, follow_on)
 `;
 
 /**

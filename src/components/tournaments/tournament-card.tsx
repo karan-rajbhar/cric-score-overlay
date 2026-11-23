@@ -28,6 +28,7 @@ export function TournamentCard({
     match_format?: string | null;
     overs_per_innings?: number | null;
     custom_overs?: number | null;
+    match_days?: number | null;
     venue?: string | null;
     start_date?: string | null;
     end_date?: string | null;

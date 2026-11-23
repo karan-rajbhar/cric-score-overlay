@@ -239,7 +239,7 @@ function BottomBug({ live, offset }: { live: Live; offset: number }) {
             tone={sides.batting.tone}
             logo={sides.batting.logo}
             code={sides.batting.code}
-            detail={inningsShort(state.innings_number)}
+            detail={inningsShort(state.innings_number, state)}
             delay={120}
           />
           <RunsBlock state={state} delay={160} />
@@ -266,7 +266,7 @@ function SplitBug({ live }: { live: Live }) {
             tone={sides.batting.tone}
             logo={sides.batting.logo}
             code={sides.batting.code}
-            detail={inningsShort(state.innings_number)}
+            detail={inningsShort(state.innings_number, state)}
             delay={120}
           />
           <RunsBlock state={state} delay={160} />
@@ -349,7 +349,7 @@ function CompactBug({ live, offset }: { live: Live; offset: number }) {
         <Block tone={sides.batting.tone} className="flex h-14 items-center justify-between px-5">
           <Name size={30}>{sides.batting.code}</Name>
           <Label size={18} color={mutedOn(sides.batting.tone)}>
-            {inningsShort(state.innings_number)}
+            {inningsShort(state.innings_number, state)}
           </Label>
         </Block>
         <Block tone="paper" className="flex h-[104px] items-end px-6 pb-3">
